@@ -1,12 +1,15 @@
-import React, { useState, useEffect, useRef, useCallback, useReducer } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 
 // ─────────────────────────────────────────────
 // CONSTANTS
 // ─────────────────────────────────────────────
+const BASE_RADIUS = 30;
+
 const RARITY = {
-  COMMON:   { name: "common",   chance: 0.70, color: "#a78bfa", glow: "#7c3aed", mult: 1,  size: 1.0, label: ""        },
-  UNCOMMON: { name: "uncommon", chance: 0.25, color: "#34d399", glow: "#059669", mult: 2,  size: 1.2, label: "BONUS x2" },
-  RARE:     { name: "rare",     chance: 0.05, color: "#fbbf24", glow: "#d97706", mult: 5,  size: 1.5, label: "RARE x5"  },
+  COMMON:   { name: "common",   chance: 0.65, color: "#a78bfa", glow: "#7c3aed", mult: 1,  size: 1.0, label: ""           },
+  UNCOMMON: { name: "uncommon", chance: 0.22, color: "#34d399", glow: "#059669", mult: 2,  size: 1.2, label: "BONUS x2"   },
+  RARE:     { name: "rare",     chance: 0.10, color: "#fbbf24", glow: "#d97706", mult: 5,  size: 1.5, label: "RARE x5"    },
+  EPIC:     { name: "epic",     chance: 0.03, color: "#f472b6", glow: "#db2777", mult: 15, size: 1.8, label: "EPIC x15"   },
 };
 
 const THEMES = [
@@ -14,1311 +17,151 @@ const THEMES = [
   { id: "cyber",  name: "Cyber Blue",  bg: "#051520", accent: "#22d3ee", secondary: "#0e7490", unlockLevel: 5  },
   { id: "fire",   name: "Fire",        bg: "#1a0a00", accent: "#f97316", secondary: "#b45309", unlockLevel: 10 },
   { id: "matrix", name: "Matrix",      bg: "#001a00", accent: "#4ade80", secondary: "#166534", unlockLevel: 20 },
-  { id: "gold",   name: "Gold",        bg: "#1a1400", accent: "#fbbf24", secondary: "#b45309", unlockLevel: 30 },
+  { id: "gold",   name: "Gold",        bg: "#1a1400", accent: "#fbbf24", secondary: "#92400e", unlockLevel: 30 },
 ];
 
 const ACHIEVEMENTS = [
-  { id: "first_tap",    label: "First Blood",      desc: "Tap your first target",           icon: "👆" },
-  { id: "streak_10",   label: "On Fire",           desc: "Reach a 10-tap streak",           icon: "🔥" },
-  { id: "streak_50",   label: "Unstoppable",       desc: "Reach a 50-tap streak",           icon: "⚡" },
-  { id: "first_rare",  label: "Lucky",             desc: "Hit your first rare target",      icon: "⭐" },
-  { id: "level_5",     label: "Rising",            desc: "Reach level 5",                   icon: "📈" },
-  { id: "level_10",    label: "Veteran",           desc: "Reach level 10",                  icon: "🏆" },
-  { id: "score_1k",    label: "One Grand",         desc: "Score 1,000 points",              icon: "💎" },
-  { id: "score_10k",   label: "Ten K",             desc: "Score 10,000 points",             icon: "👑" },
-  { id: "daily_done",  label: "Daily Grind",       desc: "Complete a daily challenge",      icon: "📅" },
-  { id: "login_7",     label: "Faithful",          desc: "7-day login streak",              icon: "🗓️" },
-  { id: "combo_20",    label: "Combo Master",      desc: "Reach a 20x combo",               icon: "💥" },
+  { id: "first_tap",    label: "First Blood",    desc: "Tap your first target",          icon: "👆" },
+  { id: "streak_10",    label: "On Fire",         desc: "Reach a 10-tap streak",          icon: "🔥" },
+  { id: "streak_50",    label: "Unstoppable",     desc: "Reach a 50-tap streak",          icon: "⚡" },
+  { id: "first_rare",   label: "Lucky",           desc: "Hit your first rare target",     icon: "⭐" },
+  { id: "first_epic",   label: "Legendary",       desc: "Hit your first epic target",     icon: "💎" },
+  { id: "level_5",      label: "Rising",          desc: "Reach level 5",                  icon: "📈" },
+  { id: "level_10",     label: "Veteran",         desc: "Reach level 10",                 icon: "🏆" },
+  { id: "score_500",    label: "High Scorer",     desc: "Score 500 in one game",          icon: "💯" },
+  { id: "score_2000",   label: "Master",          desc: "Score 2000 in one game",         icon: "🎯" },
+  { id: "fever_mode",   label: "Fever!",          desc: "Trigger Fever Mode",             icon: "🌡️" },
+  { id: "powerup_use",  label: "Power Hungry",    desc: "Use your first power-up",        icon: "⚡" },
+  { id: "missions_all", label: "Daily Champion",  desc: "Complete all 3 daily missions",  icon: "📋" },
 ];
 
-const XP_PER_LEVEL = (lvl) => Math.floor(100 * Math.pow(1.4, lvl - 1));
-const BASE_TARGET_RADIUS = 36;
-const MAX_LIVES = 3;
-const COMBO_WINDOW_MS = 2000;
+const MISSION_TEMPLATES = [
+  { id: "tap_30",          desc: "Tap 30 targets",          key: "tapsTotal",        goal: 30  },
+  { id: "combo_10",        desc: "Reach a 10x combo",       key: "bestCombo",        goal: 10  },
+  { id: "score_500",       desc: "Score 500 points",        key: "score",            goal: 500 },
+  { id: "hit_3_rare",      desc: "Hit 3 rare/epic targets", key: "rareHits",         goal: 3   },
+  { id: "survive_60",      desc: "Survive 60 seconds",      key: "timeSurvived",     goal: 60  },
+  { id: "fever_1",         desc: "Trigger Fever Mode",      key: "feverCount",       goal: 1   },
+  { id: "powerup_3",       desc: "Collect 3 power-ups",     key: "powerupCollected", goal: 3   },
+];
+
+const XP_PER_LEVEL   = 100;
+const FEVER_STREAK   = 15;
+const FEVER_DURATION = 8000;
 
 // ─────────────────────────────────────────────
-// SEEDED RANDOM (for daily challenge)
+// AUDIO ENGINE
 // ─────────────────────────────────────────────
+function createAudio() {
+  let ctx = null;
+  const getCtx = () => {
+    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    return ctx;
+  };
+  const tone = (freq, type, dur, vol = 0.3, delay = 0) => {
+    try {
+      const c = getCtx();
+      const o = c.createOscillator();
+      const g = c.createGain();
+      o.connect(g); g.connect(c.destination);
+      o.type = type;
+      o.frequency.setValueAtTime(freq, c.currentTime + delay);
+      g.gain.setValueAtTime(vol, c.currentTime + delay);
+      g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + delay + dur);
+      o.start(c.currentTime + delay);
+      o.stop(c.currentTime + delay + dur + 0.05);
+    } catch {}
+  };
+  return {
+    tap:        () => { tone(520, "sine",     0.1,  0.25); tone(780,  "sine",     0.08, 0.1,  0.05); },
+    miss:       () => { tone(200, "sawtooth", 0.3,  0.2);  },
+    rare:       () => { tone(660, "sine", 0.15, 0.3); tone(880,  "sine", 0.15, 0.25, 0.08); tone(1100, "sine", 0.12, 0.2, 0.16); },
+    epic:       () => { [440, 554, 659, 880, 1108].forEach((f, i) => tone(f, "sine", 0.25, 0.3, i * 0.07)); },
+    bomb:       () => { tone(120, "sawtooth", 0.4,  0.35); tone(80,   "sawtooth", 0.3,  0.25, 0.1); },
+    bombHit:    () => { tone(100, "sawtooth", 0.5,  0.4);  tone(60,   "sawtooth", 0.3,  0.3,  0.15); },
+    powerUp:    () => { [440, 554, 659, 880].forEach((f, i) => tone(f, "sine", 0.15, 0.25, i * 0.06)); },
+    feverStart: () => { [440, 554, 659, 880].forEach((f, i) => tone(f, "square", 0.12, 0.2, i * 0.05)); },
+    feverEnd:   () => { [880, 659, 554, 440].forEach((f, i) => tone(f, "sine",   0.12, 0.2, i * 0.06)); },
+    levelUp:    () => { [523, 659, 784, 1047].forEach((f, i) => tone(f, "sine",  0.15, 0.3, i * 0.08)); },
+  };
+}
+
+// ─────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────
+function getRarity() {
+  const r = Math.random();
+  let cumul = 0;
+  for (const v of Object.values(RARITY)) {
+    cumul += v.chance;
+    if (r < cumul) return v;
+  }
+  return RARITY.COMMON;
+}
+
+function getLevelFromXP(xp)  { return Math.floor(xp / XP_PER_LEVEL) + 1; }
+
 function seededRng(seed) {
   let s = seed;
-  return () => {
-    s = (s * 1664525 + 1013904223) & 0xffffffff;
-    return (s >>> 0) / 0xffffffff;
-  };
+  return () => { s = (s * 1664525 + 1013904223) & 0xffffffff; return (s >>> 0) / 0xffffffff; };
 }
 
-function getTodaySeed() {
+function getDailyMissions() {
   const d = new Date();
-  return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+  const seed = d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+  const rng  = seededRng(seed);
+  return [...MISSION_TEMPLATES].sort(() => rng() - 0.5).slice(0, 3);
 }
 
-function getTodayString() {
+function getTodayKey() {
   const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 }
 
-// ─────────────────────────────────────────────
-// WEB AUDIO ENGINE
-// ─────────────────────────────────────────────
-class AudioEngine {
-  constructor() {
-    this.ctx = null;
-    this.enabled = true;
-  }
-  init() {
-    if (this.ctx) return;
-    try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (_) {}
-  }
-  _play(freq, type, duration, gain = 0.3, delay = 0) {
-    if (!this.enabled || !this.ctx) return;
-    try {
-      const osc = this.ctx.createOscillator();
-      const gainNode = this.ctx.createGain();
-      osc.connect(gainNode);
-      gainNode.connect(this.ctx.destination);
-      osc.type = type;
-      osc.frequency.setValueAtTime(freq, this.ctx.currentTime + delay);
-      gainNode.gain.setValueAtTime(gain, this.ctx.currentTime + delay);
-      gainNode.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + delay + duration);
-      osc.start(this.ctx.currentTime + delay);
-      osc.stop(this.ctx.currentTime + delay + duration);
-    } catch (_) {}
-  }
-  pop(rarity = "common") {
-    this.init();
-    const freqs = { common: 520, uncommon: 660, rare: 880 };
-    this._play(freqs[rarity] || 520, "sine", 0.12, 0.25);
-    if (rarity === "rare") {
-      this._play(1100, "sine", 0.2, 0.2, 0.1);
-      this._play(1320, "sine", 0.15, 0.15, 0.2);
-    }
-  }
-  streak(count) {
-    this.init();
-    const base = 300 + Math.min(count * 15, 400);
-    this._play(base, "square", 0.08, 0.15);
-  }
-  miss() {
-    this.init();
-    this._play(120, "sawtooth", 0.25, 0.35);
-    this._play(90, "sawtooth", 0.2, 0.2, 0.1);
-  }
-  levelUp() {
-    this.init();
-    [440, 554, 659, 880].forEach((f, i) => this._play(f, "sine", 0.3, 0.3, i * 0.12));
-  }
-  achievement() {
-    this.init();
-    [660, 880, 1100, 1320].forEach((f, i) => this._play(f, "triangle", 0.25, 0.3, i * 0.1));
-  }
-  combo(mult) {
-    this.init();
-    const freq = 220 * mult;
-    this._play(Math.min(freq, 1200), "sine", 0.1, 0.2);
-  }
-}
+const DEFAULT_SAVE = {
+  highScore: 0, xp: 0, bestStreak: 0,
+  unlockedAchievements: [],
+  themeId: "neon", soundEnabled: true,
+  scores: [],
+  lastLoginDate: null,
+  missionDate: null, missionProgress: {}, missionCompleted: false,
+};
 
-const audio = new AudioEngine();
-
-// ─────────────────────────────────────────────
-// PARTICLE HELPERS
-// ─────────────────────────────────────────────
-let _uid = 0;
-const uid = () => ++_uid;
-
-function spawnParticles(x, y, color, count = 8) {
-  return Array.from({ length: count }, () => ({
-    id: uid(),
-    x, y,
-    vx: (Math.random() - 0.5) * 8,
-    vy: (Math.random() - 0.7) * 9,
-    life: 1,
-    color,
-    size: 3 + Math.random() * 5,
-  }));
-}
-
-function spawnFloatingText(x, y, text, color) {
-  return { id: uid(), x, y, text, color, life: 1, vy: -2 };
-}
-
-// ─────────────────────────────────────────────
-// LOCALSTORAGE HELPERS
-// ─────────────────────────────────────────────
-const LS_KEY = "nexustap_v2";
 function loadSave() {
   try {
-    const raw = localStorage.getItem(LS_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch (_) { return null; }
-}
-function writeSave(data) {
-  try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch (_) {}
+    const raw = localStorage.getItem("nexustap_v3");
+    if (raw) return { ...DEFAULT_SAVE, ...JSON.parse(raw) };
+  } catch {}
+  return { ...DEFAULT_SAVE };
 }
 
-function defaultSave() {
-  return {
-    highScore: 0,
-    level: 1,
-    xp: 0,
-    totalGames: 0,
-    loginStreak: 0,
-    lastLoginDate: null,
-    lastDailyDate: null,
-    bestDailyScore: 0,
-    achievements: [],
-    unlockedThemes: ["neon"],
-    selectedTheme: "neon",
-    leaderboard: [],
-    dailyCalendarDay: 0,
-    lastCalendarDate: null,
-    loginStreak7Notified: false,
-  };
+function vibrate(pattern) {
+  try { if (navigator.vibrate) navigator.vibrate(pattern); } catch {}
 }
 
 // ─────────────────────────────────────────────
-// MAIN COMPONENT
+// NEON BUTTON
 // ─────────────────────────────────────────────
-export default function NexusTap() {
-  // ── Persistent save ──
-  const [save, setSave] = useState(() => {
-    const s = loadSave();
-    return s ? { ...defaultSave(), ...s } : defaultSave();
-  });
-
-  // Update save and persist
-  const updateSave = useCallback((patch) => {
-    setSave((prev) => {
-      const next = { ...prev, ...patch };
-      writeSave(next);
-      return next;
-    });
-  }, []);
-
-  // ── Theme ──
-  const theme = THEMES.find((t) => t.id === save.selectedTheme) || THEMES[0];
-
-  // ── Screen: menu | playing | gameover | achievements | leaderboard | daily | settings ──
-  const [screen, setScreen] = useState("menu");
-  const [isDailyMode, setIsDailyMode] = useState(false);
-
-  // ── Game state ──
-  const [score, setScore] = useState(0);
-  const [lives, setLives] = useState(MAX_LIVES);
-  const [streak, setStreak] = useState(0);
-  const [combo, setCombo] = useState(1);
-  const [targets, setTargets] = useState([]);
-  const [particles, setParticles] = useState([]);
-  const [floatingTexts, setFloatingTexts] = useState([]);
-  const [shakeFrame, setShakeFrame] = useState(0);
-  const [showLevelUp, setShowLevelUp] = useState(null);
-  const [showAchievement, setShowAchievement] = useState(null);
-  const [gameOver, setGameOver] = useState(false);
-  const [finalScore, setFinalScore] = useState(0);
-  const [shareText, setShareText] = useState("");
-
-  // Session-level XP tracking
-  const sessionXpRef = useRef(0);
-  const scoreRef = useRef(0);
-  const livesRef = useRef(MAX_LIVES);
-  const streakRef = useRef(0);
-  const comboRef = useRef(1);
-  const lastTapRef = useRef(0);
-  const comboTimerRef = useRef(null);
-  const rafRef = useRef(null);
-  const targetsRef = useRef([]);
-  const spawnTimerRef = useRef(null);
-  const difficultyRef = useRef(1);
-  const gameActiveRef = useRef(false);
-  const saveRef = useRef(save);
-
-  useEffect(() => { saveRef.current = save; }, [save]);
-
-  // ── Daily login streak update ──
-  useEffect(() => {
-    const today = getTodayString();
-    const lastLogin = save.lastLoginDate;
-    if (lastLogin === today) return;
-
-    const yesterday = (() => {
-      const d = new Date(); d.setDate(d.getDate() - 1);
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    })();
-
-    const newStreak = lastLogin === yesterday ? save.loginStreak + 1 : 1;
-
-    // Daily calendar
-    const calendarDay = save.lastCalendarDate === yesterday
-      ? Math.min(save.dailyCalendarDay + 1, 7)
-      : 1;
-
-    const newAchievements = [...save.achievements];
-    if (newStreak >= 7 && !newAchievements.includes("login_7")) {
-      newAchievements.push("login_7");
-    }
-
-    updateSave({
-      loginStreak: newStreak,
-      lastLoginDate: today,
-      dailyCalendarDay: calendarDay,
-      lastCalendarDate: today,
-      achievements: newAchievements,
-    });
-  }, []); // eslint-disable-line
-
-  // ─────────────────────────────────────────────
-  // DIFFICULTY
-  // ─────────────────────────────────────────────
-  function getDifficulty(lvl, roundsPlayed) {
-    const base = 1 + (lvl - 1) * 0.15 + roundsPlayed * 0.01;
-    return Math.min(base, 5);
-  }
-
-  function getSpawnInterval(diff) {
-    return Math.max(600, 1800 - diff * 200);
-  }
-
-  function getTargetLifetime(diff) {
-    return Math.max(1000, 3200 - diff * 300);
-  }
-
-  // ─────────────────────────────────────────────
-  // RARITY ROLL
-  // ─────────────────────────────────────────────
-  function rollRarity(rng = Math.random) {
-    const r = rng();
-    if (r < RARITY.RARE.chance) return RARITY.RARE;
-    if (r < RARITY.RARE.chance + RARITY.UNCOMMON.chance) return RARITY.UNCOMMON;
-    return RARITY.COMMON;
-  }
-
-  // ─────────────────────────────────────────────
-  // SPAWN TARGET
-  // ─────────────────────────────────────────────
-  const roundsPlayedRef = useRef(0);
-
-  function spawnTarget(rng = Math.random) {
-    const rarity = rollRarity(rng);
-    const diff = difficultyRef.current;
-    const lifetime = getTargetLifetime(diff);
-    const margin = 60;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const r = BASE_TARGET_RADIUS * rarity.size;
-
-    return {
-      id: uid(),
-      x: margin + rng() * (vw - margin * 2),
-      y: 120 + rng() * (vh - 240),
-      radius: r,
-      rarity,
-      value: Math.floor((10 + Math.floor(diff * 5)) * rarity.mult),
-      timeLeft: lifetime,
-      maxTime: lifetime,
-      born: Date.now(),
-    };
-  }
-
-  // ─────────────────────────────────────────────
-  // GAME LOOP
-  // ─────────────────────────────────────────────
-  const lastFrameRef = useRef(0);
-
-  const gameLoop = useCallback((ts) => {
-    if (!gameActiveRef.current) return;
-    const dt = Math.min(ts - lastFrameRef.current, 100);
-    lastFrameRef.current = ts;
-
-    // Update targets
-    let missed = false;
-    const nextTargets = targetsRef.current
-      .map((t) => ({ ...t, timeLeft: t.timeLeft - dt }))
-      .filter((t) => {
-        if (t.timeLeft <= 0) {
-          missed = true;
-          return false;
-        }
-        return true;
-      });
-
-    if (missed) {
-      livesRef.current = Math.max(0, livesRef.current - 1);
-      setLives(livesRef.current);
-      streakRef.current = 0;
-      setStreak(0);
-      comboRef.current = 1;
-      setCombo(1);
-      audio.miss();
-      setShakeFrame((f) => f + 1);
-      if (livesRef.current <= 0) {
-        endGame();
-        return;
-      }
-    }
-
-    targetsRef.current = nextTargets;
-    setTargets([...nextTargets]);
-
-    // Update particles
-    setParticles((prev) =>
-      prev
-        .map((p) => ({ ...p, x: p.x + p.vx, y: p.y + p.vy, vy: p.vy + 0.35, life: p.life - 0.035 }))
-        .filter((p) => p.life > 0)
-    );
-
-    // Update floating texts
-    setFloatingTexts((prev) =>
-      prev
-        .map((ft) => ({ ...ft, y: ft.y + ft.vy, life: ft.life - 0.03 }))
-        .filter((ft) => ft.life > 0)
-    );
-
-    rafRef.current = requestAnimationFrame(gameLoop);
-  }, []);
-
-  // ─────────────────────────────────────────────
-  // SPAWN LOOP
-  // ─────────────────────────────────────────────
-  const doSpawn = useCallback((rng = Math.random) => {
-    if (!gameActiveRef.current) return;
-    const diff = difficultyRef.current;
-    // Spawn 1-2 targets depending on difficulty
-    const count = diff > 3 ? 2 : 1;
-    const newTargets = Array.from({ length: count }, () => spawnTarget(rng));
-    targetsRef.current = [...targetsRef.current, ...newTargets];
-    setTargets([...targetsRef.current]);
-    roundsPlayedRef.current += 1;
-    difficultyRef.current = getDifficulty(saveRef.current.level, roundsPlayedRef.current);
-
-    spawnTimerRef.current = setTimeout(() => doSpawn(rng), getSpawnInterval(diff));
-  }, []);
-
-  // ─────────────────────────────────────────────
-  // CHECK ACHIEVEMENTS
-  // ─────────────────────────────────────────────
-  function checkAchievements(newScore, newStreak, newCombo, newLevel, rarityName, currentAchievements) {
-    const earned = [];
-    const has = (id) => currentAchievements.includes(id);
-    if (!has("first_tap")) earned.push("first_tap");
-    if (newStreak >= 10 && !has("streak_10")) earned.push("streak_10");
-    if (newStreak >= 50 && !has("streak_50")) earned.push("streak_50");
-    if (rarityName === "rare" && !has("first_rare")) earned.push("first_rare");
-    if (newLevel >= 5 && !has("level_5")) earned.push("level_5");
-    if (newLevel >= 10 && !has("level_10")) earned.push("level_10");
-    if (newScore >= 1000 && !has("score_1k")) earned.push("score_1k");
-    if (newScore >= 10000 && !has("score_10k")) earned.push("score_10k");
-    if (newCombo >= 20 && !has("combo_20")) earned.push("combo_20");
-    return earned;
-  }
-
-  // ─────────────────────────────────────────────
-  // TAP TARGET
-  // ─────────────────────────────────────────────
-  const handleTap = useCallback((targetId, tx, ty, rarityKey, value) => {
-    if (!gameActiveRef.current) return;
-
-    // Remove target
-    targetsRef.current = targetsRef.current.filter((t) => t.id !== targetId);
-
-    // Combo
-    const now = Date.now();
-    if (now - lastTapRef.current < COMBO_WINDOW_MS) {
-      comboRef.current = Math.min(comboRef.current + 1, 20);
-    } else {
-      comboRef.current = 1;
-    }
-    lastTapRef.current = now;
-    setCombo(comboRef.current);
-
-    if (comboTimerRef.current) clearTimeout(comboTimerRef.current);
-    comboTimerRef.current = setTimeout(() => {
-      comboRef.current = 1;
-      setCombo(1);
-    }, COMBO_WINDOW_MS);
-
-    audio.pop(rarityKey);
-    if (comboRef.current > 1) audio.combo(comboRef.current);
-
-    // Score
-    const points = value * comboRef.current;
-    scoreRef.current += points;
-    setScore(scoreRef.current);
-
-    // Streak
-    streakRef.current += 1;
-    setStreak(streakRef.current);
-    audio.streak(streakRef.current);
-
-    // XP
-    const xpGain = Math.floor(points / 5) + 1;
-    sessionXpRef.current += xpGain;
-
-    // Level up check
-    let curLevel = saveRef.current.level;
-    let curXp = saveRef.current.xp + xpGain;
-    let leveledUp = false;
-    while (curXp >= XP_PER_LEVEL(curLevel)) {
-      curXp -= XP_PER_LEVEL(curLevel);
-      curLevel += 1;
-      leveledUp = true;
-    }
-
-    // Unlock themes
-    const newUnlocked = [...saveRef.current.unlockedThemes];
-    THEMES.forEach((t) => {
-      if (curLevel >= t.unlockLevel && !newUnlocked.includes(t.id)) {
-        newUnlocked.push(t.id);
-      }
-    });
-
-    if (leveledUp) {
-      audio.levelUp();
-      setShowLevelUp(curLevel);
-      setTimeout(() => setShowLevelUp(null), 2500);
-    }
-
-    // Achievements
-    const earned = checkAchievements(
-      scoreRef.current,
-      streakRef.current,
-      comboRef.current,
-      curLevel,
-      rarityKey,
-      saveRef.current.achievements
-    );
-    const newAchievements = [...saveRef.current.achievements, ...earned];
-
-    if (earned.length > 0) {
-      audio.achievement();
-      const ach = ACHIEVEMENTS.find((a) => a.id === earned[0]);
-      setShowAchievement(ach);
-      setTimeout(() => setShowAchievement(null), 3000);
-    }
-
-    updateSave({
-      level: curLevel,
-      xp: curXp,
-      unlockedThemes: newUnlocked,
-      achievements: newAchievements,
-    });
-
-    // Particles & floating text
-    const rarityData = Object.values(RARITY).find((r) => r.name === rarityKey) || RARITY.COMMON;
-    const pCount = rarityKey === "rare" ? 16 : rarityKey === "uncommon" ? 10 : 6;
-    setParticles((prev) => [...prev, ...spawnParticles(tx, ty, rarityData.color, pCount)]);
-
-    const label = comboRef.current > 1 ? `+${points} x${comboRef.current}` : `+${points}`;
-    setFloatingTexts((prev) => [...prev, spawnFloatingText(tx, ty - 20, label, rarityData.color)]);
-  }, [updateSave]);
-
-  // ─────────────────────────────────────────────
-  // END GAME
-  // ─────────────────────────────────────────────
-  function endGame() {
-    gameActiveRef.current = false;
-    cancelAnimationFrame(rafRef.current);
-    clearTimeout(spawnTimerRef.current);
-    clearTimeout(comboTimerRef.current);
-
-    const sc = scoreRef.current;
-    const newHigh = Math.max(sc, saveRef.current.highScore);
-
-    // Leaderboard
-    const entry = { name: "YOU", score: sc, date: getTodayString() };
-    const lb = [entry, ...saveRef.current.leaderboard]
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 10);
-
-    // Daily mode
-    let dailyPatch = {};
-    if (isDailyMode) {
-      const newBest = Math.max(sc, saveRef.current.bestDailyScore);
-      const newAch = [...saveRef.current.achievements];
-      if (!newAch.includes("daily_done")) newAch.push("daily_done");
-      dailyPatch = {
-        lastDailyDate: getTodayString(),
-        bestDailyScore: newBest,
-        achievements: newAch,
-      };
-    }
-
-    updateSave({
-      highScore: newHigh,
-      totalGames: saveRef.current.totalGames + 1,
-      leaderboard: lb,
-      ...dailyPatch,
-    });
-
-    // Share text
-    const streakEmojis = Array.from({ length: Math.min(streakRef.current, 9) }, (_, i) =>
-      i < 3 ? "🟩" : i < 6 ? "🟨" : "⬜"
-    ).join("");
-    setShareText(`NEXUS TAP\nScore: ${sc.toLocaleString()}\nStreak: ${streakRef.current} ${streakEmojis}\nPlay now!`);
-
-    setFinalScore(sc);
-    setGameOver(true);
-    setScreen("gameover");
-  }
-
-  // ─────────────────────────────────────────────
-  // START GAME
-  // ─────────────────────────────────────────────
-  function startGame(daily = false) {
-    // Reset state
-    scoreRef.current = 0;
-    livesRef.current = MAX_LIVES;
-    streakRef.current = 0;
-    comboRef.current = 1;
-    lastTapRef.current = 0;
-    roundsPlayedRef.current = 0;
-    sessionXpRef.current = 0;
-    difficultyRef.current = getDifficulty(save.level, 0);
-    targetsRef.current = [];
-    gameActiveRef.current = true;
-
-    setScore(0);
-    setLives(MAX_LIVES);
-    setStreak(0);
-    setCombo(1);
-    setTargets([]);
-    setParticles([]);
-    setFloatingTexts([]);
-    setGameOver(false);
-    setIsDailyMode(daily);
-    setScreen("playing");
-
-    // Start loops
-    lastFrameRef.current = performance.now();
-    rafRef.current = requestAnimationFrame(gameLoop);
-
-    const rng = daily ? seededRng(getTodaySeed()) : Math.random;
-    spawnTimerRef.current = setTimeout(() => doSpawn(rng), 500);
-  }
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      cancelAnimationFrame(rafRef.current);
-      clearTimeout(spawnTimerRef.current);
-      clearTimeout(comboTimerRef.current);
-    };
-  }, []);
-
-  // ─────────────────────────────────────────────
-  // RENDER
-  // ─────────────────────────────────────────────
-  const xpPercent = Math.min(100, Math.floor((save.xp / XP_PER_LEVEL(save.level)) * 100));
-
-  return (
-    <div
-      className="fixed inset-0 overflow-hidden select-none touch-none"
-      style={{ background: theme.bg, fontFamily: "'Inter', 'Segoe UI', sans-serif" }}
-    >
-      {screen === "menu"         && <MenuScreen    save={save} theme={theme} updateSave={updateSave} startGame={startGame} setScreen={setScreen} xpPercent={xpPercent} />}
-      {screen === "playing"      && <GameScreen    save={save} theme={theme} score={score} lives={lives} streak={streak} combo={combo} targets={targets} particles={particles} floatingTexts={floatingTexts} shakeFrame={shakeFrame} showLevelUp={showLevelUp} showAchievement={showAchievement} xpPercent={xpPercent} handleTap={handleTap} isDailyMode={isDailyMode} />}
-      {screen === "gameover"     && <GameOverScreen save={save} theme={theme} finalScore={finalScore} streak={streakRef.current} shareText={shareText} startGame={startGame} setScreen={setScreen} isDailyMode={isDailyMode} />}
-      {screen === "achievements" && <AchievementsScreen save={save} theme={theme} setScreen={setScreen} />}
-      {screen === "leaderboard"  && <LeaderboardScreen  save={save} theme={theme} setScreen={setScreen} />}
-      {screen === "settings"     && <SettingsScreen     save={save} theme={theme} updateSave={updateSave} setScreen={setScreen} />}
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────
-// MENU SCREEN
-// ─────────────────────────────────────────────
-function MenuScreen({ save, theme, updateSave, startGame, setScreen, xpPercent }) {
-  const todayDone = save.lastDailyDate === getTodayString();
-  const [pulseKey, setPulseKey] = useState(0);
-
-  useEffect(() => {
-    const t = setInterval(() => setPulseKey((k) => k + 1), 2000);
-    return () => clearInterval(t);
-  }, []);
-
-  return (
-    <div className="flex flex-col items-center justify-between h-full py-8 px-4">
-      {/* Logo */}
-      <div className="flex flex-col items-center mt-4">
-        <div
-          className="text-6xl font-black tracking-tighter mb-1"
-          style={{
-            color: theme.accent,
-            textShadow: `0 0 30px ${theme.accent}88, 0 0 60px ${theme.accent}44`,
-            animation: "pulse 2s infinite",
-          }}
-        >
-          NEXUS
-        </div>
-        <div className="text-2xl font-bold tracking-[0.4em]" style={{ color: theme.secondary }}>
-          TAP
-        </div>
-
-        {/* Level + XP */}
-        <div className="mt-3 w-48">
-          <div className="flex justify-between text-xs mb-1" style={{ color: theme.accent }}>
-            <span>LVL {save.level}</span>
-            <span>{xpPercent}%</span>
-          </div>
-          <div className="h-2 rounded-full overflow-hidden" style={{ background: `${theme.accent}22` }}>
-            <div
-              className="h-full rounded-full transition-all duration-700"
-              style={{ width: `${xpPercent}%`, background: theme.accent, boxShadow: `0 0 8px ${theme.accent}` }}
-            />
-          </div>
-        </div>
-
-        {/* High score */}
-        <div className="mt-3 text-center">
-          <div className="text-xs uppercase tracking-widest" style={{ color: `${theme.accent}88` }}>Best</div>
-          <div className="text-3xl font-black" style={{ color: theme.accent }}>
-            {save.highScore.toLocaleString()}
-          </div>
-        </div>
-      </div>
-
-      {/* Buttons */}
-      <div className="flex flex-col gap-3 w-full max-w-xs">
-        <NeonButton color={theme.accent} onClick={() => startGame(false)} large>
-          PLAY
-        </NeonButton>
-
-        <NeonButton
-          color={todayDone ? `${theme.accent}55` : "#fbbf24"}
-          onClick={() => !todayDone && startGame(true)}
-          disabled={todayDone}
-        >
-          {todayDone ? "✓ DAILY DONE" : "⭐ DAILY CHALLENGE"}
-        </NeonButton>
-
-        {/* Login streak calendar */}
-        <DailyCalendar save={save} theme={theme} />
-
-        <div className="flex gap-2">
-          <NeonButton color={theme.secondary} onClick={() => setScreen("leaderboard")} small>
-            🏆 SCORES
-          </NeonButton>
-          <NeonButton color={theme.secondary} onClick={() => setScreen("achievements")} small>
-            🎖️ ACHEIVS
-          </NeonButton>
-          <NeonButton color={theme.secondary} onClick={() => setScreen("settings")} small>
-            ⚙️ SET
-          </NeonButton>
-        </div>
-      </div>
-
-      {/* Login streak */}
-      <div className="text-xs" style={{ color: `${theme.accent}66` }}>
-        Login streak: {save.loginStreak} day{save.loginStreak !== 1 ? "s" : ""} 🔥
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────
-// DAILY CALENDAR
-// ─────────────────────────────────────────────
-function DailyCalendar({ save, theme }) {
-  const rewards = ["50", "100", "200", "300", "500", "750", "1K XP"];
-  return (
-    <div className="rounded-xl p-3" style={{ background: `${theme.accent}11`, border: `1px solid ${theme.accent}33` }}>
-      <div className="text-xs text-center mb-2 font-semibold" style={{ color: theme.accent }}>
-        DAILY REWARDS — DAY {save.dailyCalendarDay || 1} / 7
-      </div>
-      <div className="flex gap-1 justify-between">
-        {rewards.map((r, i) => {
-          const done = i < (save.dailyCalendarDay || 0);
-          const active = i === (save.dailyCalendarDay || 0);
-          return (
-            <div
-              key={i}
-              className="flex flex-col items-center rounded-lg py-1 px-1 flex-1"
-              style={{
-                background: done ? `${theme.accent}33` : active ? `${theme.accent}22` : "transparent",
-                border: active ? `1px solid ${theme.accent}` : "1px solid transparent",
-              }}
-            >
-              <div className="text-xs" style={{ color: done ? theme.accent : active ? theme.accent : `${theme.accent}44` }}>
-                {done ? "✓" : `D${i + 1}`}
-              </div>
-              <div className="text-xs font-bold" style={{ color: done ? theme.accent : `${theme.accent}55`, fontSize: 9 }}>
-                {r}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────
-// GAME SCREEN
-// ─────────────────────────────────────────────
-function GameScreen({
-  save, theme, score, lives, streak, combo, targets, particles, floatingTexts,
-  shakeFrame, showLevelUp, showAchievement, xpPercent, handleTap, isDailyMode,
-}) {
-  const shakeStyle = shakeFrame % 2 === 1
-    ? { animation: "shake 0.3s ease-out" }
-    : {};
-
-  return (
-    <div className="relative w-full h-full" style={shakeStyle}>
-      {/* HUD */}
-      <div className="absolute top-0 left-0 right-0 z-20 px-4 pt-safe-top pt-3">
-        <div className="flex items-start justify-between">
-          {/* Score */}
-          <div>
-            <div className="text-xs uppercase tracking-widest" style={{ color: `${theme.accent}88` }}>
-              {isDailyMode ? "⭐ DAILY" : "SCORE"}
-            </div>
-            <div
-              className="text-4xl font-black leading-none"
-              style={{ color: theme.accent, textShadow: `0 0 20px ${theme.accent}66` }}
-            >
-              {score.toLocaleString()}
-            </div>
-          </div>
-
-          {/* Streak + Lives */}
-          <div className="flex flex-col items-end gap-1">
-            <div className="flex gap-1">
-              {Array.from({ length: MAX_LIVES }).map((_, i) => (
-                <span key={i} style={{ fontSize: 18, opacity: i < lives ? 1 : 0.2 }}>❤️</span>
-              ))}
-            </div>
-            {streak > 0 && (
-              <div
-                className="flex items-center gap-1 rounded-full px-3 py-1"
-                style={{
-                  background: `${theme.accent}22`,
-                  border: `1px solid ${theme.accent}55`,
-                  color: theme.accent,
-                  boxShadow: streak > 10 ? `0 0 12px ${theme.accent}66` : "none",
-                }}
-              >
-                <span className="text-sm font-black">{streak}</span>
-                <span className="text-xs">streak</span>
-                {streak >= 10 && <span>🔥</span>}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Combo */}
-        {combo > 1 && (
-          <div className="flex justify-center mt-1">
-            <div
-              className="text-lg font-black px-4 py-1 rounded-full"
-              style={{
-                color: "#fbbf24",
-                background: "#fbbf2422",
-                border: "1px solid #fbbf2466",
-                textShadow: "0 0 15px #fbbf24",
-                animation: "pop 0.15s ease-out",
-              }}
-            >
-              {combo}x COMBO
-            </div>
-          </div>
-        )}
-
-        {/* XP bar */}
-        <div className="mt-2 h-1 rounded-full overflow-hidden" style={{ background: `${theme.accent}22` }}>
-          <div
-            className="h-full rounded-full transition-all duration-500"
-            style={{ width: `${xpPercent}%`, background: theme.accent }}
-          />
-        </div>
-      </div>
-
-      {/* Targets */}
-      {targets.map((t) => (
-        <Target key={t.id} target={t} theme={theme} onTap={handleTap} />
-      ))}
-
-      {/* Particles */}
-      <svg className="absolute inset-0 pointer-events-none z-10 w-full h-full">
-        {particles.map((p) => (
-          <circle
-            key={p.id}
-            cx={p.x} cy={p.y} r={p.size}
-            fill={p.color}
-            opacity={p.life}
-          />
-        ))}
-      </svg>
-
-      {/* Floating texts */}
-      {floatingTexts.map((ft) => (
-        <div
-          key={ft.id}
-          className="absolute pointer-events-none z-30 font-black text-sm"
-          style={{
-            left: ft.x, top: ft.y,
-            transform: "translateX(-50%)",
-            color: ft.color,
-            opacity: ft.life,
-            textShadow: `0 0 10px ${ft.color}`,
-          }}
-        >
-          {ft.text}
-        </div>
-      ))}
-
-      {/* Level up */}
-      {showLevelUp && (
-        <div className="absolute inset-0 flex items-center justify-center z-40 pointer-events-none">
-          <div
-            className="text-center"
-            style={{ animation: "levelUpAnim 2.5s ease-out forwards" }}
-          >
-            <div className="text-6xl">⚡</div>
-            <div className="text-3xl font-black mt-2" style={{ color: theme.accent, textShadow: `0 0 30px ${theme.accent}` }}>
-              LEVEL {showLevelUp}!
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Achievement toast */}
-      {showAchievement && (
-        <div
-          className="absolute left-4 right-4 z-50 rounded-2xl px-4 py-3 flex items-center gap-3"
-          style={{
-            bottom: 100,
-            background: `${theme.bg}ee`,
-            border: `2px solid ${theme.accent}`,
-            boxShadow: `0 0 30px ${theme.accent}66`,
-            animation: "slideUp 0.4s ease-out",
-          }}
-        >
-          <span className="text-3xl">{showAchievement.icon}</span>
-          <div>
-            <div className="font-black text-sm" style={{ color: theme.accent }}>ACHIEVEMENT UNLOCKED</div>
-            <div className="font-bold text-base" style={{ color: "#fff" }}>{showAchievement.label}</div>
-            <div className="text-xs" style={{ color: `${theme.accent}aa` }}>{showAchievement.desc}</div>
-          </div>
-        </div>
-      )}
-
-      <GlobalStyles />
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────
-// TARGET COMPONENT
-// ─────────────────────────────────────────────
-function Target({ target, theme, onTap }) {
-  const progress = target.timeLeft / target.maxTime;
-  const { rarity } = target;
-  const isRare = rarity.name === "rare";
-  const isUncommon = rarity.name === "uncommon";
-
-  const handleTouch = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const touch = e.changedTouches[0];
-    onTap(target.id, touch.clientX, touch.clientY, rarity.name, target.value);
-  };
-  const handleClick = (e) => {
-    e.stopPropagation();
-    onTap(target.id, e.clientX, e.clientY, rarity.name, target.value);
-  };
-
-  const r = target.radius;
-  const outerR = r;
-  const innerR = r * 0.72;
-  const timerR = r * 0.85;
-  const circum = 2 * Math.PI * timerR;
-  const dashOffset = circum * (1 - progress);
-
-  return (
-    <div
-      className="absolute"
-      style={{
-        left: target.x - r,
-        top: target.y - r,
-        width: r * 2,
-        height: r * 2,
-        cursor: "pointer",
-        willChange: "transform",
-        animation: isRare ? "rarePulse 0.8s ease-in-out infinite" : isUncommon ? "uncommonPop 0.5s ease-out" : undefined,
-      }}
-      onTouchStart={handleTouch}
-      onClick={handleClick}
-    >
-      <svg width={r * 2} height={r * 2} style={{ overflow: "visible" }}>
-        {/* Glow */}
-        <circle
-          cx={r} cy={r} r={outerR + 4}
-          fill="none"
-          stroke={rarity.glow}
-          strokeWidth={isRare ? 6 : 3}
-          opacity={0.3 + progress * 0.4}
-          style={{ filter: `blur(${isRare ? 6 : 3}px)` }}
-        />
-        {/* Timer ring */}
-        <circle
-          cx={r} cy={r} r={timerR}
-          fill="none"
-          stroke={rarity.color}
-          strokeWidth={3}
-          strokeDasharray={circum}
-          strokeDashoffset={dashOffset}
-          strokeLinecap="round"
-          transform={`rotate(-90 ${r} ${r})`}
-          opacity={0.9}
-        />
-        {/* Main circle */}
-        <circle
-          cx={r} cy={r} r={innerR}
-          fill={`${rarity.color}22`}
-          stroke={rarity.color}
-          strokeWidth={2}
-        />
-        {/* Value text */}
-        <text
-          x={r} y={r + 1}
-          textAnchor="middle" dominantBaseline="middle"
-          fill={rarity.color}
-          fontSize={r * 0.45}
-          fontWeight="900"
-          fontFamily="Inter, sans-serif"
-          style={{ textShadow: `0 0 10px ${rarity.color}` }}
-        >
-          {isRare ? "★" : isUncommon ? "◆" : "●"}
-        </text>
-        {/* Value number */}
-        <text
-          x={r} y={r + r * 0.45}
-          textAnchor="middle" dominantBaseline="middle"
-          fill={rarity.color}
-          fontSize={r * 0.28}
-          fontWeight="700"
-          fontFamily="Inter, sans-serif"
-          opacity={0.85}
-        >
-          +{target.value}
-        </text>
-      </svg>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────
-// GAME OVER SCREEN
-// ─────────────────────────────────────────────
-function GameOverScreen({ save, theme, finalScore, streak, shareText, startGame, setScreen, isDailyMode }) {
-  const isNewHigh = finalScore >= save.highScore;
-  const avg = save.leaderboard.length > 0
-    ? Math.floor(save.leaderboard.reduce((s, e) => s + e.score, 0) / save.leaderboard.length)
-    : 0;
-  const [copied, setCopied] = useState(false);
-
-  const handleShare = async () => {
-    try {
-      if (navigator.share) {
-        await navigator.share({ text: shareText });
-      } else {
-        await navigator.clipboard.writeText(shareText);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      }
-    } catch (_) {
-      try { await navigator.clipboard.writeText(shareText); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch (_2) {}
-    }
-  };
-
-  return (
-    <div className="flex flex-col items-center justify-between h-full py-10 px-6">
-      <div className="flex flex-col items-center gap-4 mt-4">
-        {isNewHigh && (
-          <div
-            className="text-2xl font-black px-6 py-2 rounded-full"
-            style={{
-              color: "#fbbf24",
-              background: "#fbbf2422",
-              border: "2px solid #fbbf24",
-              textShadow: "0 0 20px #fbbf24",
-              animation: "pop 0.3s ease-out",
-            }}
-          >
-            🏆 NEW HIGH SCORE!
-          </div>
-        )}
-
-        <div className="text-center">
-          <div className="text-xs uppercase tracking-widest" style={{ color: `${theme.accent}88` }}>
-            {isDailyMode ? "Daily Score" : "Score"}
-          </div>
-          <div
-            className="text-7xl font-black"
-            style={{ color: theme.accent, textShadow: `0 0 40px ${theme.accent}88` }}
-          >
-            {finalScore.toLocaleString()}
-          </div>
-        </div>
-
-        {/* Stats grid */}
-        <div className="grid grid-cols-2 gap-3 w-full max-w-xs">
-          <StatCard label="Best Streak" value={streak} icon="🔥" theme={theme} />
-          <StatCard label="High Score" value={save.highScore.toLocaleString()} icon="👑" theme={theme} />
-          <StatCard label="Your Avg" value={avg.toLocaleString()} icon="📊" theme={theme} />
-          <StatCard label="Level" value={save.level} icon="⚡" theme={theme} />
-        </div>
-
-        {/* Share button */}
-        <button
-          className="w-full max-w-xs rounded-2xl py-3 font-black text-sm"
-          onClick={handleShare}
-          style={{
-            background: `${theme.accent}22`,
-            border: `1px solid ${theme.accent}66`,
-            color: theme.accent,
-          }}
-        >
-          {copied ? "✓ COPIED!" : "📤 SHARE RESULT"}
-        </button>
-
-        {/* Share preview */}
-        <div
-          className="rounded-xl px-4 py-3 text-xs font-mono w-full max-w-xs"
-          style={{ background: `${theme.accent}11`, color: `${theme.accent}aa`, border: `1px solid ${theme.accent}22` }}
-        >
-          {shareText}
-        </div>
-      </div>
-
-      {/* Buttons */}
-      <div className="flex flex-col gap-3 w-full max-w-xs">
-        <NeonButton color={theme.accent} onClick={() => startGame(false)} large>
-          PLAY AGAIN
-        </NeonButton>
-        <NeonButton color={theme.secondary} onClick={() => setScreen("menu")}>
-          MENU
-        </NeonButton>
-      </div>
-    </div>
-  );
-}
-
-function StatCard({ label, value, icon, theme }) {
-  return (
-    <div
-      className="rounded-2xl p-3 flex flex-col items-center"
-      style={{ background: `${theme.accent}11`, border: `1px solid ${theme.accent}33` }}
-    >
-      <div className="text-xl">{icon}</div>
-      <div className="text-lg font-black" style={{ color: theme.accent }}>{value}</div>
-      <div className="text-xs" style={{ color: `${theme.accent}88` }}>{label}</div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────
-// ACHIEVEMENTS SCREEN
-// ─────────────────────────────────────────────
-function AchievementsScreen({ save, theme, setScreen }) {
-  return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center gap-3 px-4 py-4" style={{ borderBottom: `1px solid ${theme.accent}22` }}>
-        <button onClick={() => setScreen("menu")} style={{ color: theme.accent, fontSize: 24 }}>←</button>
-        <h1 className="text-xl font-black" style={{ color: theme.accent }}>ACHIEVEMENTS</h1>
-        <span className="text-sm ml-auto" style={{ color: `${theme.accent}88` }}>
-          {save.achievements.length}/{ACHIEVEMENTS.length}
-        </span>
-      </div>
-      <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2">
-        {ACHIEVEMENTS.map((a) => {
-          const done = save.achievements.includes(a.id);
-          return (
-            <div
-              key={a.id}
-              className="rounded-2xl p-4 flex items-center gap-4"
-              style={{
-                background: done ? `${theme.accent}18` : `${theme.accent}08`,
-                border: `1px solid ${done ? theme.accent + "55" : theme.accent + "22"}`,
-                opacity: done ? 1 : 0.5,
-              }}
-            >
-              <div className="text-3xl">{done ? a.icon : "🔒"}</div>
-              <div>
-                <div className="font-black text-sm" style={{ color: done ? theme.accent : `${theme.accent}88` }}>
-                  {done ? a.label : "???"}
-                </div>
-                <div className="text-xs" style={{ color: `${theme.accent}77` }}>
-                  {done ? a.desc : "Keep playing to unlock"}
-                </div>
-              </div>
-              {done && <div className="ml-auto text-green-400 text-lg">✓</div>}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────
-// LEADERBOARD SCREEN
-// ─────────────────────────────────────────────
-function LeaderboardScreen({ save, theme, setScreen }) {
-  const lb = save.leaderboard.length > 0 ? save.leaderboard : [{ name: "---", score: 0, date: "---" }];
-  return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center gap-3 px-4 py-4" style={{ borderBottom: `1px solid ${theme.accent}22` }}>
-        <button onClick={() => setScreen("menu")} style={{ color: theme.accent, fontSize: 24 }}>←</button>
-        <h1 className="text-xl font-black" style={{ color: theme.accent }}>LEADERBOARD</h1>
-      </div>
-      <div className="flex-1 overflow-y-auto px-4 py-3">
-        {lb.map((entry, i) => (
-          <div
-            key={i}
-            className="flex items-center gap-4 rounded-2xl p-4 mb-2"
-            style={{
-              background: i === 0 ? `${theme.accent}22` : `${theme.accent}0a`,
-              border: `1px solid ${i === 0 ? theme.accent + "66" : theme.accent + "22"}`,
-            }}
-          >
-            <div
-              className="text-xl font-black w-8 text-center"
-              style={{ color: i === 0 ? "#fbbf24" : i === 1 ? "#9ca3af" : i === 2 ? "#b87333" : theme.accent }}
-            >
-              {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`}
-            </div>
-            <div className="flex-1">
-              <div className="font-black text-sm" style={{ color: theme.accent }}>{entry.name}</div>
-              <div className="text-xs" style={{ color: `${theme.accent}66` }}>{entry.date}</div>
-            </div>
-            <div className="text-lg font-black" style={{ color: theme.accent }}>
-              {entry.score.toLocaleString()}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────
-// SETTINGS SCREEN
-// ─────────────────────────────────────────────
-function SettingsScreen({ save, theme, updateSave, setScreen }) {
-  const [soundOn, setSoundOn] = useState(audio.enabled);
-
-  return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center gap-3 px-4 py-4" style={{ borderBottom: `1px solid ${theme.accent}22` }}>
-        <button onClick={() => setScreen("menu")} style={{ color: theme.accent, fontSize: 24 }}>←</button>
-        <h1 className="text-xl font-black" style={{ color: theme.accent }}>SETTINGS</h1>
-      </div>
-
-      <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-4">
-        {/* Sound toggle */}
-        <div
-          className="rounded-2xl p-4 flex items-center justify-between"
-          style={{ background: `${theme.accent}11`, border: `1px solid ${theme.accent}33` }}
-        >
-          <div>
-            <div className="font-black text-sm" style={{ color: theme.accent }}>Sound Effects</div>
-            <div className="text-xs" style={{ color: `${theme.accent}77` }}>Tap sounds, streak, level up</div>
-          </div>
-          <button
-            className="rounded-full w-12 h-6 relative transition-colors duration-200"
-            style={{ background: soundOn ? theme.accent : `${theme.accent}44` }}
-            onClick={() => {
-              audio.enabled = !audio.enabled;
-              setSoundOn(audio.enabled);
-            }}
-          >
-            <div
-              className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all duration-200"
-              style={{ left: soundOn ? "calc(100% - 22px)" : 2 }}
-            />
-          </button>
-        </div>
-
-        {/* Theme selection */}
-        <div>
-          <div className="text-xs font-black uppercase tracking-widest mb-2" style={{ color: `${theme.accent}88` }}>
-            THEMES
-          </div>
-          {THEMES.map((t) => {
-            const unlocked = save.unlockedThemes.includes(t.id);
-            const active = save.selectedTheme === t.id;
-            return (
-              <button
-                key={t.id}
-                className="w-full rounded-2xl p-4 flex items-center gap-3 mb-2"
-                style={{
-                  background: active ? `${t.accent}22` : `${t.accent}0a`,
-                  border: `1px solid ${active ? t.accent + "88" : t.accent + "22"}`,
-                  opacity: unlocked ? 1 : 0.4,
-                }}
-                onClick={() => unlocked && updateSave({ selectedTheme: t.id })}
-                disabled={!unlocked}
-              >
-                <div className="w-6 h-6 rounded-full" style={{ background: t.accent, boxShadow: `0 0 10px ${t.accent}` }} />
-                <div className="flex-1 text-left">
-                  <div className="font-black text-sm" style={{ color: t.accent }}>{t.name}</div>
-                  {!unlocked && (
-                    <div className="text-xs" style={{ color: `${t.accent}77` }}>Unlocks at level {t.unlockLevel}</div>
-                  )}
-                </div>
-                {active && <div style={{ color: t.accent }}>✓</div>}
-                {!unlocked && <div className="text-sm">🔒</div>}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Reset */}
-        <button
-          className="rounded-2xl p-4 text-sm font-bold"
-          style={{ background: "#ff444422", border: "1px solid #ff444466", color: "#ff6666" }}
-          onClick={() => {
-            if (window.confirm("Reset all progress? This cannot be undone.")) {
-              const fresh = defaultSave();
-              writeSave(fresh);
-              window.location.reload();
-            }
-          }}
-        >
-          Reset All Progress
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────
-// SHARED UI COMPONENTS
-// ─────────────────────────────────────────────
-function NeonButton({ children, color, onClick, disabled, large, small }) {
-  const [pressing, setPressing] = useState(false);
+function NeonButton({ children, onClick, style, className = "", disabled = false }) {
+  const [pressed, setPressed] = useState(false);
   return (
     <button
-      className={`rounded-2xl font-black transition-all duration-100 flex items-center justify-center ${
-        large ? "py-5 text-xl tracking-wider" : small ? "py-2 text-xs flex-1" : "py-4 text-base"
-      }`}
+      disabled={disabled}
+      onMouseDown={() => setPressed(true)}
+      onMouseUp={() => setPressed(false)}
+      onMouseLeave={() => setPressed(false)}
+      onTouchStart={(e) => { e.preventDefault(); setPressed(true); }}
+      onTouchEnd={(e) => { e.preventDefault(); setPressed(false); if (!disabled && onClick) onClick(e); }}
+      onClick={(e) => { if (!disabled && onClick) onClick(e); }}
+      className={`select-none transition-all duration-100 rounded-xl font-bold text-white ${className}`}
       style={{
-        background: disabled ? `${color}11` : `${color}22`,
-        border: `2px solid ${disabled ? color + "33" : color + "88"}`,
-        color: disabled ? `${color}44` : color,
-        boxShadow: pressing ? "none" : `0 0 ${large ? 20 : 10}px ${color}44`,
-        transform: pressing ? "scale(0.96)" : "scale(1)",
-        textShadow: disabled ? "none" : `0 0 10px ${color}88`,
+        transform: pressed ? "scale(0.94)" : "scale(1)",
+        opacity: disabled ? 0.4 : 1,
         cursor: disabled ? "not-allowed" : "pointer",
+        userSelect: "none",
         WebkitTapHighlightColor: "transparent",
+        ...style,
       }}
-      onTouchStart={() => !disabled && setPressing(true)}
-      onTouchEnd={() => { setPressing(false); if (!disabled && onClick) onClick(); }}
-      onMouseDown={() => !disabled && setPressing(true)}
-      onMouseUp={() => { setPressing(false); if (!disabled && onClick) onClick(); }}
-      onMouseLeave={() => setPressing(false)}
     >
       {children}
     </button>
@@ -1326,69 +169,1114 @@ function NeonButton({ children, color, onClick, disabled, large, small }) {
 }
 
 // ─────────────────────────────────────────────
-// GLOBAL STYLES (injected once)
+// TARGET SVG SHAPES
 // ─────────────────────────────────────────────
-function GlobalStyles() {
-  return (
-    <style>{`
-      @keyframes shake {
-        0%   { transform: translateX(0); }
-        20%  { transform: translateX(-8px); }
-        40%  { transform: translateX(8px); }
-        60%  { transform: translateX(-5px); }
-        80%  { transform: translateX(5px); }
-        100% { transform: translateX(0); }
-      }
-      @keyframes pop {
-        0%   { transform: scale(0.7); opacity: 0; }
-        60%  { transform: scale(1.15); }
-        100% { transform: scale(1); opacity: 1; }
-      }
-      @keyframes pulse {
-        0%, 100% { opacity: 1; }
-        50%       { opacity: 0.7; }
-      }
-      @keyframes rarePulse {
-        0%, 100% { transform: scale(1);    filter: brightness(1); }
-        50%       { transform: scale(1.06); filter: brightness(1.3); }
-      }
-      @keyframes uncommonPop {
-        0%   { transform: scale(0.85); }
-        70%  { transform: scale(1.05); }
-        100% { transform: scale(1); }
-      }
-      @keyframes levelUpAnim {
-        0%   { opacity: 0; transform: scale(0.5); }
-        20%  { opacity: 1; transform: scale(1.2); }
-        40%  { transform: scale(1); }
-        80%  { opacity: 1; }
-        100% { opacity: 0; transform: scale(1.1) translateY(-30px); }
-      }
-      @keyframes slideUp {
-        0%   { opacity: 0; transform: translateY(20px); }
-        100% { opacity: 1; transform: translateY(0); }
-      }
-      * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
-      body { overscroll-behavior: none; }
-    `}</style>
-  );
+function TargetShape({ type, rarity, radius: r, color, glow, bombPulse }) {
+  const shadow = `drop-shadow(0 0 ${r * 0.4}px ${glow})`;
+
+  if (type === "bomb") {
+    return (
+      <svg width={r * 2} height={r * 2} style={{ overflow: "visible" }}>
+        <circle cx={r} cy={r} r={r - 2} fill="#1a0000" stroke="#ef4444" strokeWidth={3}
+          style={{ filter: `drop-shadow(0 0 ${bombPulse ? 14 : 6}px #ef4444)` }} />
+        <line x1={r * 0.42} y1={r * 0.42} x2={r * 1.58} y2={r * 1.58} stroke="#ef4444" strokeWidth={3} strokeLinecap="round" />
+        <line x1={r * 1.58} y1={r * 0.42} x2={r * 0.42} y2={r * 1.58} stroke="#ef4444" strokeWidth={3} strokeLinecap="round" />
+      </svg>
+    );
+  }
+
+  if (type === "powerup") {
+    const arm = r * 0.55, thick = r * 0.32;
+    return (
+      <svg width={r * 2} height={r * 2} style={{ overflow: "visible" }}>
+        <circle cx={r} cy={r} r={r - 2} fill="#1e3a8a" stroke="#60a5fa" strokeWidth={2}
+          style={{ filter: "drop-shadow(0 0 8px #3b82f6)" }} />
+        <rect x={r - thick / 2} y={r - arm} width={thick} height={arm * 2} rx={thick / 2} fill="#60a5fa" />
+        <rect x={r - arm} y={r - thick / 2} width={arm * 2} height={thick} rx={thick / 2} fill="#60a5fa" />
+      </svg>
+    );
+  }
+
+  if (rarity?.name === "common") {
+    return (
+      <svg width={r * 2} height={r * 2} style={{ overflow: "visible" }}>
+        <circle cx={r} cy={r} r={r - 2}    fill={color + "33"} stroke={color} strokeWidth={2.5} style={{ filter: shadow }} />
+        <circle cx={r} cy={r} r={r * 0.62} fill="none"         stroke={color} strokeWidth={1.5} opacity={0.6} />
+        <circle cx={r} cy={r} r={r * 0.28} fill={color}        opacity={0.9} />
+      </svg>
+    );
+  }
+
+  if (rarity?.name === "uncommon") {
+    const d = r - 3;
+    return (
+      <svg width={r * 2} height={r * 2} style={{ overflow: "visible" }}>
+        <polygon points={`${r},${r - d} ${r + d},${r} ${r},${r + d} ${r - d},${r}`}
+          fill={color + "33"} stroke={color} strokeWidth={2.5} style={{ filter: shadow }} />
+        <polygon points={`${r},${r - d * 0.55} ${r + d * 0.55},${r} ${r},${r + d * 0.55} ${r - d * 0.55},${r}`}
+          fill={color} opacity={0.7} />
+      </svg>
+    );
+  }
+
+  if (rarity?.name === "rare") {
+    const pts = Array.from({ length: 5 }, (_, i) => {
+      const a = (i * 72 - 90) * Math.PI / 180;
+      const b = (i * 72 - 90 + 36) * Math.PI / 180;
+      const or = r - 3, ir = (r - 3) * 0.45;
+      return `${r + or * Math.cos(a)},${r + or * Math.sin(a)} ${r + ir * Math.cos(b)},${r + ir * Math.sin(b)}`;
+    }).join(" ");
+    return (
+      <svg width={r * 2} height={r * 2} style={{ overflow: "visible" }}>
+        <polygon points={pts} fill={color + "55"} stroke={color} strokeWidth={2.5} style={{ filter: shadow }} />
+        <polygon points={pts} fill="none" stroke={color} strokeWidth={1} opacity={0.4}
+          transform={`rotate(6, ${r}, ${r})`} />
+      </svg>
+    );
+  }
+
+  if (rarity?.name === "epic") {
+    const pts = Array.from({ length: 6 }, (_, i) => {
+      const a = (i * 60 - 90) * Math.PI / 180;
+      const b = (i * 60 - 90 + 30) * Math.PI / 180;
+      const or = r - 3, ir = (r - 3) * 0.5;
+      return `${r + or * Math.cos(a)},${r + or * Math.sin(a)} ${r + ir * Math.cos(b)},${r + ir * Math.sin(b)}`;
+    }).join(" ");
+    return (
+      <svg width={r * 2} height={r * 2} style={{ overflow: "visible" }}>
+        <polygon points={pts} fill={color + "44"} stroke={color} strokeWidth={2.5} style={{ filter: shadow }} />
+        <polygon points={pts} fill="none" stroke={color} strokeWidth={1.5} opacity={0.5}
+          transform={`rotate(15, ${r}, ${r})`} />
+        <circle cx={r} cy={r} r={r * 0.22} fill={color} />
+      </svg>
+    );
+  }
+
+  return null;
 }
 
 // ─────────────────────────────────────────────
-// INJECT GLOBAL STYLES AT ROOT LEVEL TOO
+// MAIN COMPONENT
 // ─────────────────────────────────────────────
-if (typeof document !== "undefined" && !document.getElementById("nexustap-styles")) {
-  const style = document.createElement("style");
-  style.id = "nexustap-styles";
-  style.textContent = `
-    @keyframes shake { 0%{transform:translateX(0)} 20%{transform:translateX(-8px)} 40%{transform:translateX(8px)} 60%{transform:translateX(-5px)} 80%{transform:translateX(5px)} 100%{transform:translateX(0)} }
-    @keyframes pop { 0%{transform:scale(0.7);opacity:0} 60%{transform:scale(1.15)} 100%{transform:scale(1);opacity:1} }
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.7} }
-    @keyframes rarePulse { 0%,100%{transform:scale(1);filter:brightness(1)} 50%{transform:scale(1.06);filter:brightness(1.3)} }
-    @keyframes levelUpAnim { 0%{opacity:0;transform:scale(0.5)} 20%{opacity:1;transform:scale(1.2)} 40%{transform:scale(1)} 80%{opacity:1} 100%{opacity:0;transform:scale(1.1) translateY(-30px)} }
-    @keyframes slideUp { 0%{opacity:0;transform:translateY(20px)} 100%{opacity:1;transform:translateY(0)} }
-    *{-webkit-tap-highlight-color:transparent;box-sizing:border-box}
-    html,body{overscroll-behavior:none;margin:0;padding:0}
-  `;
-  document.head.appendChild(style);
+export default function NexusTap() {
+  // Persistent data
+  const saveRef      = useRef(loadSave());
+  const audioRef     = useRef(null);
+  const saveTimerRef = useRef(null);
+
+  // UI state
+  const [screen,       setScreen]       = useState("menu");
+  const [theme,        setTheme]        = useState(() => THEMES.find(t => t.id === saveRef.current.themeId) || THEMES[0]);
+  const [soundOn,      setSoundOn]      = useState(() => saveRef.current.soundEnabled);
+  const [notification, setNotification] = useState(null);
+
+  // Game display state
+  const [scoreDisplay,   setScoreDisplay]   = useState(0);
+  const [livesDisplay,   setLivesDisplay]   = useState(3);
+  const [streakDisplay,  setStreakDisplay]  = useState(0);
+  const [feverDisplay,   setFeverDisplay]   = useState(false);
+  const [targetsDisplay, setTargetsDisplay] = useState([]);
+  const [particlesDisp,  setParticlesDisp]  = useState([]);
+  const [popupsDisp,     setPopupsDisp]     = useState([]);
+  const [activePwrDisp,  setActivePwrDisp]  = useState([]);
+  const [gameOverData,   setGameOverData]   = useState(null);
+  const [screenShake,    setScreenShake]    = useState(false);
+  const [epicFlash,      setEpicFlash]      = useState(false);
+
+  // Game refs (mutation only, no re-renders)
+  const gsRef          = useRef(null);
+  const targetsRef     = useRef([]);
+  const particlesRef   = useRef([]);
+  const popupsRef      = useRef([]);
+  const activePwrRef   = useRef([]);
+  const rafRef         = useRef(null);
+  const lastTickRef    = useRef(0);
+  const spawnTimerRef  = useRef(0);
+  const bombPulseRef   = useRef(false);
+  const canvasRef      = useRef(null);
+  const bgParticlesRef = useRef([]);
+  const ripplePoolRef  = useRef([]);
+  const missionProgRef = useRef({});
+
+  // ── Audio ──
+  useEffect(() => { audioRef.current = createAudio(); }, []);
+  const sfx = useCallback((name) => {
+    if (soundOn && audioRef.current?.[name]) audioRef.current[name]();
+  }, [soundOn]);
+
+  // ── Save ──
+  const flushSave = useCallback(() => {
+    try { localStorage.setItem("nexustap_v3", JSON.stringify(saveRef.current)); } catch {}
+  }, []);
+  const debouncedSave = useCallback(() => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(flushSave, 2000);
+  }, [flushSave]);
+
+  // ── Notifications ──
+  useEffect(() => {
+    if (!notification) return;
+    const t = setTimeout(() => setNotification(null), 2500);
+    return () => clearTimeout(t);
+  }, [notification]);
+
+  // ── Achievements ──
+  const unlockAchievement = useCallback((id) => {
+    const sv = saveRef.current;
+    if (sv.unlockedAchievements.includes(id)) return;
+    sv.unlockedAchievements = [...sv.unlockedAchievements, id];
+    const ach = ACHIEVEMENTS.find(a => a.id === id);
+    if (ach) setNotification(`${ach.icon} ${ach.label} unlocked!`);
+    debouncedSave();
+  }, [debouncedSave]);
+
+  // ── Daily login XP ──
+  useEffect(() => {
+    const sv = saveRef.current;
+    const today = getTodayKey();
+    if (sv.lastLoginDate !== today) {
+      sv.lastLoginDate = today;
+      const prevLevel = getLevelFromXP(sv.xp);
+      sv.xp += 20;
+      const newLevel = getLevelFromXP(sv.xp);
+      if (newLevel > prevLevel) setNotification(`Level Up! Now Level ${newLevel}!`);
+      else setNotification("Daily bonus! +20 XP");
+      flushSave();
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Missions ──
+  const initMissions = useCallback(() => {
+    const sv = saveRef.current;
+    const today = getTodayKey();
+    if (sv.missionDate !== today) {
+      sv.missionDate = today;
+      sv.missionProgress = {};
+      sv.missionCompleted = false;
+      flushSave();
+    }
+    missionProgRef.current = { ...sv.missionProgress };
+  }, [flushSave]);
+
+  const updateMissions = useCallback((stats) => {
+    const missions = getDailyMissions();
+    const prog = missionProgRef.current;
+    let changed = false;
+    missions.forEach(m => {
+      const cur = prog[m.id] || 0;
+      const val = stats[m.key] || 0;
+      if (val > cur) { prog[m.id] = Math.min(val, m.goal); changed = true; }
+    });
+    if (changed) {
+      saveRef.current.missionProgress = { ...prog };
+      if (missions.every(m => (prog[m.id] || 0) >= m.goal) && !saveRef.current.missionCompleted) {
+        saveRef.current.missionCompleted = true;
+        saveRef.current.xp += 200;
+        setNotification("All daily missions complete! +200 XP");
+        unlockAchievement("missions_all");
+      }
+      debouncedSave();
+    }
+  }, [debouncedSave, unlockAchievement]);
+
+  // ── Canvas ──
+  const initBgParticles = useCallback(() => {
+    bgParticlesRef.current = Array.from({ length: 40 }, () => ({
+      x: Math.random() * window.innerWidth,
+      y: Math.random() * window.innerHeight,
+      vx: (Math.random() - 0.5) * 0.4,
+      vy: (Math.random() - 0.5) * 0.4,
+      r: Math.random() * 2 + 1,
+      alpha: Math.random() * 0.4 + 0.1,
+    }));
+  }, []);
+
+  const drawCanvas = useCallback((ts) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    const fever = gsRef.current?.feverActive;
+    const gridSize = 40;
+    const pulse = 0.5 + 0.5 * Math.sin(ts / 1200);
+
+    // grid
+    ctx.save();
+    ctx.strokeStyle = fever ? `rgba(251,191,36,${0.05 + pulse * 0.03})` : `rgba(167,139,250,${0.03 + pulse * 0.02})`;
+    ctx.lineWidth = 1;
+    for (let x = 0; x < w; x += gridSize) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
+    for (let y = 0; y < h; y += gridSize) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
+    ctx.restore();
+
+    // accent grid lines
+    ctx.save();
+    ctx.strokeStyle = fever ? `rgba(251,191,36,0.15)` : `rgba(167,139,250,0.08)`;
+    ctx.lineWidth = 1.5;
+    ctx.globalAlpha = 0.5 + pulse * 0.5;
+    for (let x = 0; x < w; x += gridSize * 4) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
+    for (let y = 0; y < h; y += gridSize * 4) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
+    ctx.restore();
+
+    // ambient particles
+    bgParticlesRef.current.forEach(p => {
+      p.x += p.vx; p.y += p.vy;
+      if (p.x < 0) p.x = w; if (p.x > w) p.x = 0;
+      if (p.y < 0) p.y = h; if (p.y > h) p.y = 0;
+      ctx.save();
+      ctx.globalAlpha = p.alpha;
+      ctx.fillStyle = fever ? "#fbbf24" : "#a78bfa";
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    });
+
+    // tap ripples
+    ripplePoolRef.current = ripplePoolRef.current.filter(rp => {
+      rp.r += 3; rp.alpha -= 0.045;
+      if (rp.alpha <= 0) return false;
+      ctx.save();
+      ctx.globalAlpha = rp.alpha;
+      ctx.strokeStyle = rp.color;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(rp.x, rp.y, rp.r, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+      return true;
+    });
+  }, []);
+
+  // ── Spawn ──
+  const pickSpawnPos = useCallback((radius) => {
+    const margin = radius * 1.6 + 20;
+    const w = window.innerWidth, h = window.innerHeight;
+    let best = null, bestDist = -1;
+    for (let i = 0; i < 5; i++) {
+      const x = margin + Math.random() * (w - margin * 2);
+      const y = margin + 90 + Math.random() * (h - margin * 2 - 90);
+      let minDist = Infinity;
+      targetsRef.current.forEach(t => {
+        const d = Math.hypot(t.x - x, t.y - y);
+        if (d < minDist) minDist = d;
+      });
+      if (minDist > bestDist) { bestDist = minDist; best = { x, y }; }
+    }
+    return best;
+  }, []);
+
+  const spawnTarget = useCallback(() => {
+    const gs = gsRef.current;
+    if (!gs || gs.lives <= 0) return;
+
+    const diff = Math.min(10, 1 + gs.score / 200);
+    const bombChance  = Math.min(0.18, 0.04 + diff * 0.01);
+    const powerChance = 0.08;
+    const r = Math.random();
+
+    let type = "normal", rarity = getRarity(), color, glow;
+    if (r < bombChance) {
+      type = "bomb"; color = "#ef4444"; glow = "#dc2626"; sfx("bomb");
+    } else if (r < bombChance + powerChance) {
+      type = "powerup"; color = "#60a5fa"; glow = "#3b82f6";
+    } else {
+      color = rarity.color; glow = rarity.glow;
+    }
+
+    const radius = type === "normal" ? BASE_RADIUS * rarity.size : BASE_RADIUS;
+    const pos = pickSpawnPos(radius);
+    if (!pos) return;
+
+    let lifetime = Math.max(1500, 3000 - diff * 150);
+    if (activePwrRef.current.some(p => p.type === "SLOW" && p.endsAt > Date.now())) lifetime *= 1.5;
+
+    targetsRef.current.push({
+      id: Math.random().toString(36).slice(2),
+      type, rarity: type === "normal" ? rarity : null,
+      x: pos.x, y: pos.y, radius, color, glow,
+      lifetime, spawnedAt: Date.now(), born: performance.now(),
+    });
+    setTargetsDisplay([...targetsRef.current]);
+  }, [sfx, pickSpawnPos]);
+
+  // ── Particles / popups ──
+  const spawnParticles = useCallback((x, y, color, count = 10) => {
+    const now = performance.now();
+    const newP = Array.from({ length: count }, () => ({
+      id: Math.random().toString(36).slice(2),
+      x, y,
+      vx: (Math.random() - 0.5) * 8,
+      vy: (Math.random() - 0.5) * 8,
+      color,
+      size: Math.random() * 5 + 2,
+      life: 1,
+      born: now,
+      duration: 500 + Math.random() * 300,
+    }));
+    particlesRef.current = [...particlesRef.current, ...newP];
+  }, []);
+
+  const spawnPopup = useCallback((x, y, text, color) => {
+    const id = Math.random().toString(36).slice(2);
+    popupsRef.current = [...popupsRef.current, { id, x, y, text, color, born: performance.now() }];
+    setPopupsDisp([...popupsRef.current]);
+  }, []);
+
+  // ── Power-ups ──
+  const activatePowerUp = useCallback((x, y) => {
+    const gs = gsRef.current;
+    const types = ["SHIELD", "SLOW", "DOUBLE", "LIFE"];
+    const type = types[Math.floor(Math.random() * types.length)];
+    sfx("powerUp");
+    vibrate([10, 30, 10]);
+    unlockAchievement("powerup_use");
+    if (type === "LIFE") {
+      if (gs.lives < 3) { gs.lives++; setLivesDisplay(gs.lives); }
+      spawnPopup(x, y, "+LIFE", "#34d399");
+    } else {
+      const dur = type === "SLOW" ? 6000 : 8000;
+      activePwrRef.current = activePwrRef.current.filter(p => p.type !== type);
+      activePwrRef.current.push({ type, endsAt: Date.now() + dur });
+      setActivePwrDisp([...activePwrRef.current]);
+      spawnPopup(x, y, `+${type}`, "#60a5fa");
+    }
+    const cur = missionProgRef.current;
+    missionProgRef.current = { ...cur, powerupCollected: (cur.powerupCollected || 0) + 1 };
+  }, [sfx, spawnPopup, unlockAchievement]);
+
+  // ── End game ──
+  const endGame = useCallback(() => {
+    const gs = gsRef.current;
+    if (!gs) return;
+    if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+
+    const sv = saveRef.current;
+    const score = gs.score;
+    const isNewHigh = score > sv.highScore;
+    if (isNewHigh) sv.highScore = score;
+    if (gs.streak > sv.bestStreak) sv.bestStreak = gs.streak;
+
+    const xpEarned = Math.floor(score / 10) + gs.sessionStats.rareHits * 5;
+    const prevLevel = getLevelFromXP(sv.xp);
+    sv.xp += xpEarned;
+    if (getLevelFromXP(sv.xp) > prevLevel) sfx("levelUp");
+
+    sv.scores = [score, ...sv.scores].slice(0, 10).sort((a, b) => b - a);
+
+    let grade = "D";
+    const ratio = sv.highScore > 0 ? score / sv.highScore : 0;
+    if      (ratio >= 0.9) grade = "S";
+    else if (ratio >= 0.7) grade = "A";
+    else if (ratio >= 0.5) grade = "B";
+    else if (ratio >= 0.3) grade = "C";
+    if (sv.scores.length === 1) grade = "C";
+
+    const soClose = !isNewHigh && sv.highScore > 0 && (sv.highScore - score) / sv.highScore < 0.15;
+    const timeSurvived = Math.floor((Date.now() - gs.startTime) / 1000);
+    updateMissions({ ...gs.sessionStats, timeSurvived });
+
+    setGameOverData({
+      score, isNewHigh, grade, xpEarned,
+      soClose: soClose ? sv.highScore - score : null,
+      bestStreak: sv.bestStreak,
+      sessionStats: { ...gs.sessionStats, timeSurvived },
+    });
+
+    flushSave();
+    gsRef.current = null;
+    targetsRef.current = [];
+    activePwrRef.current = [];
+    setTargetsDisplay([]);
+    setActivePwrDisp([]);
+    setScreen("gameover");
+  }, [sfx, flushSave, updateMissions]);
+
+  // ── Game loop ──
+  const gameLoop = useCallback((ts) => {
+    const gs = gsRef.current;
+    if (!gs) return;
+
+    const dt = Math.min(100, ts - lastTickRef.current);
+    lastTickRef.current = ts;
+    bombPulseRef.current = Math.sin(ts / 400) > 0;
+
+    drawCanvas(ts);
+
+    const now = Date.now();
+    let lostLife = false;
+
+    targetsRef.current = targetsRef.current.filter(t => {
+      const age = now - t.spawnedAt;
+      if (age < t.lifetime) return true;
+      if (t.type === "bomb" || t.type === "powerup") return false;
+      // missed normal target
+      gs.streak = 0;
+      const hasShield = activePwrRef.current.some(p => p.type === "SHIELD" && p.endsAt > now);
+      if (hasShield) {
+        activePwrRef.current = activePwrRef.current.filter(p => p.type !== "SHIELD");
+        setActivePwrDisp([...activePwrRef.current]);
+      } else {
+        gs.lives--;
+        sfx("miss");
+        vibrate(40);
+        lostLife = true;
+      }
+      return false;
+    });
+
+    if (lostLife) {
+      setLivesDisplay(gs.lives);
+      setStreakDisplay(0);
+      if (gs.lives <= 0) { endGame(); return; }
+    }
+
+    // expire power-ups
+    const prevPwrLen = activePwrRef.current.length;
+    activePwrRef.current = activePwrRef.current.filter(p => p.endsAt > now);
+    if (activePwrRef.current.length !== prevPwrLen) setActivePwrDisp([...activePwrRef.current]);
+
+    // fever countdown
+    if (gs.feverActive) {
+      gs.feverTimeLeft -= dt;
+      if (gs.feverTimeLeft <= 0) {
+        gs.feverActive = false;
+        setFeverDisplay(false);
+        sfx("feverEnd");
+      }
+    }
+
+    // spawn
+    spawnTimerRef.current += dt;
+    const diff = Math.min(10, 1 + gs.score / 200);
+    const spawnInterval = Math.max(600, 1400 - diff * 70);
+    if (spawnTimerRef.current >= spawnInterval) {
+      spawnTimerRef.current = 0;
+      spawnTarget();
+    }
+
+    // particles
+    const pnow = performance.now();
+    particlesRef.current = particlesRef.current.filter(p => {
+      const age = pnow - p.born;
+      p.life = 1 - age / p.duration;
+      p.x += p.vx * 0.95; p.y += p.vy * 0.95; p.vy += 0.12;
+      return p.life > 0;
+    });
+    setParticlesDisp([...particlesRef.current]);
+
+    // popups
+    popupsRef.current = popupsRef.current.filter(p => (pnow - p.born) < 900);
+    setPopupsDisp([...popupsRef.current]);
+    setTargetsDisplay([...targetsRef.current]);
+
+    rafRef.current = requestAnimationFrame(gameLoop);
+  }, [drawCanvas, sfx, spawnTarget, endGame]);
+
+  // ── Tap handler ──
+  const handleTap = useCallback((e) => {
+    e.preventDefault();
+    const gs = gsRef.current;
+    if (!gs || gs.lives <= 0) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const tx = clientX - rect.left;
+    const ty = clientY - rect.top;
+
+    let hit = null, hitDist = Infinity;
+    for (const t of targetsRef.current) {
+      const d = Math.hypot(t.x - tx, t.y - ty);
+      if (d < t.radius * 1.3 && d < hitDist) { hit = t; hitDist = d; }
+    }
+
+    ripplePoolRef.current.push({
+      x: tx, y: ty, r: 10, alpha: 0.7,
+      color: hit ? (hit.color || "#a78bfa") : "#ffffff55",
+    });
+
+    if (!hit) return;
+
+    targetsRef.current = targetsRef.current.filter(t => t.id !== hit.id);
+    setTargetsDisplay([...targetsRef.current]);
+
+    if (hit.type === "bomb") {
+      sfx("bombHit");
+      vibrate(40);
+      spawnParticles(hit.x, hit.y, "#ef4444", 14);
+      const hasShield = activePwrRef.current.some(p => p.type === "SHIELD" && p.endsAt > Date.now());
+      if (hasShield) {
+        activePwrRef.current = activePwrRef.current.filter(p => p.type !== "SHIELD");
+        setActivePwrDisp([...activePwrRef.current]);
+        spawnPopup(hit.x, hit.y, "SHIELD!", "#60a5fa");
+      } else {
+        gs.lives = Math.max(0, gs.lives - 1);
+        gs.streak = 0;
+        setLivesDisplay(gs.lives);
+        setStreakDisplay(0);
+        spawnPopup(hit.x, hit.y, "BOMB!", "#ef4444");
+        setScreenShake(true);
+        setTimeout(() => setScreenShake(false), 400);
+        if (gs.lives <= 0) endGame();
+      }
+      return;
+    }
+
+    if (hit.type === "powerup") {
+      activatePowerUp(hit.x, hit.y);
+      spawnParticles(hit.x, hit.y, "#60a5fa", 12);
+      gs.sessionStats.powerupCollected = (gs.sessionStats.powerupCollected || 0) + 1;
+      return;
+    }
+
+    // normal target
+    gs.streak++;
+    const combo = Math.min(10, 1 + Math.floor(gs.streak / 5));
+    const isDouble = activePwrRef.current.some(p => p.type === "DOUBLE" && p.endsAt > Date.now());
+    const feverMult = gs.feverActive ? 2 : 1;
+    const pts = hit.rarity.mult * combo * feverMult * (isDouble ? 2 : 1);
+    gs.score += pts;
+    gs.sessionStats.tapsTotal++;
+    gs.sessionStats.score = gs.score;
+    if (hit.rarity.name === "rare" || hit.rarity.name === "epic") gs.sessionStats.rareHits++;
+    if (gs.streak > gs.sessionStats.bestCombo) gs.sessionStats.bestCombo = gs.streak;
+
+    setScoreDisplay(gs.score);
+    setStreakDisplay(gs.streak);
+
+    if (hit.rarity.name === "epic") {
+      sfx("epic"); vibrate([20, 30, 20]);
+      setEpicFlash(true); setTimeout(() => setEpicFlash(false), 400);
+      spawnParticles(hit.x, hit.y, hit.color, 30);
+    } else if (hit.rarity.name === "rare") {
+      sfx("rare"); vibrate([20, 20]);
+      spawnParticles(hit.x, hit.y, hit.color, 18);
+    } else {
+      sfx("tap"); vibrate(10);
+      spawnParticles(hit.x, hit.y, hit.color, 8);
+    }
+
+    if (hit.rarity.label) spawnPopup(hit.x, hit.y, hit.rarity.label, hit.color);
+
+    unlockAchievement("first_tap");
+    if (hit.rarity.name === "rare" || hit.rarity.name === "epic") unlockAchievement("first_rare");
+    if (hit.rarity.name === "epic") unlockAchievement("first_epic");
+    if (gs.streak >= 10)  unlockAchievement("streak_10");
+    if (gs.streak >= 50)  unlockAchievement("streak_50");
+    if (gs.score >= 500)  unlockAchievement("score_500");
+    if (gs.score >= 2000) unlockAchievement("score_2000");
+
+    // Fever
+    if (gs.streak >= FEVER_STREAK && !gs.feverActive) {
+      gs.feverActive = true;
+      gs.feverTimeLeft = FEVER_DURATION;
+      setFeverDisplay(true);
+      sfx("feverStart");
+      vibrate([30, 20, 30, 20, 50]);
+      spawnPopup(hit.x, hit.y - 30, "FEVER!", "#fbbf24");
+      unlockAchievement("fever_mode");
+      gs.sessionStats.feverCount = (gs.sessionStats.feverCount || 0) + 1;
+    }
+
+    updateMissions({ ...gs.sessionStats, bestCombo: gs.streak });
+    debouncedSave();
+  }, [sfx, spawnParticles, spawnPopup, activatePowerUp, unlockAchievement, updateMissions, debouncedSave, endGame]);
+
+  // ── Start game ──
+  const startGame = useCallback(() => {
+    initMissions();
+    particlesRef.current   = [];
+    popupsRef.current      = [];
+    targetsRef.current     = [];
+    activePwrRef.current   = [];
+    ripplePoolRef.current  = [];
+    spawnTimerRef.current  = 0;
+
+    gsRef.current = {
+      score: 0, lives: 3, streak: 0,
+      feverActive: false, feverTimeLeft: 0,
+      startTime: Date.now(),
+      sessionStats: { tapsTotal: 0, rareHits: 0, bestCombo: 0, score: 0, feverCount: 0, powerupCollected: 0 },
+    };
+
+    setScoreDisplay(0); setLivesDisplay(3); setStreakDisplay(0);
+    setFeverDisplay(false); setTargetsDisplay([]); setParticlesDisp([]);
+    setPopupsDisp([]); setActivePwrDisp([]); setGameOverData(null);
+    setEpicFlash(false); setScreenShake(false);
+
+    setScreen("playing");
+    lastTickRef.current = performance.now();
+    rafRef.current = requestAnimationFrame(gameLoop);
+  }, [initMissions, gameLoop]);
+
+  // cleanup
+  useEffect(() => () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); }, []);
+
+  // canvas resize
+  useEffect(() => {
+    const resize = () => {
+      if (canvasRef.current) {
+        canvasRef.current.width  = window.innerWidth;
+        canvasRef.current.height = window.innerHeight;
+      }
+    };
+    resize();
+    window.addEventListener("resize", resize);
+    initBgParticles();
+    return () => window.removeEventListener("resize", resize);
+  }, [initBgParticles]);
+
+  // menu canvas animation
+  useEffect(() => {
+    if (screen !== "menu") return;
+    let raf;
+    const loop = (ts) => { drawCanvas(ts); raf = requestAnimationFrame(loop); };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [screen, drawCanvas]);
+
+  // ── Combo color ──
+  const comboColor = () => {
+    const s = streakDisplay;
+    if (s >= 20) return "#ff00ff";
+    if (s >= 15) return "#ef4444";
+    if (s >= 10) return "#f97316";
+    if (s >= 5)  return "#fbbf24";
+    return "#ffffff";
+  };
+
+  const sv  = saveRef.current;
+  const lvl = getLevelFromXP(sv.xp);
+
+  // ════════════════════════════════════════════
+  // SCREEN RENDERERS
+  // ════════════════════════════════════════════
+
+  const renderMenu = () => (
+    <div className="flex flex-col items-center justify-center h-full gap-4 px-6 relative z-10">
+      <div className="text-center mb-2">
+        <h1 className="text-5xl font-black tracking-widest mb-1"
+          style={{ color: theme.accent, textShadow: `0 0 30px ${theme.accent}` }}>
+          NEXUS<span style={{ color: "#f472b6" }}>TAP</span>
+        </h1>
+        <p className="text-xs opacity-50 mb-1" style={{ color: theme.accent }}>
+          Level {lvl} · {sv.xp % XP_PER_LEVEL}/{XP_PER_LEVEL} XP to next
+        </p>
+        <div className="w-36 h-1.5 rounded-full mx-auto" style={{ background: "#ffffff22" }}>
+          <div className="h-full rounded-full transition-all"
+            style={{ width: `${(sv.xp % XP_PER_LEVEL) / XP_PER_LEVEL * 100}%`, background: theme.accent }} />
+        </div>
+      </div>
+
+      <NeonButton onClick={startGame} className="w-full py-4 text-2xl"
+        style={{ background: `linear-gradient(135deg, ${theme.secondary}, ${theme.accent})`,
+          boxShadow: `0 0 28px ${theme.accent}88` }}>
+        ▶ PLAY
+      </NeonButton>
+
+      <div className="grid grid-cols-2 gap-3 w-full">
+        {[
+          { label: "🎯 Daily Missions",  sc: "missions"     },
+          { label: "🏆 Leaderboard",     sc: "leaderboard"  },
+          { label: "🎖 Medals",          sc: "achievements" },
+          { label: "⚙ Settings",        sc: "settings"     },
+        ].map(b => (
+          <NeonButton key={b.sc} onClick={() => setScreen(b.sc)} className="py-3 text-sm"
+            style={{ background: "#ffffff10", border: `1px solid ${theme.accent}44` }}>
+            {b.label}
+          </NeonButton>
+        ))}
+      </div>
+
+      {sv.highScore > 0 && (
+        <p className="text-sm opacity-40 mt-1" style={{ color: theme.accent }}>
+          Best: {sv.highScore.toLocaleString()}
+        </p>
+      )}
+    </div>
+  );
+
+  const renderPlaying = () => (
+    <div className="absolute inset-0 overflow-hidden"
+      onTouchStart={handleTap} onClick={handleTap}
+      style={{ touchAction: "none" }}>
+
+      {/* HUD */}
+      <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-4 py-3"
+        style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)" }}>
+        <div className="text-center">
+          <div className="text-xs opacity-50" style={{ color: theme.accent }}>SCORE</div>
+          <div className="text-2xl font-black" style={{ color: theme.accent }}>{scoreDisplay.toLocaleString()}</div>
+        </div>
+        <div className="flex gap-1">
+          {Array.from({ length: 3 }, (_, i) => (
+            <span key={i} className="text-xl">{i < livesDisplay ? "❤️" : "🖤"}</span>
+          ))}
+        </div>
+        <div className="text-center">
+          <div className="text-xs opacity-50" style={{ color: theme.accent }}>STREAK</div>
+          <div className="text-2xl font-black" style={{ color: comboColor(),
+            textShadow: streakDisplay >= 5 ? `0 0 12px ${comboColor()}` : "none" }}>
+            {streakDisplay}×
+          </div>
+        </div>
+      </div>
+
+      {/* Active power-ups bar */}
+      {activePwrDisp.length > 0 && (
+        <div className="absolute z-20 flex justify-center gap-2 left-0 right-0" style={{ top: 72 }}>
+          {activePwrDisp.map(p => (
+            <div key={p.type} className="px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1"
+              style={{ background: "#1e3a8acc", border: "1px solid #60a5fa66", color: "#60a5fa" }}>
+              {p.type === "SHIELD" ? "🛡" : p.type === "SLOW" ? "🐢" : p.type === "DOUBLE" ? "×2" : "❤️"}
+              {" "}{p.type}{" "}
+              <span className="opacity-50">{Math.max(0, Math.ceil((p.endsAt - Date.now()) / 1000))}s</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Fever border */}
+      {feverDisplay && (
+        <div className="absolute inset-0 pointer-events-none z-10"
+          style={{ border: "4px solid #fbbf24",
+            boxShadow: "inset 0 0 50px #fbbf2440, 0 0 50px #fbbf2440",
+            animation: "feverPulse 0.6s ease-in-out infinite alternate" }} />
+      )}
+
+      {/* Epic flash */}
+      {epicFlash && (
+        <div className="absolute inset-0 pointer-events-none z-10"
+          style={{ background: "#f472b633", animation: "epicFlash 0.4s ease-out forwards" }} />
+      )}
+
+      {/* Fever label */}
+      {feverDisplay && (
+        <div className="absolute left-0 right-0 flex justify-center z-30 pointer-events-none" style={{ top: 110 }}>
+          <span className="font-black text-lg px-4 py-1 rounded-full"
+            style={{ color: "#fbbf24", textShadow: "0 0 20px #fbbf24",
+              background: "#fbbf2420", animation: "feverPulse 0.5s infinite alternate" }}>
+            🌡 FEVER MODE!
+          </span>
+        </div>
+      )}
+
+      {/* Targets */}
+      {targetsDisplay.map(t => {
+        const ageMs = performance.now() - t.born;
+        const spawnProg = Math.min(1, ageMs / 150);
+        const scale = spawnProg < 1 ? 0.05 + spawnProg * 1.08 : 1;
+        const timeLeft = Math.max(0, 1 - (Date.now() - t.spawnedAt) / t.lifetime);
+        return (
+          <div key={t.id} className="absolute pointer-events-none"
+            style={{ left: t.x - t.radius, top: t.y - t.radius,
+              transform: `scale(${scale})`, transformOrigin: "center" }}>
+            <TargetShape type={t.type} rarity={t.rarity} radius={t.radius}
+              color={t.color} glow={t.glow} bombPulse={bombPulseRef.current} />
+            {t.type !== "bomb" && (
+              <svg className="absolute inset-0 pointer-events-none" width={t.radius * 2} height={t.radius * 2}
+                style={{ transform: "rotate(-90deg)" }}>
+                <circle cx={t.radius} cy={t.radius} r={t.radius - 4} fill="none"
+                  stroke={t.color} strokeWidth={2.5} strokeOpacity={0.4}
+                  strokeDasharray={2 * Math.PI * (t.radius - 4)}
+                  strokeDashoffset={2 * Math.PI * (t.radius - 4) * (1 - timeLeft)} />
+              </svg>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Particles */}
+      {particlesDisp.map(p => (
+        <div key={p.id} className="absolute pointer-events-none rounded-full"
+          style={{ left: p.x - p.size / 2, top: p.y - p.size / 2,
+            width: p.size, height: p.size,
+            background: p.color, opacity: p.life,
+            boxShadow: `0 0 ${p.size * 2}px ${p.color}` }} />
+      ))}
+
+      {/* Score popups */}
+      {popupsDisp.map(p => {
+        const age = performance.now() - p.born;
+        return (
+          <div key={p.id} className="absolute pointer-events-none font-black text-sm select-none"
+            style={{ left: p.x, top: p.y - age * 0.06,
+              transform: "translateX(-50%)",
+              color: p.color, opacity: Math.max(0, 1 - age / 900),
+              textShadow: `0 0 10px ${p.color}`, letterSpacing: "0.1em" }}>
+            {p.text}
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  const renderGameOver = () => {
+    if (!gameOverData) return null;
+    const { score, isNewHigh, grade, xpEarned, soClose, bestStreak, sessionStats } = gameOverData;
+    const gradeColor = { S: "#fbbf24", A: "#34d399", B: "#60a5fa", C: "#a78bfa", D: "#6b7280" }[grade] || "#fff";
+    return (
+      <div className="flex flex-col items-center justify-start h-full overflow-y-auto px-6 py-8 gap-5 relative z-10">
+        {/* Grade */}
+        <div className="text-center">
+          <div className="text-7xl font-black mb-1"
+            style={{ color: gradeColor, textShadow: `0 0 40px ${gradeColor}`,
+              animation: "gradeReveal 0.6s ease-out" }}>
+            {grade}
+          </div>
+          {isNewHigh && <div className="text-yellow-400 font-bold text-sm animate-bounce">🎉 NEW HIGH SCORE!</div>}
+        </div>
+
+        <div className="text-4xl font-black" style={{ color: theme.accent }}>
+          {score.toLocaleString()}
+        </div>
+
+        {soClose && (
+          <div className="text-sm font-bold px-4 py-2 rounded-xl text-center"
+            style={{ color: "#f97316", background: "#f9731618", border: "1px solid #f9731644" }}>
+            SO CLOSE! Only {soClose} away from your best!
+          </div>
+        )}
+
+        {/* Stats grid */}
+        <div className="w-full rounded-2xl p-4 grid grid-cols-2 gap-3"
+          style={{ background: "#ffffff08", border: `1px solid ${theme.accent}33` }}>
+          {[
+            ["Targets Hit",  sessionStats.tapsTotal],
+            ["Rare / Epic",  sessionStats.rareHits],
+            ["Best Streak",  bestStreak + "×"],
+            ["Survived",     sessionStats.timeSurvived + "s"],
+            ["XP Earned",    "+" + xpEarned],
+            ["Level",        "Lv " + getLevelFromXP(sv.xp)],
+          ].map(([label, val]) => (
+            <div key={label} className="text-center">
+              <div className="text-xs opacity-40 mb-0.5" style={{ color: theme.accent }}>{label}</div>
+              <div className="font-bold text-base" style={{ color: theme.accent }}>{val}</div>
+            </div>
+          ))}
+        </div>
+
+        <NeonButton onClick={startGame} className="w-full py-4 text-xl"
+          style={{ background: `linear-gradient(135deg, ${theme.secondary}, ${theme.accent})`,
+            boxShadow: `0 0 24px ${theme.accent}88` }}>
+          ▶ PLAY AGAIN
+        </NeonButton>
+        <NeonButton onClick={() => setScreen("menu")} className="w-full py-3"
+          style={{ background: "#ffffff10", border: `1px solid ${theme.accent}44` }}>
+          ← MENU
+        </NeonButton>
+      </div>
+    );
+  };
+
+  const renderMissions = () => {
+    const missions = getDailyMissions();
+    const prog = sv.missionProgress || {};
+    return (
+      <div className="flex flex-col h-full px-4 py-6 gap-4 overflow-y-auto relative z-10">
+        <div className="flex items-center gap-3">
+          <NeonButton onClick={() => setScreen("menu")} className="px-3 py-2 text-sm"
+            style={{ background: "#ffffff10" }}>← Back</NeonButton>
+          <h2 className="text-xl font-black" style={{ color: theme.accent }}>Daily Missions</h2>
+        </div>
+        {missions.map(m => {
+          const cur = Math.min(prog[m.id] || 0, m.goal);
+          const pct = cur / m.goal * 100;
+          const done = cur >= m.goal;
+          return (
+            <div key={m.id} className="rounded-2xl p-4"
+              style={{ background: done ? `${theme.accent}1a` : "#ffffff08",
+                border: `1px solid ${done ? theme.accent : "#ffffff1a"}` }}>
+              <div className="flex justify-between items-center mb-2">
+                <span className="font-bold text-sm" style={{ color: done ? theme.accent : "#fff" }}>
+                  {done ? "✓ " : ""}{m.desc}
+                </span>
+                <span className="text-xs opacity-50" style={{ color: theme.accent }}>{cur}/{m.goal}</span>
+              </div>
+              <div className="h-2 rounded-full" style={{ background: "#ffffff1a" }}>
+                <div className="h-full rounded-full transition-all"
+                  style={{ width: `${pct}%`, background: done ? theme.accent : `${theme.accent}99` }} />
+              </div>
+            </div>
+          );
+        })}
+        {sv.missionCompleted && (
+          <div className="text-center font-bold py-2" style={{ color: "#fbbf24" }}>
+            🏆 All missions complete! +200 XP claimed
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderAchievements = () => (
+    <div className="flex flex-col h-full px-4 py-6 gap-4 overflow-y-auto relative z-10">
+      <div className="flex items-center gap-3">
+        <NeonButton onClick={() => setScreen("menu")} className="px-3 py-2 text-sm"
+          style={{ background: "#ffffff10" }}>← Back</NeonButton>
+        <h2 className="text-xl font-black" style={{ color: theme.accent }}>Medals</h2>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {ACHIEVEMENTS.map(a => {
+          const unlocked = sv.unlockedAchievements.includes(a.id);
+          return (
+            <div key={a.id} className="rounded-2xl p-3 text-center"
+              style={{ background: unlocked ? `${theme.accent}1a` : "#ffffff06",
+                border: `1px solid ${unlocked ? theme.accent + "66" : "#ffffff12"}`,
+                opacity: unlocked ? 1 : 0.45 }}>
+              <div className="text-2xl mb-1">{a.icon}</div>
+              <div className="text-xs font-bold mb-0.5" style={{ color: unlocked ? theme.accent : "#ccc" }}>{a.label}</div>
+              <div className="text-xs opacity-50" style={{ color: theme.accent }}>{a.desc}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  const renderLeaderboard = () => (
+    <div className="flex flex-col h-full px-4 py-6 gap-4 overflow-y-auto relative z-10">
+      <div className="flex items-center gap-3">
+        <NeonButton onClick={() => setScreen("menu")} className="px-3 py-2 text-sm"
+          style={{ background: "#ffffff10" }}>← Back</NeonButton>
+        <h2 className="text-xl font-black" style={{ color: theme.accent }}>Leaderboard</h2>
+      </div>
+      {sv.scores.length === 0
+        ? <p className="text-center opacity-40 mt-8" style={{ color: theme.accent }}>No scores yet. Play a game!</p>
+        : sv.scores.map((s, i) => (
+          <div key={i} className="flex items-center justify-between px-4 py-3 rounded-2xl"
+            style={{ background: i === 0 ? `${theme.accent}1a` : "#ffffff06",
+              border: `1px solid ${i === 0 ? theme.accent + "66" : "#ffffff12"}` }}>
+            <span className="font-black text-xl" style={{ color: i === 0 ? "#fbbf24" : i === 1 ? "#d1d5db" : i === 2 ? "#d97706" : theme.accent }}>
+              {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`}
+            </span>
+            <span className="font-bold text-xl" style={{ color: theme.accent }}>{s.toLocaleString()}</span>
+          </div>
+        ))
+      }
+    </div>
+  );
+
+  const renderSettings = () => (
+    <div className="flex flex-col h-full px-4 py-6 gap-5 overflow-y-auto relative z-10">
+      <div className="flex items-center gap-3">
+        <NeonButton onClick={() => setScreen("menu")} className="px-3 py-2 text-sm"
+          style={{ background: "#ffffff10" }}>← Back</NeonButton>
+        <h2 className="text-xl font-black" style={{ color: theme.accent }}>Settings</h2>
+      </div>
+
+      {/* Sound */}
+      <div>
+        <p className="text-xs font-bold opacity-50 mb-2 uppercase" style={{ color: theme.accent }}>Sound</p>
+        <NeonButton onClick={() => {
+          const next = !soundOn;
+          setSoundOn(next);
+          saveRef.current.soundEnabled = next;
+          debouncedSave();
+        }} className="px-6 py-3"
+          style={{ background: soundOn ? `${theme.accent}25` : "#ffffff0a",
+            border: `1px solid ${soundOn ? theme.accent : "#ffffff22"}`,
+            color: soundOn ? theme.accent : "#888" }}>
+          {soundOn ? "🔊 Sound ON" : "🔇 Sound OFF"}
+        </NeonButton>
+      </div>
+
+      {/* Themes */}
+      <div>
+        <p className="text-xs font-bold opacity-50 mb-2 uppercase" style={{ color: theme.accent }}>Theme</p>
+        <div className="flex flex-col gap-2">
+          {THEMES.map(t => {
+            const locked = lvl < t.unlockLevel;
+            return (
+              <NeonButton key={t.id} disabled={locked}
+                onClick={() => { setTheme(t); saveRef.current.themeId = t.id; debouncedSave(); }}
+                className="flex items-center justify-between px-4 py-3 rounded-2xl"
+                style={{ background: theme.id === t.id ? `${t.accent}20` : "#ffffff06",
+                  border: `1px solid ${theme.id === t.id ? t.accent : "#ffffff12"}` }}>
+                <div className="flex items-center gap-3">
+                  <div className="w-4 h-4 rounded-full" style={{ background: t.accent }} />
+                  <span style={{ color: locked ? "#444" : t.accent }}>{t.name}</span>
+                </div>
+                {locked
+                  ? <span className="text-xs opacity-40">Lv {t.unlockLevel}</span>
+                  : theme.id === t.id && <span style={{ color: t.accent }}>✓</span>}
+              </NeonButton>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Reset */}
+      <div className="border-t border-white border-opacity-10 pt-4">
+        <NeonButton onClick={() => {
+          if (window.confirm("Reset ALL progress? This cannot be undone.")) {
+            saveRef.current = { ...DEFAULT_SAVE };
+            flushSave();
+            setTheme(THEMES[0]);
+            setSoundOn(true);
+            setScreen("menu");
+          }
+        }} className="w-full py-3 text-sm"
+          style={{ background: "#ef444418", border: "1px solid #ef444455", color: "#ef4444" }}>
+          Reset All Progress
+        </NeonButton>
+      </div>
+    </div>
+  );
+
+  // ════════════════════════════════════════════
+  // MAIN RENDER
+  // ════════════════════════════════════════════
+  return (
+    <div className="relative w-full h-screen overflow-hidden select-none"
+      style={{
+        background: theme.bg,
+        fontFamily: "'Segoe UI', system-ui, sans-serif",
+        transform: screenShake ? `translate(${Math.random() > 0.5 ? 4 : -4}px, ${Math.random() > 0.5 ? 3 : -3}px)` : "none",
+        transition: screenShake ? "none" : "transform 0.05s ease",
+      }}>
+
+      <style>{`
+        @keyframes feverPulse {
+          from { opacity: 0.65; }
+          to   { opacity: 1;    }
+        }
+        @keyframes epicFlash {
+          from { opacity: 1; }
+          to   { opacity: 0; }
+        }
+        @keyframes gradeReveal {
+          0%   { transform: scale(0) rotate(-20deg); opacity: 0; }
+          60%  { transform: scale(1.25) rotate(6deg); opacity: 1; }
+          100% { transform: scale(1) rotate(0deg); }
+        }
+        * {
+          -webkit-tap-highlight-color: transparent;
+          box-sizing: border-box;
+        }
+      `}</style>
+
+      {/* Canvas background */}
+      <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none z-0"
+        style={{ width: "100%", height: "100%" }} />
+
+      {/* Notification toast */}
+      {notification && (
+        <div className="absolute top-4 left-1/2 z-50 px-4 py-2 rounded-xl text-sm font-bold text-center pointer-events-none"
+          style={{ transform: "translateX(-50%)", background: "#000000dd",
+            border: `1px solid ${theme.accent}`, color: theme.accent,
+            boxShadow: `0 0 20px ${theme.accent}44`, maxWidth: "80vw",
+            whiteSpace: "nowrap" }}>
+          {notification}
+        </div>
+      )}
+
+      {/* Screen routing */}
+      {screen === "menu"         && renderMenu()}
+      {screen === "playing"      && renderPlaying()}
+      {screen === "gameover"     && renderGameOver()}
+      {screen === "missions"     && renderMissions()}
+      {screen === "achievements" && renderAchievements()}
+      {screen === "leaderboard"  && renderLeaderboard()}
+      {screen === "settings"     && renderSettings()}
+    </div>
+  );
 }
