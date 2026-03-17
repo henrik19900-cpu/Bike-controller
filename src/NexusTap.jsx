@@ -4,53 +4,53 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 // WORLD & LEVEL DEFINITIONS
 // ═══════════════════════════════════════════════════════════════
 const WORLDS = [
-  { id:1,  name:"Neon Meadow",   color:"#a78bfa", bg:"#0c0718", grid:"rgba(167,139,250,0.05)", accent:"#6d28d9" },
-  { id:2,  name:"Cyber Coast",   color:"#22d3ee", bg:"#020c18", grid:"rgba(34,211,238,0.04)",  accent:"#0e7490" },
-  { id:3,  name:"Fire Valley",   color:"#ff6030", bg:"#180400", grid:"rgba(255,96,48,0.05)",   accent:"#b45309" },
-  { id:4,  name:"Shadow Realm",  color:"#c084fc", bg:"#08021a", grid:"rgba(192,132,252,0.05)", accent:"#7c3aed" },
-  { id:5,  name:"Storm Peak",    color:"#60a5fa", bg:"#020818", grid:"rgba(96,165,250,0.05)",  accent:"#1d4ed8" },
-  { id:6,  name:"Ghost Domain",  color:"#e879f9", bg:"#0f0520", grid:"rgba(232,121,249,0.05)", accent:"#9333ea" },
-  { id:7,  name:"Inferno Core",  color:"#f97316", bg:"#1a0200", grid:"rgba(249,115,22,0.05)",  accent:"#c2410c" },
-  { id:8,  name:"Void Abyss",    color:"#818cf8", bg:"#00000f", grid:"rgba(129,140,248,0.05)", accent:"#4338ca" },
-  { id:9,  name:"Crystal Apex",  color:"#34d399", bg:"#000f06", grid:"rgba(52,211,153,0.05)",  accent:"#059669" },
-  { id:10, name:"Nexus Throne",  color:"#fbbf24", bg:"#0f0a00", grid:"rgba(251,191,36,0.06)",  accent:"#d97706" },
+  { id:1,  name:"Dragon's Lair",       emoji:"🐉", color:"#ff4500", bg:"#140100", grid:"rgba(255,69,0,0.07)",     accent:"#8b1a00", atmos:"cave"   },
+  { id:2,  name:"Troll Forest",         emoji:"🌿", color:"#3cb371", bg:"#010a03", grid:"rgba(60,179,113,0.07)",   accent:"#1a5c30", atmos:"forest" },
+  { id:3,  name:"Elven Kingdom",        emoji:"✨", color:"#c8a84b", bg:"#040802", grid:"rgba(200,168,75,0.06)",   accent:"#7a6520", atmos:"magic"  },
+  { id:4,  name:"Dark Wizard Tower",    emoji:"🔮", color:"#9b59b6", bg:"#060010", grid:"rgba(155,89,182,0.07)",   accent:"#6c3483", atmos:"arcane" },
+  { id:5,  name:"Viking Fjords",        emoji:"❄️", color:"#5dade2", bg:"#010810", grid:"rgba(93,173,226,0.06)",   accent:"#1a5276", atmos:"frost"  },
+  { id:6,  name:"Goblin Mines",         emoji:"⛏️", color:"#e8c020", bg:"#080600", grid:"rgba(232,192,32,0.06)",   accent:"#a08010", atmos:"mine"   },
+  { id:7,  name:"Undead Catacombs",     emoji:"💀", color:"#7fad7a", bg:"#010202", grid:"rgba(127,173,122,0.06)",  accent:"#3a6335", atmos:"undead" },
+  { id:8,  name:"Sea Serpent's Deep",   emoji:"🌊", color:"#1abc9c", bg:"#010908", grid:"rgba(26,188,156,0.06)",   accent:"#0d7a66", atmos:"ocean"  },
+  { id:9,  name:"Giant's Peak",         emoji:"⛰️", color:"#b0b8c1", bg:"#030404", grid:"rgba(176,184,193,0.06)",  accent:"#616a6b", atmos:"storm"  },
+  { id:10, name:"Ancient Dragon God",   emoji:"👑", color:"#ffd700", bg:"#0e0500", grid:"rgba(255,215,0,0.07)",    accent:"#b8860b", atmos:"divine" },
 ];
 
 const LEVEL_NAMES = [
-  // World 1
-  "First Steps","Warm Up","Getting It","Tap Dance","Rhythm Flow","Neon Lights","Grid Walk","Pulse Path","Ring Road","Boss Gate",
-  // World 2
-  "On the Move","Sliding In","Current Rush","Drift Avenue","Float Street","Wave Rider","Glide Gap","Surge Lane","Tidal Run","Sea Boss",
-  // World 3
-  "Fire Starter","Bomb Squad","Heat Wave","Danger Zone","Inferno Run","Burn Trail","Ash Path","Ember Road","Lava Lake","Fire Boss",
-  // World 4
-  "Fade In","Phase Walk","Ghost Alley","Flicker Hall","Shadow Lane","Phantom Path","Mist Road","Specter Run","Void Walk","Shade Boss",
-  // World 5
-  "Storm Brew","Thunder Road","Lightning Run","Bolt Alley","Charged Up","Volt Trail","Arc Path","Surge Run","Storm Eye","Storm Boss",
-  // World 6
-  "Haunt Begin","Specter Surge","Wraith Road","Phantom Rush","Ghost Blitz","Spirit Wave","Echo Hall","Shadow Blitz","Realm Run","Ghost Boss",
-  // World 7
-  "Ignite","Blaze Road","Fury Run","Inferno Blitz","Char Trail","Flame Rush","Burn Blitz","Cinder Road","Ash Blitz","Flame Boss",
-  // World 8
-  "Dark Matter","Void Pulse","Abyss Walk","Null Zone","Zero Hour","Blank Space","Deep Dark","Rift Road","Null Rush","Void Boss",
-  // World 9
-  "Crystal Clear","Gem Trail","Prism Road","Shard Run","Facet Blitz","Diamond Road","Quartz Rush","Emerald Lane","Crystal Blitz","Gem Boss",
-  // World 10
-  "Throne Approach","Royal Road","Crown Trail","Scepter Rush","Nexus Gate","Power Surge","Ultimate Run","Apex Blitz","Final Stand","NEXUS FINAL",
+  // World 1 — Dragon's Lair
+  "Cave Entrance","Ember Passage","Smoke Tunnel","Scale Watch","Fire Breath","Lava Crossing","Scorched Trail","Dragon's Den","Horde Chamber","Dragon Lord",
+  // World 2 — Troll Forest
+  "Dark Underbrush","Mossy Trail","Root Maze","Troll Path","Swamp Fog","Gnarly Thicket","Troll Bridge","Ancient Grove","Forest Depths","Troll King",
+  // World 3 — Elven Kingdom
+  "Leaf Canopy","Elven Trail","Arcane Glade","Silver Bow","Arrow Storm","Elven Gates","Crystal Spire","Ancient Magic","Star Blossom","High Elf",
+  // World 4 — Dark Wizard Tower
+  "Forbidden Hall","Arcane Study","Spell Maze","Rune Chamber","Hex Passage","Dark Portal","Vortex Room","Curse Walk","Void Ritual","Dark Lord",
+  // World 5 — Viking Fjords
+  "Shore Landing","Ice Trail","Rune Road","Frost Path","Storm Crossing","Berserker Run","Longship Run","Thor's Path","Valhalla Gate","Viking Jarl",
+  // World 6 — Goblin Mines
+  "Mine Shaft","Gold Vein","Dark Tunnel","Goblin Rush","Treasure Hunt","Pickaxe Path","Crystal Cave","Deep Mine","Gem Blitz","Goblin King",
+  // World 7 — Undead Catacombs
+  "Bone Hall","Crypt Walk","Zombie Lane","Skull Road","Coffin Maze","Specter Gate","Grave Trail","Wraith Run","Dark Mass","Necromancer",
+  // World 8 — Sea Serpent's Deep
+  "Coral Reef","Sea Cave","Tide Rush","Current Dash","Deep Dive","Serpent Trail","Abyss Gate","Kraken Path","Dark Ocean","Sea Serpent",
+  // World 9 — Giant's Peak
+  "Mountain Base","Boulder Path","Storm Climb","Thunder Trail","Giant Steps","Peak Rush","Cloud Walk","Lightning Pass","Summit Blitz","Giant Lord",
+  // World 10 — Ancient Dragon God
+  "Sacred Path","Temple Gate","Dragon's Eye","Ancient Fire","God's Trial","Eternal Flame","Relic Rush","Divine Wrath","Final Trial","ANCIENT GOD",
 ];
 
 // Special milestone modifiers
 const MILESTONE_MODS = {
-  10:  { type:"boss_kill",  desc:"Defeat a Boss to win!" },
-  20:  { type:"combo_20",   desc:"Reach 20× combo!" },
-  30:  { type:"fever_2",    desc:"Trigger Fever twice!" },
-  40:  { type:"no_miss",    desc:"Don't miss a single target!" },
-  50:  { type:"speed_run",  desc:"Score fast — targets expire quickly!" },
-  60:  { type:"moving_only",desc:"Only moving targets appear!" },
-  70:  { type:"ghost_rush", desc:"Ghost targets everywhere!" },
-  80:  { type:"combo_40",   desc:"Reach 40× combo!" },
-  90:  { type:"fever_3",    desc:"Trigger Fever 3 times!" },
-  100: { type:"final_boss", desc:"Defeat the NEXUS BOSS!" },
+  10:  { type:"boss_kill",   desc:"Slay the Dragon Lord!" },
+  20:  { type:"combo_20",    desc:"Strike 20 times without mercy!" },
+  30:  { type:"fever_2",     desc:"Summon Battle Frenzy twice!" },
+  40:  { type:"no_miss",     desc:"Strike true — miss nothing!" },
+  50:  { type:"speed_run",   desc:"Race against the ancient curse!" },
+  60:  { type:"moving_only", desc:"Hunt only moving prey!" },
+  70:  { type:"ghost_rush",  desc:"Face the spectral horde!" },
+  80:  { type:"combo_40",    desc:"Reach 40× battle chain!" },
+  90:  { type:"fever_3",     desc:"Summon Battle Frenzy 3 times!" },
+  100: { type:"final_boss",  desc:"Defeat the ANCIENT DRAGON GOD!" },
 };
 
 function getLevelConfig(n) {
@@ -91,65 +91,65 @@ const FEVER_DUR    = 8000;
 const XP_PER_LVL   = 150;
 
 const RARITY = {
-  COMMON:    { name:"common",    chance:0.55, color:"#a78bfa", glow:"#7c3aed", mult:1,  size:1.0,  label:""             },
-  UNCOMMON:  { name:"uncommon",  chance:0.23, color:"#34d399", glow:"#059669", mult:2,  size:1.15, label:"BONUS ×2"     },
-  RARE:      { name:"rare",      chance:0.13, color:"#fbbf24", glow:"#d97706", mult:5,  size:1.4,  label:"RARE ×5"      },
-  EPIC:      { name:"epic",      chance:0.07, color:"#f472b6", glow:"#db2777", mult:15, size:1.8,  label:"EPIC ×15"     },
-  LEGENDARY: { name:"legendary", chance:0.02, color:"#ff6030", glow:"#ff2000", mult:50, size:2.2,  label:"LEGENDARY ×50"},
+  COMMON:    { name:"common",    chance:0.55, color:"#a78bfa", glow:"#7c3aed", mult:1,  size:1.0,  label:""               },
+  UNCOMMON:  { name:"uncommon",  chance:0.23, color:"#34d399", glow:"#059669", mult:2,  size:1.15, label:"CURSED ×2"      },
+  RARE:      { name:"rare",      chance:0.13, color:"#fbbf24", glow:"#d97706", mult:5,  size:1.4,  label:"ENCHANTED ×5"   },
+  EPIC:      { name:"epic",      chance:0.07, color:"#f472b6", glow:"#db2777", mult:15, size:1.8,  label:"MYTHIC ×15"     },
+  LEGENDARY: { name:"legendary", chance:0.02, color:"#ff6030", glow:"#ff2000", mult:50, size:2.2,  label:"DIVINE ×50"    },
 };
 
 const THEMES = [
-  { id:"neon",   name:"Neon Purple",bg:"#0c0718",accent:"#a78bfa",secondary:"#6d28d9",grid:"rgba(167,139,250,0.05)",unlockLevel:1  },
-  { id:"cyber",  name:"Cyber Blue", bg:"#020c18",accent:"#22d3ee",secondary:"#0e7490",grid:"rgba(34,211,238,0.04)", unlockLevel:5  },
-  { id:"inferno",name:"Inferno",    bg:"#180400",accent:"#ff6030",secondary:"#b45309",grid:"rgba(255,96,48,0.05)", unlockLevel:10 },
-  { id:"matrix", name:"Matrix",     bg:"#000e00",accent:"#39ff14",secondary:"#166534",grid:"rgba(57,255,20,0.04)", unlockLevel:20 },
-  { id:"abyss",  name:"Deep Abyss", bg:"#00000f",accent:"#6060ff",secondary:"#1a1a9a",grid:"rgba(96,96,255,0.04)",unlockLevel:30 },
-  { id:"rose",   name:"Rose Gold",  bg:"#180810",accent:"#ff8fab",secondary:"#9d174d",grid:"rgba(255,143,171,0.04)",unlockLevel:40},
+  { id:"neon",    name:"Arcane Night",  bg:"#0c0718",accent:"#a78bfa",secondary:"#6d28d9",grid:"rgba(167,139,250,0.05)",unlockLevel:1  },
+  { id:"cyber",   name:"Ice Kingdom",   bg:"#020c18",accent:"#22d3ee",secondary:"#0e7490",grid:"rgba(34,211,238,0.04)", unlockLevel:5  },
+  { id:"inferno", name:"Dragon Fire",   bg:"#180400",accent:"#ff6030",secondary:"#b45309",grid:"rgba(255,96,48,0.05)", unlockLevel:10 },
+  { id:"matrix",  name:"Elven Forest",  bg:"#000e00",accent:"#39ff14",secondary:"#166534",grid:"rgba(57,255,20,0.04)", unlockLevel:20 },
+  { id:"abyss",   name:"Dark Abyss",    bg:"#00000f",accent:"#6060ff",secondary:"#1a1a9a",grid:"rgba(96,96,255,0.04)",unlockLevel:30 },
+  { id:"rose",    name:"Sacred Gold",   bg:"#180810",accent:"#ff8fab",secondary:"#9d174d",grid:"rgba(255,143,171,0.04)",unlockLevel:40},
 ];
 
 const COMBO_LABELS = [
-  [50,"GODLIKE!! 🔥"],[35,"UNSTOPPABLE! ⚡"],[20,"AMAZING! 💥"],[10,"GREAT! ⭐"],[5,"NICE!"],
+  [50,"LEGENDARY!! 🔥"],[35,"UNSTOPPABLE! ⚡"],[20,"WARLORD! 💥"],[10,"WARRIOR! ⭐"],[5,"NICE!"],
 ];
 
 const ACHIEVEMENTS = [
-  { id:"first_tap",    label:"First Blood",   desc:"Tap your first target",      icon:"👆", xp:10  },
-  { id:"streak_10",    label:"On Fire",        desc:"10-tap streak",              icon:"🔥", xp:20  },
-  { id:"streak_25",    label:"Blazing",        desc:"25-tap streak",              icon:"⚡", xp:40  },
-  { id:"streak_50",    label:"Unstoppable",    desc:"50-tap streak",              icon:"💥", xp:80  },
-  { id:"first_rare",   label:"Lucky",          desc:"Hit a rare target",          icon:"⭐", xp:15  },
-  { id:"first_epic",   label:"Epic!",          desc:"Hit an epic target",         icon:"💎", xp:30  },
-  { id:"legendary",    label:"Legendary",      desc:"Hit a legendary target",     icon:"👑", xp:100 },
-  { id:"boss_kill",    label:"Boss Slayer",    desc:"Defeat a boss",              icon:"🐲", xp:50  },
-  { id:"perfect_tap",  label:"Sharpshooter",   desc:"Land a Perfect Tap",         icon:"🎯", xp:15  },
-  { id:"level_10",     label:"Adventurer",     desc:"Complete Level 10",          icon:"🗺", xp:50  },
-  { id:"level_25",     label:"Explorer",       desc:"Complete Level 25",          icon:"🧭", xp:80  },
-  { id:"level_50",     label:"Champion",       desc:"Complete Level 50",          icon:"🏆", xp:120 },
-  { id:"level_100",    label:"NEXUS MASTER",   desc:"Complete all 100 levels",    icon:"👑", xp:500 },
-  { id:"three_stars",  label:"Perfectionist",  desc:"3-star any level",           icon:"🌟", xp:25  },
-  { id:"fever_mode",   label:"Fever!",         desc:"Trigger Fever Mode",         icon:"🌡️",xp:30  },
-  { id:"score_2000",   label:"Legend",         desc:"Score 2000 in a level",      icon:"🚀", xp:50  },
-  { id:"missions_all", label:"Daily Champ",    desc:"Complete all daily missions",icon:"📋", xp:50  },
-  { id:"daily_7",      label:"Dedicated",      desc:"7-day login streak",         icon:"🏅", xp:75  },
-  { id:"five_star",    label:"Flawless",       desc:"Complete a boss level 3-star",icon:"🌟",xp:100 },
+  { id:"first_tap",    label:"First Strike",     desc:"Land your first hit in battle",    icon:"⚔️", xp:10  },
+  { id:"streak_10",    label:"On Fire",          desc:"10-hit battle streak",             icon:"🔥", xp:20  },
+  { id:"streak_25",    label:"Blazing Warrior",  desc:"25-hit battle streak",             icon:"🌋", xp:40  },
+  { id:"streak_50",    label:"Unstoppable",      desc:"50-hit battle streak",             icon:"💥", xp:80  },
+  { id:"first_rare",   label:"Enchanted Find",   desc:"Strike an Enchanted target",       icon:"✨", xp:15  },
+  { id:"first_epic",   label:"Mythic Touch",     desc:"Strike a Mythic target",           icon:"💎", xp:30  },
+  { id:"legendary",    label:"Divine Power",     desc:"Strike a Divine target",           icon:"👑", xp:100 },
+  { id:"boss_kill",    label:"Boss Slayer",      desc:"Defeat a world boss",              icon:"🐉", xp:50  },
+  { id:"perfect_tap",  label:"True Aim",         desc:"Land a Perfect Strike",            icon:"🎯", xp:15  },
+  { id:"level_10",     label:"Brave Adventurer", desc:"Clear Dragon's Lair",              icon:"🗡️", xp:50  },
+  { id:"level_25",     label:"Realm Walker",     desc:"Reach World 3",                   icon:"🧭", xp:80  },
+  { id:"level_50",     label:"Champion",         desc:"Reach World 5",                   icon:"🏆", xp:120 },
+  { id:"level_100",    label:"REALM MASTER",     desc:"Conquer all 100 levels",           icon:"👑", xp:500 },
+  { id:"three_stars",  label:"Perfect Victory",  desc:"3-star any level",                 icon:"🌟", xp:25  },
+  { id:"fever_mode",   label:"Battle Frenzy",    desc:"Trigger Battle Frenzy mode",       icon:"⚡", xp:30  },
+  { id:"score_2000",   label:"War Legend",       desc:"Score 2000 in a level",            icon:"🚀", xp:50  },
+  { id:"missions_all", label:"Quest Master",     desc:"Complete all daily quests",        icon:"📜", xp:50  },
+  { id:"daily_7",      label:"Devoted Hero",     desc:"7-day login streak",               icon:"🛡️", xp:75  },
+  { id:"five_star",    label:"Flawless Conquest",desc:"3-star a boss level",              icon:"⭐", xp:100 },
 ];
 
 const MISSION_TEMPLATES = [
-  { id:"tap_30",    desc:"Tap 30 targets",        key:"tapsTotal",        goal:30  },
-  { id:"rare_5",    desc:"Hit 5 rare+ targets",   key:"rareHits",         goal:5   },
-  { id:"combo_15",  desc:"Reach 15× streak",      key:"bestCombo",        goal:15  },
-  { id:"boss_1",    desc:"Defeat a boss",          key:"bossKills",        goal:1   },
-  { id:"fever_2",   desc:"Trigger Fever 2×",       key:"feverCount",       goal:2   },
-  { id:"perfect_5", desc:"5 Perfect Taps",         key:"perfectTaps",      goal:5   },
-  { id:"levels_3",  desc:"Complete 3 levels",      key:"levelsCompleted",  goal:3   },
-  { id:"powerup_3", desc:"Collect 3 power-ups",   key:"powerupCollected", goal:3   },
-  { id:"score_500", desc:"Score 500 in one level", key:"score",            goal:500 },
+  { id:"tap_30",    desc:"Strike 30 enemies",          key:"tapsTotal",        goal:30  },
+  { id:"rare_5",    desc:"Hit 5 Enchanted+ targets",   key:"rareHits",         goal:5   },
+  { id:"combo_15",  desc:"Reach 15× battle chain",     key:"bestCombo",        goal:15  },
+  { id:"boss_1",    desc:"Slay a world boss",           key:"bossKills",        goal:1   },
+  { id:"fever_2",   desc:"Trigger Battle Frenzy 2×",   key:"feverCount",       goal:2   },
+  { id:"perfect_5", desc:"5 Perfect Strikes",          key:"perfectTaps",      goal:5   },
+  { id:"levels_3",  desc:"Clear 3 stages",             key:"levelsCompleted",  goal:3   },
+  { id:"powerup_3", desc:"Collect 3 relics",           key:"powerupCollected", goal:3   },
+  { id:"score_500", desc:"Score 500 in one stage",     key:"score",            goal:500 },
 ];
 
 const SHOP_ITEMS = [
-  { id:"extra_life",   name:"Extra Life",    desc:"Start with +1 life",          cost:60,  icon:"❤️" },
-  { id:"head_start",   name:"Head Start",    desc:"+300 score at start",          cost:80,  icon:"🚀" },
-  { id:"shield_start", name:"Shield",        desc:"Begin with active Shield",    cost:100, icon:"🛡" },
-  { id:"power_pack",   name:"Power Pack",    desc:"Start with a random power-up",cost:120, icon:"⚡" },
+  { id:"extra_life",   name:"Healing Potion",  desc:"Start with +1 life",            cost:60,  icon:"🧪" },
+  { id:"head_start",   name:"War Banner",       desc:"+300 score at battle start",     cost:80,  icon:"⚔️" },
+  { id:"shield_start", name:"Knight's Shield",  desc:"Begin battle with active Shield",cost:100, icon:"🛡️" },
+  { id:"power_pack",   name:"Relic Pack",       desc:"Start with a random relic",      cost:120, icon:"🔮" },
 ];
 
 const DEFAULT_SAVE = {
@@ -694,28 +694,234 @@ function drawParticle(ctx,p,now){
 }
 
 // ── Background ──
-function drawBg(ctx,w,h,accent,gridColor,ts,fever){
+function drawBg(ctx,w,h,accent,gridColor,ts,fever,worldId=0){
   ctx.clearRect(0,0,w,h);
   const gs=44, pulse=0.5+0.5*Math.sin(ts/1500);
-  // Grid
+
+  // ── World-specific atmospheric overlays ──
+  if(worldId===1){
+    // Dragon's Lair: lava glow rising from bottom, flickering heat
+    const g=ctx.createLinearGradient(0,h*0.55,0,h);
+    g.addColorStop(0,"transparent");
+    g.addColorStop(1,`rgba(200,40,0,${0.15+pulse*0.08})`);
+    ctx.fillStyle=g; ctx.fillRect(0,0,w,h);
+    // Side lava veins glow
+    const gl=ctx.createLinearGradient(0,0,w*0.25,0);
+    gl.addColorStop(0,`rgba(255,60,0,${0.07+pulse*0.04})`); gl.addColorStop(1,"transparent");
+    ctx.fillStyle=gl; ctx.fillRect(0,0,w,h);
+  } else if(worldId===2){
+    // Troll Forest: mist settling from top, deep green murk
+    const g=ctx.createLinearGradient(0,0,0,h*0.45);
+    g.addColorStop(0,`rgba(10,40,10,${0.18+pulse*0.06})`); g.addColorStop(1,"transparent");
+    ctx.fillStyle=g; ctx.fillRect(0,0,w,h);
+    const g2=ctx.createLinearGradient(0,h*0.7,0,h);
+    g2.addColorStop(0,"transparent"); g2.addColorStop(1,`rgba(5,30,5,${0.14+pulse*0.04})`);
+    ctx.fillStyle=g2; ctx.fillRect(0,0,w,h);
+  } else if(worldId===3){
+    // Elven Kingdom: magical radial shimmer
+    const g=ctx.createRadialGradient(w/2,h/2,0,w/2,h/2,w*0.65);
+    g.addColorStop(0,`rgba(200,168,75,${0.05+pulse*0.04})`); g.addColorStop(1,"transparent");
+    ctx.fillStyle=g; ctx.fillRect(0,0,w,h);
+    // Silver edge glow
+    const g2=ctx.createRadialGradient(w/2,h/2,w*0.3,w/2,h/2,w*0.8);
+    g2.addColorStop(0,"transparent"); g2.addColorStop(1,`rgba(180,220,255,${0.04+pulse*0.02})`);
+    ctx.fillStyle=g2; ctx.fillRect(0,0,w,h);
+  } else if(worldId===4){
+    // Dark Wizard Tower: arcane vortex glow from center
+    const g=ctx.createRadialGradient(w/2,h/2,0,w/2,h/2,w*0.55);
+    g.addColorStop(0,`rgba(100,20,160,${0.10+pulse*0.06})`); g.addColorStop(1,"transparent");
+    ctx.fillStyle=g; ctx.fillRect(0,0,w,h);
+    // Lightning flicker at top
+    if(Math.sin(ts*0.03)>0.85){
+      ctx.fillStyle=`rgba(150,50,255,${0.06})`; ctx.fillRect(0,0,w,h*0.3);
+    }
+  } else if(worldId===5){
+    // Viking Fjords: aurora borealis shimmer + ice haze
+    const g=ctx.createLinearGradient(0,0,0,h*0.5);
+    g.addColorStop(0,`rgba(0,60,100,${0.16+pulse*0.06})`);
+    g.addColorStop(0.5,`rgba(0,80,60,${0.08+pulse*0.03})`);
+    g.addColorStop(1,"transparent");
+    ctx.fillStyle=g; ctx.fillRect(0,0,w,h);
+    // Aurora band
+    ctx.save(); ctx.globalAlpha=0.05+Math.abs(Math.sin(ts*0.0005))*0.05;
+    const ga=ctx.createLinearGradient(0,h*0.05,w,h*0.2);
+    ga.addColorStop(0,"rgba(0,200,100,0)"); ga.addColorStop(0.5,"rgba(0,200,150,1)"); ga.addColorStop(1,"rgba(0,150,255,0)");
+    ctx.fillStyle=ga; ctx.fillRect(0,h*0.05,w,h*0.15); ctx.restore();
+  } else if(worldId===6){
+    // Goblin Mines: golden ore glow from below, dusty cave
+    const g=ctx.createRadialGradient(w/2,h,0,w/2,h,w*0.8);
+    g.addColorStop(0,`rgba(180,130,0,${0.12+pulse*0.06})`); g.addColorStop(1,"transparent");
+    ctx.fillStyle=g; ctx.fillRect(0,0,w,h);
+    // Rocky walls darkening sides
+    const gl=ctx.createLinearGradient(0,0,w*0.2,0);
+    gl.addColorStop(0,`rgba(30,20,0,0.22)`); gl.addColorStop(1,"transparent");
+    ctx.fillStyle=gl; ctx.fillRect(0,0,w,h);
+    const gr=ctx.createLinearGradient(w,0,w*0.8,0);
+    gr.addColorStop(0,`rgba(30,20,0,0.22)`); gr.addColorStop(1,"transparent");
+    ctx.fillStyle=gr; ctx.fillRect(0,0,w,h);
+  } else if(worldId===7){
+    // Undead Catacombs: sickly green miasma on the ground, bone-cold
+    const g=ctx.createLinearGradient(0,h*0.65,0,h);
+    g.addColorStop(0,"transparent"); g.addColorStop(1,`rgba(20,60,15,${0.18+pulse*0.06})`);
+    ctx.fillStyle=g; ctx.fillRect(0,0,w,h);
+    const g2=ctx.createLinearGradient(0,0,0,h*0.3);
+    g2.addColorStop(0,`rgba(5,10,5,0.25)`); g2.addColorStop(1,"transparent");
+    ctx.fillStyle=g2; ctx.fillRect(0,0,w,h);
+  } else if(worldId===8){
+    // Sea Serpent's Deep: bioluminescent depth gradient, caustic shimmer
+    const g=ctx.createLinearGradient(0,0,0,h);
+    g.addColorStop(0,`rgba(0,40,60,${0.12+pulse*0.04})`);
+    g.addColorStop(1,`rgba(0,80,70,${0.18+pulse*0.06})`);
+    ctx.fillStyle=g; ctx.fillRect(0,0,w,h);
+    // Caustic light patches
+    ctx.save(); ctx.globalAlpha=0.03+Math.abs(Math.sin(ts*0.0008))*0.03;
+    for(let i=0;i<3;i++){
+      const gci=ctx.createRadialGradient((w*0.2+i*w*0.3),h*0.4,0,(w*0.2+i*w*0.3),h*0.4,w*0.25);
+      gci.addColorStop(0,"rgba(26,188,156,0.6)"); gci.addColorStop(1,"transparent");
+      ctx.fillStyle=gci; ctx.fillRect(0,0,w,h);
+    }
+    ctx.restore();
+  } else if(worldId===9){
+    // Giant's Peak: stormy sky from top, icy mountain base
+    const g=ctx.createLinearGradient(0,0,0,h*0.6);
+    g.addColorStop(0,`rgba(30,40,60,${0.20+pulse*0.06})`);
+    g.addColorStop(1,"transparent");
+    ctx.fillStyle=g; ctx.fillRect(0,0,w,h);
+    // Lightning flash
+    if(Math.sin(ts*0.017)>0.92){
+      ctx.fillStyle=`rgba(176,184,193,0.08)`; ctx.fillRect(0,0,w,h);
+    }
+  } else if(worldId===10){
+    // Ancient Dragon God: divine golden radiance, sacred fire
+    const g=ctx.createRadialGradient(w/2,h/2,0,w/2,h/2,w*0.7);
+    g.addColorStop(0,`rgba(200,150,0,${0.08+pulse*0.05})`); g.addColorStop(1,"transparent");
+    ctx.fillStyle=g; ctx.fillRect(0,0,w,h);
+    const g2=ctx.createLinearGradient(0,h*0.6,0,h);
+    g2.addColorStop(0,"transparent"); g2.addColorStop(1,`rgba(180,80,0,${0.12+pulse*0.06})`);
+    ctx.fillStyle=g2; ctx.fillRect(0,0,w,h);
+    // Sacred pillar glow
+    ctx.save(); ctx.globalAlpha=0.04+pulse*0.03;
+    const gp=ctx.createLinearGradient(w*0.35,0,w*0.65,0);
+    gp.addColorStop(0,"transparent"); gp.addColorStop(0.5,"rgba(255,215,0,0.8)"); gp.addColorStop(1,"transparent");
+    ctx.fillStyle=gp; ctx.fillRect(w*0.35,0,w*0.3,h); ctx.restore();
+  }
+
+  // ── Grid (world-specific style) ──
+  const gsize = worldId===6 ? 36 : worldId===8 ? 52 : 44;
   ctx.strokeStyle=gridColor; ctx.lineWidth=0.7;
-  for(let x=0;x<w;x+=gs){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();}
-  for(let y=0;y<h;y+=gs){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
-  // Accent lines
+  if(worldId===8){
+    // Ocean: undulating wave lines
+    for(let y=0;y<h;y+=gsize){
+      ctx.beginPath();
+      for(let x=0;x<=w;x+=10){
+        const wave=Math.sin((x*0.03)+(ts*0.0006))*7;
+        x===0?ctx.moveTo(x,y+wave):ctx.lineTo(x,y+wave);
+      }
+      ctx.stroke();
+    }
+    for(let x=0;x<w;x+=gsize){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();}
+  } else if(worldId===2){
+    // Forest: slightly diagonal grid for organic feel
+    for(let x=-h;x<w+h;x+=gsize){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x+h*0.08,h);ctx.stroke();}
+    for(let y=0;y<h;y+=gsize){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
+  } else {
+    for(let x=0;x<w;x+=gsize){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();}
+    for(let y=0;y<h;y+=gsize){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
+  }
+
+  // ── Accent lines ──
   ctx.strokeStyle=accent; ctx.globalAlpha=(0.07+pulse*0.05)*(fever?3:1); ctx.lineWidth=1.2;
-  for(let x=0;x<w;x+=gs*5){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();}
-  for(let y=0;y<h;y+=gs*5){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
+  for(let x=0;x<w;x+=gsize*5){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();}
+  for(let y=0;y<h;y+=gsize*5){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
   ctx.globalAlpha=1;
 }
 
-function drawBgParticles(ctx,parts,accent,fever){
+function drawBgParticles(ctx,parts,accent,fever,worldId=0){
   const cw=ctx.canvas.width,ch=ctx.canvas.height;
   parts.forEach(p=>{
-    p.x+=p.vx; p.y+=p.vy;
-    if(p.x<0)p.x=cw;if(p.x>cw)p.x=0;if(p.y<0)p.y=ch;if(p.y>ch)p.y=0;
-    ctx.save(); ctx.globalAlpha=p.alpha*(fever?1.8:1);
-    ctx.fillStyle=fever?"#fbbf24":accent; ctx.shadowColor=fever?"#fbbf24":accent; ctx.shadowBlur=p.r*4;
-    ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill(); ctx.restore();
+    const wid=p.worldId||worldId;
+    // World-specific movement
+    if(wid===1){
+      // Embers: drift upward with slight sway
+      p.x+=p.vx+Math.sin(p.phase+(performance.now()*0.001))*0.3;
+      p.y+=p.vy; // vy is negative (upward)
+      if(p.y<-10){p.y=ch+10;p.x=Math.random()*cw;}
+      if(p.x<0)p.x=cw;if(p.x>cw)p.x=0;
+    } else if(wid===2){
+      // Leaves: drift diagonally, gentle sway
+      p.x+=p.vx+Math.sin(p.phase+(performance.now()*0.0008))*0.4;
+      p.y+=Math.abs(p.vy)*0.8; // always fall
+      p.angle=(p.angle||0)+0.02;
+      if(p.y>ch+10){p.y=-10;p.x=Math.random()*cw;}
+      if(p.x<0)p.x=cw;if(p.x>cw)p.x=0;
+    } else if(wid===5||wid===9){
+      // Snowflakes: fall straight down with slight drift
+      p.x+=Math.sin(p.phase+(performance.now()*0.0006))*0.5;
+      p.y+=Math.abs(p.vy)*0.6+0.3;
+      if(p.y>ch+10){p.y=-10;p.x=Math.random()*cw;}
+      if(p.x<0)p.x=cw;if(p.x>cw)p.x=0;
+    } else if(wid===8){
+      // Bubbles: rise straight up
+      p.x+=Math.sin(p.phase+(performance.now()*0.001))*0.4;
+      p.y-=Math.abs(p.vy)*0.5+0.2;
+      if(p.y<-10){p.y=ch+10;p.x=Math.random()*cw;}
+    } else if(wid===7){
+      // Wisps: slow meandering
+      p.x+=Math.sin(p.phase+(performance.now()*0.0007))*0.8;
+      p.y+=Math.cos(p.phase+(performance.now()*0.0005))*0.5;
+      if(p.x<0)p.x=cw;if(p.x>cw)p.x=0;if(p.y<0)p.y=ch;if(p.y>ch)p.y=0;
+    } else {
+      // Default: gentle float
+      p.x+=p.vx; p.y+=p.vy;
+      if(p.x<0)p.x=cw;if(p.x>cw)p.x=0;if(p.y<0)p.y=ch;if(p.y>ch)p.y=0;
+    }
+
+    ctx.save();
+    ctx.globalAlpha=p.alpha*(fever?1.8:1);
+    const pcolor=fever?"#ffd700":(p.color||accent);
+    ctx.fillStyle=pcolor; ctx.shadowColor=pcolor; ctx.shadowBlur=p.r*4;
+
+    if(wid===8){
+      // Bubbles: hollow circle
+      ctx.globalAlpha*=0.6;
+      ctx.strokeStyle=pcolor; ctx.lineWidth=0.8; ctx.shadowBlur=p.r*2;
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.stroke();
+    } else if(wid===2){
+      // Leaves: small elongated shape
+      ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.angle||0);
+      ctx.fillStyle=pcolor; ctx.shadowBlur=p.r*2;
+      ctx.beginPath();
+      ctx.ellipse(0,0,p.r*1.6,p.r*0.7,0,0,Math.PI*2);
+      ctx.fill(); ctx.restore();
+    } else if(wid===5||wid===9){
+      // Snowflakes: 6-pointed star
+      ctx.save(); ctx.translate(p.x,p.y); ctx.rotate((performance.now()*0.0005*(p.phase||1)));
+      ctx.strokeStyle=pcolor; ctx.lineWidth=0.9; ctx.shadowBlur=p.r*3;
+      for(let i=0;i<6;i++){
+        ctx.beginPath(); ctx.moveTo(0,0);
+        ctx.lineTo(Math.cos(i*Math.PI/3)*p.r*1.5,Math.sin(i*Math.PI/3)*p.r*1.5);
+        ctx.stroke();
+      }
+      ctx.restore();
+    } else if(wid===3){
+      // Sparkles: cross/star flash
+      ctx.save(); ctx.translate(p.x,p.y);
+      ctx.strokeStyle=pcolor; ctx.lineWidth=0.8; ctx.shadowBlur=p.r*5;
+      const sz=p.r*(1+0.3*Math.sin(performance.now()*0.004+p.phase));
+      ctx.beginPath(); ctx.moveTo(-sz,0); ctx.lineTo(sz,0); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0,-sz); ctx.lineTo(0,sz); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-sz*0.7,-sz*0.7); ctx.lineTo(sz*0.7,sz*0.7); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(sz*0.7,-sz*0.7); ctx.lineTo(-sz*0.7,sz*0.7); ctx.stroke();
+      ctx.restore();
+    } else if(wid===1){
+      // Embers: tiny bright dot with flicker
+      const flickAlpha=0.4+0.6*Math.abs(Math.sin(performance.now()*0.006+p.phase));
+      ctx.globalAlpha*=flickAlpha;
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
+    } else {
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
   });
 }
 
@@ -860,11 +1066,24 @@ export default function NexusTap(){
   },[debounceSave,unlock]);
 
   // Canvas setup
-  const initBgParts=useCallback(()=>{
-    bgPartsRef.current=Array.from({length:50},()=>({
-      x:Math.random()*window.innerWidth,y:Math.random()*window.innerHeight,
-      vx:(Math.random()-0.5)*0.3,vy:(Math.random()-0.5)*0.3,
-      r:Math.random()*2+0.5,alpha:Math.random()*0.32+0.06,
+  const initBgParts=useCallback((worldId=0)=>{
+    const w=window.innerWidth,h=window.innerHeight;
+    // World-specific particle configs
+    const cfgs={
+      1: ()=>({ color:"#ff5500", r:Math.random()*1.8+0.6, vx:(Math.random()-0.5)*0.4, vy:-(Math.random()*0.6+0.2), alpha:Math.random()*0.5+0.2, phase:Math.random()*Math.PI*2 }),
+      2: ()=>({ color:Math.random()>0.5?"#3cb371":"#2d8a55", r:Math.random()*2.5+1, vx:(Math.random()-0.5)*0.5, vy:Math.random()*0.3+0.1, alpha:Math.random()*0.4+0.15, phase:Math.random()*Math.PI*2, angle:Math.random()*Math.PI*2 }),
+      3: ()=>({ color:Math.random()>0.5?"#ffd700":"#c8a84b", r:Math.random()*1.5+0.5, vx:(Math.random()-0.5)*0.4, vy:(Math.random()-0.5)*0.4, alpha:Math.random()*0.45+0.15, phase:Math.random()*Math.PI*2 }),
+      4: ()=>({ color:Math.random()>0.5?"#9b59b6":"#6c3483", r:Math.random()*2+0.8, vx:(Math.random()-0.5)*0.35, vy:(Math.random()-0.5)*0.35, alpha:Math.random()*0.35+0.1, phase:Math.random()*Math.PI*2 }),
+      5: ()=>({ color:"#a8d8f0", r:Math.random()*2+0.6, vx:(Math.random()-0.5)*0.3, vy:Math.random()*0.4+0.15, alpha:Math.random()*0.5+0.2, phase:Math.random()*Math.PI*2 }),
+      6: ()=>({ color:Math.random()>0.4?"#e8c020":"#ffd700", r:Math.random()*1.4+0.5, vx:(Math.random()-0.5)*0.5, vy:(Math.random()-0.5)*0.3, alpha:Math.random()*0.5+0.2, phase:Math.random()*Math.PI*2 }),
+      7: ()=>({ color:Math.random()>0.5?"#7fad7a":"#b0c9a0", r:Math.random()*2.5+1, vx:(Math.random()-0.5)*0.25, vy:(Math.random()-0.5)*0.2, alpha:Math.random()*0.3+0.08, phase:Math.random()*Math.PI*2 }),
+      8: ()=>({ color:Math.random()>0.5?"#1abc9c":"#a8f0e0", r:Math.random()*3+1, vx:(Math.random()-0.5)*0.2, vy:-(Math.random()*0.4+0.1), alpha:Math.random()*0.35+0.1, phase:Math.random()*Math.PI*2 }),
+      9: ()=>({ color:Math.random()>0.6?"#ffffff":"#b0b8c1", r:Math.random()*2+0.7, vx:(Math.random()-0.5)*0.3, vy:Math.random()*0.35+0.1, alpha:Math.random()*0.5+0.15, phase:Math.random()*Math.PI*2 }),
+      10:()=>({ color:Math.random()>0.5?"#ffd700":"#ff8c00", r:Math.random()*2+0.6, vx:(Math.random()-0.5)*0.35, vy:(Math.random()-0.5)*0.25, alpha:Math.random()*0.45+0.15, phase:Math.random()*Math.PI*2 }),
+    };
+    const getCfg=cfgs[worldId]||(()=>({ r:Math.random()*2+0.5, vx:(Math.random()-0.5)*0.3, vy:(Math.random()-0.5)*0.3, alpha:Math.random()*0.32+0.06, phase:Math.random()*Math.PI*2 }));
+    bgPartsRef.current=Array.from({length:55},()=>({
+      x:Math.random()*w, y:Math.random()*h, worldId, ...getCfg(),
     }));
   },[]);
 
@@ -1153,6 +1372,7 @@ export default function NexusTap(){
     const cfg=getLevelConfig(levelId);
     levelCfgRef.current=cfg;
     initMissions();
+    initBgParts(cfg.world);
     targetsRef.current=[];particlesRef.current=[];activePwrRef.current=[];ripplesRef.current=[];
     spawnTimer.current=0;pausedRef.current=false;setPaused(false);
 
@@ -1173,7 +1393,7 @@ export default function NexusTap(){
     setLevelCompleteData(null);setGameOverData(null);setEpicFlash(false);setFeverBorder(false);setComboLabel("");
     setCartItems([]);setScreen("playing");
     runCountdown(()=>{lastTickRef.current=performance.now();rafRef.current=requestAnimationFrame(gl=>gameLoopFn(gl));});
-  },[initMissions,runCountdown]); // eslint-disable-line
+  },[initMissions,initBgParts,runCountdown]); // eslint-disable-line
 
   // Pause
   const togglePause=useCallback(()=>{
@@ -1215,8 +1435,8 @@ export default function NexusTap(){
     const gridColor=cfg?WORLDS[cfg.world-1].grid:th.grid;
     const accentColor=cfg?WORLDS[cfg.world-1].color:th.accent;
 
-    drawBg(ctx,w,h,accentColor,gridColor,ts,fever);
-    drawBgParticles(ctx,bgPartsRef.current,accentColor,fever);
+    drawBg(ctx,w,h,accentColor,gridColor,ts,fever,cfg?cfg.world:0);
+    drawBgParticles(ctx,bgPartsRef.current,accentColor,fever,cfg?cfg.world:0);
     drawRipples(ctx,ripplesRef.current);
 
     // Particles
@@ -1293,14 +1513,24 @@ export default function NexusTap(){
   // ═════════════════════════════════════════════════════════════
 
   // ── Menu ──
-  const renderMenu=()=>(
+  const renderMenu=()=>{
+    // Cycle through world emojis for the title decoration
+    const worldEmojiRow=WORLDS.map(w=>w.emoji).join(" ");
+    return(
     <div className="flex flex-col items-center justify-center h-full gap-4 px-5 relative z-10 pb-6">
+      {/* Title block */}
       <div className="text-center">
-        <h1 className="text-5xl font-black tracking-widest leading-none"
-          style={{color:theme.accent,textShadow:`0 0 40px ${theme.accent},0 0 80px ${theme.accent}44`}}>
-          NEXUS<span style={{color:"#f472b6",textShadow:"0 0 40px #f472b6"}}>TAP</span>
+        <div className="text-base tracking-widest opacity-50 mb-1" style={{color:theme.accent}}>⚔️ 🐉 ✨ 🌊 ⛰️</div>
+        <h1 className="font-black leading-none" style={{
+          fontSize:"clamp(2.6rem,10vw,3.8rem)",letterSpacing:"0.08em",
+          background:`linear-gradient(135deg,${theme.accent},#fff,${theme.accent})`,
+          WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",
+          textShadow:"none",filter:`drop-shadow(0 0 22px ${theme.accent}88)`,
+        }}>
+          REALM<br/><span style={{fontSize:"0.65em",letterSpacing:"0.18em"}}>QUEST</span>
         </h1>
-        <p className="text-xs mt-1 opacity-40 tracking-widest uppercase" style={{color:theme.accent}}>Ultimate Edition</p>
+        <p className="text-xs mt-2 opacity-40 tracking-widest uppercase" style={{color:theme.accent}}>10 Worlds · 100 Levels · Epic Adventure</p>
+        {/* XP bar */}
         <div className="mt-3 flex items-center gap-2 justify-center">
           <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{background:theme.accent+"22",color:theme.accent}}>LV {lvl}</span>
           <div className="w-28 h-1.5 rounded-full" style={{background:"#ffffff18"}}>
@@ -1309,6 +1539,22 @@ export default function NexusTap(){
           <span className="text-xs opacity-35" style={{color:theme.accent}}>{xpToNext(sv.xp)}xp</span>
         </div>
       </div>
+
+      {/* World progress strip */}
+      <div className="flex gap-1 justify-center flex-wrap">
+        {WORLDS.map(w=>{
+          const wLevels=Array.from({length:10},(_,i)=>(w.id-1)*10+i+1);
+          const done=wLevels.filter(l=>(sv.levelStars[l]||0)>0).length;
+          return(
+            <div key={w.id} className="flex flex-col items-center" style={{opacity:done>0?1:0.3}}>
+              <span style={{fontSize:18}}>{w.emoji}</span>
+              <div style={{width:20,height:3,borderRadius:2,background:done===10?w.color:`${w.color}44`,boxShadow:done===10?`0 0 6px ${w.color}`:"none"}}/>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Coins + streak */}
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-1 px-3 py-1.5 rounded-xl" style={{background:"#fbbf2415",border:"1px solid #fbbf2430"}}>
           <span>🪙</span><span className="font-bold text-sm" style={{color:"#fbbf24"}}>{sv.coins||0}</span>
@@ -1316,20 +1562,27 @@ export default function NexusTap(){
         <div className="flex items-center gap-1 px-3 py-1.5 rounded-xl" style={{background:theme.accent+"15",border:`1px solid ${theme.accent}30`}}>
           <span className="text-xs" style={{color:theme.accent}}>Day {sv.loginStreak||1} 🔥</span>
         </div>
+        {sv.highScore>0&&<div className="flex items-center gap-1 px-3 py-1.5 rounded-xl" style={{background:"#ffffff08",border:"1px solid #ffffff15"}}>
+          <span className="text-xs opacity-50">Best {sv.highScore.toLocaleString()}</span>
+        </div>}
       </div>
+
+      {/* Play button */}
       <NeonButton onClick={()=>setScreen("levelmap")} className="w-full py-5 text-2xl"
-        style={{background:`linear-gradient(135deg,${theme.secondary},${theme.accent})`,boxShadow:`0 0 32px ${theme.accent}66`}}>
-        ▶ PLAY
+        style={{background:`linear-gradient(135deg,${theme.secondary},${theme.accent})`,boxShadow:`0 0 36px ${theme.accent}66`,
+          fontSize:"1.4rem",letterSpacing:"0.1em"}}>
+        ⚔️ EMBARK
       </NeonButton>
+
+      {/* Quick links */}
       <div className="grid grid-cols-2 gap-3 w-full">
-        {[{label:"🎯 Daily Missions",sc:"missions"},{label:"🏆 Leaderboard",sc:"leaderboard"},{label:"🎖 Medals",sc:"achievements"},{label:"⚙ Settings",sc:"settings"}].map(b=>(
+        {[{label:"🎯 Quests",sc:"missions"},{label:"🏆 Hall of Fame",sc:"leaderboard"},{label:"🎖 Trophies",sc:"achievements"},{label:"⚙ Settings",sc:"settings"}].map(b=>(
           <NeonButton key={b.sc} onClick={()=>setScreen(b.sc)} className="py-3 text-sm"
             style={{background:"#ffffff0d",border:`1px solid ${theme.accent}30`}}>{b.label}</NeonButton>
         ))}
       </div>
-      {sv.highScore>0&&<p className="text-xs opacity-30" style={{color:theme.accent}}>Best: {sv.highScore.toLocaleString()}</p>}
     </div>
-  );
+  );};
 
   // ── Level Map ──
   const renderLevelMap=()=>{
@@ -1342,7 +1595,7 @@ export default function NexusTap(){
         {/* Header */}
         <div className="flex items-center gap-3 px-4 py-3 z-10" style={{background:"rgba(0,0,0,0.6)",backdropFilter:"blur(6px)",borderBottom:`1px solid ${theme.accent}22`}}>
           <NeonButton onClick={()=>setScreen("menu")} className="px-3 py-2 text-sm" style={{background:"#ffffff10"}}>← Back</NeonButton>
-          <h2 className="text-xl font-black" style={{color:theme.accent}}>Level Map</h2>
+          <h2 className="text-xl font-black" style={{color:theme.accent}}>⚔️ Adventure Map</h2>
           <span className="ml-auto text-sm font-bold" style={{color:"#fbbf24"}}>🪙 {sv.coins||0}</span>
         </div>
         {/* Scrollable map */}
@@ -1350,16 +1603,29 @@ export default function NexusTap(){
           {WORLDS.map(world=>{
             const levelStart=(world.id-1)*10+1;
             const levels=ALL_LEVELS.slice(levelStart-1,levelStart+9);
+            const doneLevels=levels.filter(l=>(sv.levelStars[l.id]||0)>0).length;
+            const worldFullyDone=doneLevels===10;
             return(
               <div key={world.id} className="mb-2">
-                {/* World banner */}
-                <div className="flex items-center gap-3 px-4 py-3 mx-2 mt-3 rounded-2xl"
-                  style={{background:`${world.color}18`,border:`1px solid ${world.color}44`,backdropFilter:"blur(4px)"}}>
-                  <div className="w-3 h-3 rounded-full" style={{background:world.color,boxShadow:`0 0 10px ${world.color}`}}/>
-                  <span className="font-black text-base" style={{color:world.color}}>World {world.id}: {world.name}</span>
-                  <span className="ml-auto text-xs opacity-50" style={{color:world.color}}>
-                    {levels.filter(l=>(sv.levelStars[l.id]||0)>0).length}/10
-                  </span>
+                {/* World banner — immersive */}
+                <div className="flex items-center gap-3 px-4 py-3 mx-2 mt-3 rounded-2xl relative overflow-hidden"
+                  style={{background:`${world.color}15`,border:`1px solid ${world.color}55`,backdropFilter:"blur(6px)",
+                    boxShadow:worldFullyDone?`0 0 20px ${world.color}44`:"none"}}>
+                  {/* Subtle world-color gradient bg */}
+                  <div style={{position:"absolute",inset:0,background:`linear-gradient(120deg,${world.color}12 0%,transparent 60%)`,pointerEvents:"none"}}/>
+                  <span style={{fontSize:28,lineHeight:1,zIndex:1}}>{world.emoji}</span>
+                  <div style={{zIndex:1}}>
+                    <div className="font-black text-base leading-tight" style={{color:world.color}}>{world.name}</div>
+                    <div className="text-xs opacity-50" style={{color:world.color}}>World {world.id} · {doneLevels}/10 cleared</div>
+                  </div>
+                  {worldFullyDone&&<span style={{marginLeft:"auto",fontSize:20,zIndex:1}}>🏆</span>}
+                  {!worldFullyDone&&<div className="ml-auto flex gap-0.5" style={{zIndex:1}}>
+                    {Array.from({length:10},(_,i)=>(
+                      <div key={i} style={{width:5,height:14,borderRadius:2,
+                        background:i<doneLevels?world.color:`${world.color}25`,
+                        boxShadow:i<doneLevels?`0 0 4px ${world.color}`:"none"}}/>
+                    ))}
+                  </div>}
                 </div>
                 {/* Level nodes in zigzag */}
                 <div className="relative" style={{height:levels.length*88+20}}>
@@ -1372,7 +1638,7 @@ export default function NexusTap(){
                       const x1=colX(c1,W),y1=40+i*88;
                       const x2=colX(c2,W),y2=40+(i+1)*88;
                       const unlocked=(sv.levelStars[lv.id]||0)>0;
-                      return<line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke={unlocked?world.color+"66":"#ffffff15"} strokeWidth={unlocked?2.5:1.5} strokeDasharray={unlocked?"none":"6,4"}/>;
+                      return<line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke={unlocked?world.color+"77":"#ffffff15"} strokeWidth={unlocked?3:1.5} strokeDasharray={unlocked?"none":"6,4"}/>;
                     })}
                   </svg>
                   {/* Level nodes */}
@@ -1385,37 +1651,40 @@ export default function NexusTap(){
                     const locked=lv.id>unlockedTo;
                     const isAvailable=lv.id===unlockedTo;
                     const isCurrent=lv.id===selectedLevel;
-                    const nodeR=lv.isBoss?36:30;
+                    const nodeR=lv.isBoss?38:30;
+                    const nodeLabel=locked?"🔒":lv.isBoss?(stars>0?"👑":world.emoji):lv.id;
                     return(
                       <div key={lv.id}
                         className="absolute flex flex-col items-center"
-                        style={{left:x,top:y,transform:"translate(-50%,-50%)",width:88,cursor:locked?"default":"pointer"}}
+                        style={{left:x,top:y,transform:"translate(-50%,-50%)",width:90,cursor:locked?"default":"pointer"}}
                         onClick={()=>{if(!locked){setSelectedLevel(lv.id);setScreen("shop");}}}
                         onTouchEnd={e=>{e.preventDefault();if(!locked){setSelectedLevel(lv.id);setScreen("shop");}}}
                       >
                         {/* Node circle */}
-                        <div className="flex items-center justify-center rounded-full font-black text-base transition-all"
+                        <div className="flex items-center justify-center rounded-full font-black transition-all"
                           style={{
                             width:nodeR*2,height:nodeR*2,
-                            background:locked?"#1a1a2a":stars>0?`${world.color}33`:`${world.color}22`,
-                            border:`${isCurrent||isAvailable?3:2}px solid ${locked?"#333":world.color}`,
-                            boxShadow:isAvailable?`0 0 20px ${world.color}88`:stars===3?`0 0 14px ${world.color}66`:"none",
-                            color:locked?"#444":world.color,
+                            background:locked?"#111118":stars>0?`${world.color}44`:`${world.color}1a`,
+                            border:`${isCurrent||isAvailable?3:2}px solid ${locked?"#2a2a3a":world.color}`,
+                            boxShadow:isAvailable?`0 0 24px ${world.color}99,0 0 48px ${world.color}33`:
+                                       stars===3?`0 0 16px ${world.color}77`:
+                                       lv.isBoss&&!locked?`0 0 12px ${world.color}55`:"none",
+                            color:locked?"#333":world.color,
                             animation:isAvailable?"levelPulse 1.5s ease-in-out infinite":"none",
-                            fontSize:lv.isBoss?18:14,
+                            fontSize:lv.isBoss?22:13,
                           }}>
-                          {locked?"🔒":stars>0&&lv.isBoss?"👑":lv.isBoss?"⚔":lv.id}
+                          {nodeLabel}
                         </div>
                         {/* Stars */}
                         <div className="flex gap-0.5 mt-1">
                           {[1,2,3].map(s=>(
-                            <span key={s} style={{fontSize:9,opacity:stars>=s?1:0.15,color:"#fbbf24",
-                              filter:stars>=s?"drop-shadow(0 0 3px #fbbf24)":"none"}}>★</span>
+                            <span key={s} style={{fontSize:10,opacity:stars>=s?1:0.15,color:"#fbbf24",
+                              filter:stars>=s?"drop-shadow(0 0 4px #fbbf24)":"none"}}>★</span>
                           ))}
                         </div>
-                        {/* Name (only available/current) */}
-                        {(isAvailable||isCurrent)&&!locked&&(
-                          <div className="text-center mt-0.5" style={{fontSize:9,color:world.color,opacity:0.8,maxWidth:80,lineHeight:1.2}}>
+                        {/* Name shown for available + boss levels */}
+                        {(!locked&&(isAvailable||isCurrent||lv.isBoss))&&(
+                          <div className="text-center mt-0.5" style={{fontSize:9,color:world.color,opacity:0.85,maxWidth:82,lineHeight:1.2,fontWeight:"bold"}}>
                             {lv.name}
                           </div>
                         )}
@@ -1511,7 +1780,7 @@ export default function NexusTap(){
           </div>
           <div className="flex flex-col items-center justify-center px-2 py-1.5 gap-1">
             <div className="flex gap-0.5">{Array.from({length:MAX_LIVES},(_,i)=><span key={i} style={{fontSize:13,opacity:i<hud.lives?1:0.18}}>{i<hud.lives?"❤️":"🖤"}</span>)}</div>
-            {cfg&&<div className="text-xs font-bold px-1.5 py-0.5 rounded-full" style={{background:wc+"22",color:wc}}>W{cfg.world} L{cfg.id}</div>}
+            {cfg&&<div className="text-xs font-bold px-1.5 py-0.5 rounded-full" style={{background:wc+"22",color:wc}}>{WORLDS[cfg.world-1].emoji} L{cfg.id}</div>}
           </div>
           <div className="flex-1 flex flex-col items-center justify-center py-2 px-1">
             <div className="text-xs opacity-35 tracking-widest uppercase" style={{color:wc}}>Streak</div>
@@ -1549,7 +1818,7 @@ export default function NexusTap(){
         {/* Fever */}
         {feverBorder&&<div className="absolute inset-0 pointer-events-none z-10" style={{border:"4px solid #fbbf24",boxShadow:"inset 0 0 60px #fbbf2445,0 0 60px #fbbf2445",animation:"feverPulse 0.6s ease-in-out infinite alternate"}}/>}
         {feverBorder&&<div className="absolute left-0 right-0 flex justify-center pointer-events-none z-30" style={{top:140}}>
-          <span className="font-black text-base px-4 py-1 rounded-full" style={{color:"#fbbf24",textShadow:"0 0 20px #fbbf24",background:"#fbbf2420",animation:"feverPulse 0.5s infinite alternate"}}>🌡 FEVER!</span>
+          <span className="font-black text-base px-4 py-1 rounded-full" style={{color:"#fbbf24",textShadow:"0 0 20px #fbbf24",background:"#fbbf2420",animation:"feverPulse 0.5s infinite alternate"}}>⚡ BATTLE FRENZY!</span>
         </div>}
         {epicFlash&&<div className="absolute inset-0 pointer-events-none z-10" style={{background:"#f472b633",animation:"epicFlash 0.5s ease-out forwards"}}/>}
         {perfectFlash&&<div className="absolute inset-0 pointer-events-none z-10" style={{background:"#fbbf2422",animation:"epicFlash 0.35s ease-out forwards"}}/>}
@@ -1597,8 +1866,9 @@ export default function NexusTap(){
     return(
       <div className="flex flex-col items-center h-full overflow-y-auto px-5 py-6 gap-4 relative z-10">
         <div className="text-center">
-          <div className="text-sm uppercase tracking-widest opacity-50 mb-1" style={{color:cfg.worldColor}}>Level {cfg.id} Complete!</div>
-          <div className="text-2xl font-black mb-3" style={{color:cfg.worldColor}}>{cfg.name}</div>
+          <div className="text-sm uppercase tracking-widest opacity-50 mb-1" style={{color:cfg.worldColor}}>{WORLDS[cfg.world-1].emoji} {WORLDS[cfg.world-1].name}</div>
+          <div className="text-2xl font-black mb-1" style={{color:cfg.worldColor}}>{cfg.name}</div>
+          <div className="text-xs font-bold tracking-widest uppercase opacity-60 mb-2" style={{color:cfg.worldColor}}>⚔️ VICTORY!</div>
           <div className="flex justify-center gap-2 mb-1">
             {[1,2,3].map(s=>(
               <span key={s} className="transition-all" style={{fontSize:s<=stars?44:28,opacity:s<=stars?1:0.15,
@@ -1649,8 +1919,9 @@ export default function NexusTap(){
     return(
       <div className="flex flex-col items-center h-full overflow-y-auto px-5 py-6 gap-4 relative z-10">
         <div className="text-center">
-          <div className="text-4xl mb-1">💀</div>
-          <div className="text-sm uppercase tracking-widest opacity-50 mb-1" style={{color:cfg.worldColor}}>Level {levelId} Failed</div>
+          <div className="text-4xl mb-1">⚔️💀</div>
+          <div className="text-sm uppercase tracking-widest opacity-50 mb-1" style={{color:cfg.worldColor}}>{WORLDS[cfg.world-1].emoji} {WORLDS[cfg.world-1].name}</div>
+          <div className="text-xs uppercase tracking-widest font-bold opacity-60 mb-1" style={{color:"#ef4444"}}>— FALLEN IN BATTLE —</div>
           <div className="text-xl font-black" style={{color:cfg.worldColor}}>{levelName}</div>
         </div>
         <div className="text-4xl font-black tabular-nums" style={{color:cfg.worldColor}}>{score.toLocaleString()}</div>
