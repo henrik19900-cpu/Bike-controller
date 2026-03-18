@@ -4,53 +4,53 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 // WORLD & LEVEL DEFINITIONS
 // ═══════════════════════════════════════════════════════════════
 const WORLDS = [
-  { id:1,  name:"Dragon's Lair",       emoji:"🐉", color:"#ff4500", bg:"#140100", grid:"rgba(255,69,0,0.07)",     accent:"#8b1a00", atmos:"cave"   },
-  { id:2,  name:"Troll Forest",         emoji:"🌿", color:"#3cb371", bg:"#010a03", grid:"rgba(60,179,113,0.07)",   accent:"#1a5c30", atmos:"forest" },
-  { id:3,  name:"Elven Kingdom",        emoji:"✨", color:"#c8a84b", bg:"#040802", grid:"rgba(200,168,75,0.06)",   accent:"#7a6520", atmos:"magic"  },
-  { id:4,  name:"Dark Wizard Tower",    emoji:"🔮", color:"#9b59b6", bg:"#060010", grid:"rgba(155,89,182,0.07)",   accent:"#6c3483", atmos:"arcane" },
-  { id:5,  name:"Viking Fjords",        emoji:"❄️", color:"#5dade2", bg:"#010810", grid:"rgba(93,173,226,0.06)",   accent:"#1a5276", atmos:"frost"  },
-  { id:6,  name:"Goblin Mines",         emoji:"⛏️", color:"#e8c020", bg:"#080600", grid:"rgba(232,192,32,0.06)",   accent:"#a08010", atmos:"mine"   },
-  { id:7,  name:"Undead Catacombs",     emoji:"💀", color:"#7fad7a", bg:"#010202", grid:"rgba(127,173,122,0.06)",  accent:"#3a6335", atmos:"undead" },
-  { id:8,  name:"Sea Serpent's Deep",   emoji:"🌊", color:"#1abc9c", bg:"#010908", grid:"rgba(26,188,156,0.06)",   accent:"#0d7a66", atmos:"ocean"  },
-  { id:9,  name:"Giant's Peak",         emoji:"⛰️", color:"#b0b8c1", bg:"#030404", grid:"rgba(176,184,193,0.06)",  accent:"#616a6b", atmos:"storm"  },
-  { id:10, name:"Ancient Dragon God",   emoji:"👑", color:"#ffd700", bg:"#0e0500", grid:"rgba(255,215,0,0.07)",    accent:"#b8860b", atmos:"divine" },
+  { id:1,  name:"Dragon's Lair",    emoji:"🐉", color:"#ff6b35", bg:"#1a0500", grid:"rgba(255,107,53,0.08)",    accent:"#c13b00", atmos:"cave"   },
+  { id:2,  name:"Troll Forest",     emoji:"🌿", color:"#4ecb71", bg:"#021408", grid:"rgba(78,203,113,0.08)",    accent:"#1e7a3a", atmos:"forest" },
+  { id:3,  name:"Elven Kingdom",    emoji:"✨", color:"#e8c84e", bg:"#080a02", grid:"rgba(232,200,78,0.07)",    accent:"#9a8020", atmos:"magic"  },
+  { id:4,  name:"Magic Tower",      emoji:"🔮", color:"#b06de8", bg:"#0a0218", grid:"rgba(176,109,232,0.08)",   accent:"#7a3ab0", atmos:"arcane" },
+  { id:5,  name:"Viking Fjords",    emoji:"❄️", color:"#6ec0f5", bg:"#020c1c", grid:"rgba(110,192,245,0.07)",   accent:"#1e66a0", atmos:"frost"  },
+  { id:6,  name:"Goblin Mines",     emoji:"⛏️", color:"#f5d240", bg:"#100900", grid:"rgba(245,210,64,0.07)",    accent:"#c09010", atmos:"mine"   },
+  { id:7,  name:"Haunted Castle",   emoji:"👻", color:"#9be09b", bg:"#020a04", grid:"rgba(155,224,155,0.07)",   accent:"#3a8a40", atmos:"undead" },
+  { id:8,  name:"Ocean Deep",       emoji:"🌊", color:"#22d4b4", bg:"#010c0a", grid:"rgba(34,212,180,0.07)",    accent:"#0e9078", atmos:"ocean"  },
+  { id:9,  name:"Giant's Peak",     emoji:"⛰️", color:"#c8d0da", bg:"#060808", grid:"rgba(200,208,218,0.07)",   accent:"#6a7880", atmos:"storm"  },
+  { id:10, name:"Rainbow Dragon",   emoji:"🌈", color:"#ffd700", bg:"#120800", grid:"rgba(255,215,0,0.08)",     accent:"#c8a000", atmos:"divine" },
 ];
 
 const LEVEL_NAMES = [
   // World 1 — Dragon's Lair
-  "Cave Entrance","Ember Passage","Smoke Tunnel","Scale Watch","Fire Breath","Lava Crossing","Scorched Trail","Dragon's Den","Horde Chamber","Dragon Lord",
+  "Cave Entrance","Warm Tunnel","Ember Glow","Scale Watch","Fireball Fun","Lava Bridge","Flame Trail","Dragon's Den","Fire Festival","Dragon Buddy",
   // World 2 — Troll Forest
-  "Dark Underbrush","Mossy Trail","Root Maze","Troll Path","Swamp Fog","Gnarly Thicket","Troll Bridge","Ancient Grove","Forest Depths","Troll King",
+  "Sunny Glade","Mossy Trail","Root Maze","Mushroom Path","Frog Pond","Gnarly Trees","Troll Bridge","Berry Grove","Forest Sing","Troll Chief",
   // World 3 — Elven Kingdom
-  "Leaf Canopy","Elven Trail","Arcane Glade","Silver Bow","Arrow Storm","Elven Gates","Crystal Spire","Ancient Magic","Star Blossom","High Elf",
-  // World 4 — Dark Wizard Tower
-  "Forbidden Hall","Arcane Study","Spell Maze","Rune Chamber","Hex Passage","Dark Portal","Vortex Room","Curse Walk","Void Ritual","Dark Lord",
+  "Flower Arch","Elven Trail","Magic Glade","Silver Bow","Arrow Dance","Elven Gates","Crystal Spire","Magic School","Star Garden","Elf Queen",
+  // World 4 — Magic Tower
+  "Spell School","Wand Study","Magic Maze","Rune Room","Bubble Spell","Rainbow Portal","Sparkle Room","Potion Walk","Star Ritual","Wizard Pal",
   // World 5 — Viking Fjords
-  "Shore Landing","Ice Trail","Rune Road","Frost Path","Storm Crossing","Berserker Run","Longship Run","Thor's Path","Valhalla Gate","Viking Jarl",
+  "Shore Landing","Ice Trail","Rune Road","Frost Path","Snow Crossing","Viking Fun","Longship Run","Aurora Path","Rainbow Gate","Viking King",
   // World 6 — Goblin Mines
-  "Mine Shaft","Gold Vein","Dark Tunnel","Goblin Rush","Treasure Hunt","Pickaxe Path","Crystal Cave","Deep Mine","Gem Blitz","Goblin King",
-  // World 7 — Undead Catacombs
-  "Bone Hall","Crypt Walk","Zombie Lane","Skull Road","Coffin Maze","Specter Gate","Grave Trail","Wraith Run","Dark Mass","Necromancer",
-  // World 8 — Sea Serpent's Deep
-  "Coral Reef","Sea Cave","Tide Rush","Current Dash","Deep Dive","Serpent Trail","Abyss Gate","Kraken Path","Dark Ocean","Sea Serpent",
+  "Mine Entry","Gold Vein","Gem Tunnel","Goblin Run","Treasure Hunt","Pickaxe Path","Crystal Cave","Deep Mine","Gem Blitz","Goblin Chief",
+  // World 7 — Haunted Castle
+  "Spooky Hall","Silly Creep","Ghost Slide","Pumpkin Road","Candy Maze","Friendly Gate","Castle Trail","Giggle Run","Silly Mass","Friendly Ghost",
+  // World 8 — Ocean Deep
+  "Coral Reef","Sea Cave","Tide Rush","Current Dash","Deep Dive","Jellyfish Trail","Bubble Gate","Seahorse Path","Rainbow Ocean","Friendly Whale",
   // World 9 — Giant's Peak
-  "Mountain Base","Boulder Path","Storm Climb","Thunder Trail","Giant Steps","Peak Rush","Cloud Walk","Lightning Pass","Summit Blitz","Giant Lord",
-  // World 10 — Ancient Dragon God
-  "Sacred Path","Temple Gate","Dragon's Eye","Ancient Fire","God's Trial","Eternal Flame","Relic Rush","Divine Wrath","Final Trial","ANCIENT GOD",
+  "Mountain Base","Boulder Path","Cloud Climb","Thunder Trail","Giant Steps","Peak Rush","Cloud Walk","Lightning Pass","Summit Fun","Gentle Giant",
+  // World 10 — Rainbow Dragon
+  "Rainbow Path","Treasure Gate","Dragon's Eye","Golden Fire","Rainbow Trial","Colour Flame","Gem Rush","Sparkle Wrath","Final Fun","RAINBOW DRAGON",
 ];
 
 // Special milestone modifiers
 const MILESTONE_MODS = {
-  10:  { type:"boss_kill",   desc:"Slay the Dragon Lord!" },
-  20:  { type:"combo_20",    desc:"Strike 20 times without mercy!" },
-  30:  { type:"fever_2",     desc:"Summon Battle Frenzy twice!" },
-  40:  { type:"no_miss",     desc:"Strike true — miss nothing!" },
-  50:  { type:"speed_run",   desc:"Race against the ancient curse!" },
-  60:  { type:"moving_only", desc:"Hunt only moving prey!" },
-  70:  { type:"ghost_rush",  desc:"Face the spectral horde!" },
-  80:  { type:"combo_40",    desc:"Reach 40× battle chain!" },
-  90:  { type:"fever_3",     desc:"Summon Battle Frenzy 3 times!" },
-  100: { type:"final_boss",  desc:"Defeat the ANCIENT DRAGON GOD!" },
+  10:  { type:"boss_kill",   desc:"Defeat the Dragon Buddy! 🐉" },
+  20:  { type:"combo_20",    desc:"Tap 20 times without stopping! ⭐" },
+  30:  { type:"fever_2",     desc:"Activate Magic Mode twice! ✨" },
+  40:  { type:"no_miss",     desc:"Don't miss a single target! 🎯" },
+  50:  { type:"speed_run",   desc:"Race to the finish! 🏃" },
+  60:  { type:"moving_only", desc:"Tap only the moving targets! 💨" },
+  70:  { type:"ghost_rush",  desc:"Find the hiding ghosts! 👻" },
+  80:  { type:"combo_40",    desc:"Reach a 40× tap chain! 🔥" },
+  90:  { type:"fever_3",     desc:"Activate Magic Mode 3 times! 🌟" },
+  100: { type:"final_boss",  desc:"Defeat the RAINBOW DRAGON! 🌈" },
 };
 
 function getLevelConfig(n) {
@@ -91,11 +91,11 @@ const FEVER_DUR    = 8000;
 const XP_PER_LVL   = 150;
 
 const RARITY = {
-  COMMON:    { name:"common",    chance:0.55, color:"#a78bfa", glow:"#7c3aed", mult:1,  size:1.0,  label:""               },
-  UNCOMMON:  { name:"uncommon",  chance:0.23, color:"#34d399", glow:"#059669", mult:2,  size:1.15, label:"CURSED ×2"      },
-  RARE:      { name:"rare",      chance:0.13, color:"#fbbf24", glow:"#d97706", mult:5,  size:1.4,  label:"ENCHANTED ×5"   },
-  EPIC:      { name:"epic",      chance:0.07, color:"#f472b6", glow:"#db2777", mult:15, size:1.8,  label:"MYTHIC ×15"     },
-  LEGENDARY: { name:"legendary", chance:0.02, color:"#ff6030", glow:"#ff2000", mult:50, size:2.2,  label:"DIVINE ×50"    },
+  COMMON:    { name:"common",    chance:0.55, color:"#a78bfa", glow:"#7c3aed", mult:1,  size:1.0,  label:""            },
+  UNCOMMON:  { name:"uncommon",  chance:0.23, color:"#34d399", glow:"#059669", mult:2,  size:1.15, label:"LUCKY ×2"    },
+  RARE:      { name:"rare",      chance:0.13, color:"#fbbf24", glow:"#d97706", mult:5,  size:1.4,  label:"MAGIC ×5"    },
+  EPIC:      { name:"epic",      chance:0.07, color:"#f472b6", glow:"#db2777", mult:15, size:1.8,  label:"SUPER ×15"   },
+  LEGENDARY: { name:"legendary", chance:0.02, color:"#ff6030", glow:"#ff2000", mult:50, size:2.2,  label:"RAINBOW ×50" },
 };
 
 const THEMES = [
@@ -108,48 +108,173 @@ const THEMES = [
 ];
 
 const COMBO_LABELS = [
-  [50,"LEGENDARY!! 🔥"],[35,"UNSTOPPABLE! ⚡"],[20,"WARLORD! 💥"],[10,"WARRIOR! ⭐"],[5,"NICE!"],
+  [50,"AMAZING!! 🌈"],[35,"SUPER HERO! ⚡"],[20,"CHAMPION! 💥"],[10,"AWESOME! ⭐"],[5,"NICE! 😄"],
 ];
 
 const ACHIEVEMENTS = [
-  { id:"first_tap",    label:"First Strike",     desc:"Land your first hit in battle",    icon:"⚔️", xp:10  },
-  { id:"streak_10",    label:"On Fire",          desc:"10-hit battle streak",             icon:"🔥", xp:20  },
-  { id:"streak_25",    label:"Blazing Warrior",  desc:"25-hit battle streak",             icon:"🌋", xp:40  },
-  { id:"streak_50",    label:"Unstoppable",      desc:"50-hit battle streak",             icon:"💥", xp:80  },
-  { id:"first_rare",   label:"Enchanted Find",   desc:"Strike an Enchanted target",       icon:"✨", xp:15  },
-  { id:"first_epic",   label:"Mythic Touch",     desc:"Strike a Mythic target",           icon:"💎", xp:30  },
-  { id:"legendary",    label:"Divine Power",     desc:"Strike a Divine target",           icon:"👑", xp:100 },
-  { id:"boss_kill",    label:"Boss Slayer",      desc:"Defeat a world boss",              icon:"🐉", xp:50  },
-  { id:"perfect_tap",  label:"True Aim",         desc:"Land a Perfect Strike",            icon:"🎯", xp:15  },
-  { id:"level_10",     label:"Brave Adventurer", desc:"Clear Dragon's Lair",              icon:"🗡️", xp:50  },
-  { id:"level_25",     label:"Realm Walker",     desc:"Reach World 3",                   icon:"🧭", xp:80  },
-  { id:"level_50",     label:"Champion",         desc:"Reach World 5",                   icon:"🏆", xp:120 },
-  { id:"level_100",    label:"REALM MASTER",     desc:"Conquer all 100 levels",           icon:"👑", xp:500 },
-  { id:"three_stars",  label:"Perfect Victory",  desc:"3-star any level",                 icon:"🌟", xp:25  },
-  { id:"fever_mode",   label:"Battle Frenzy",    desc:"Trigger Battle Frenzy mode",       icon:"⚡", xp:30  },
-  { id:"score_2000",   label:"War Legend",       desc:"Score 2000 in a level",            icon:"🚀", xp:50  },
-  { id:"missions_all", label:"Quest Master",     desc:"Complete all daily quests",        icon:"📜", xp:50  },
-  { id:"daily_7",      label:"Devoted Hero",     desc:"7-day login streak",               icon:"🛡️", xp:75  },
-  { id:"five_star",    label:"Flawless Conquest",desc:"3-star a boss level",              icon:"⭐", xp:100 },
+  { id:"first_tap",    label:"First Tap!",       desc:"Your very first tap in the game",  icon:"👆", xp:10  },
+  { id:"streak_10",    label:"On Fire",          desc:"10-tap streak — keep going!",      icon:"🔥", xp:20  },
+  { id:"streak_25",    label:"Super Tapper",     desc:"25-tap streak!",                   icon:"⭐", xp:40  },
+  { id:"streak_50",    label:"Tap Champion",     desc:"50-tap streak — incredible!",      icon:"🏆", xp:80  },
+  { id:"first_rare",   label:"Magic Find",       desc:"Tap a Magic target",               icon:"✨", xp:15  },
+  { id:"first_epic",   label:"Super Touch",      desc:"Tap a Super target",               icon:"💎", xp:30  },
+  { id:"legendary",    label:"Rainbow Power",    desc:"Tap a Rainbow target",             icon:"🌈", xp:100 },
+  { id:"boss_kill",    label:"Boss Beater",      desc:"Defeat a world boss",              icon:"🐉", xp:50  },
+  { id:"perfect_tap",  label:"Bulls-Eye!",       desc:"Land a Perfect Tap",               icon:"🎯", xp:15  },
+  { id:"level_10",     label:"Dragon Friend",    desc:"Complete Dragon's Lair",           icon:"🐉", xp:50  },
+  { id:"level_25",     label:"World Explorer",   desc:"Reach World 3",                   icon:"🧭", xp:80  },
+  { id:"level_50",     label:"Adventure Hero",   desc:"Reach World 5",                   icon:"🏆", xp:120 },
+  { id:"level_100",    label:"QUEST MASTER",     desc:"Complete all 100 levels!",         icon:"🌈", xp:500 },
+  { id:"three_stars",  label:"3 Stars!",         desc:"Get 3 stars on any level",         icon:"🌟", xp:25  },
+  { id:"fever_mode",   label:"Magic Mode!",      desc:"Activate Magic Mode",              icon:"⚡", xp:30  },
+  { id:"score_2000",   label:"Score Hero",       desc:"Score 2000 points in a level",     icon:"🚀", xp:50  },
+  { id:"missions_all", label:"Quest Finisher",   desc:"Complete all daily quests",        icon:"📜", xp:50  },
+  { id:"daily_7",      label:"Daily Hero",       desc:"Play 7 days in a row",             icon:"🌞", xp:75  },
+  { id:"five_star",    label:"Perfect Boss Win",  desc:"3-star a boss level",             icon:"⭐", xp:100 },
 ];
 
 const MISSION_TEMPLATES = [
-  { id:"tap_30",    desc:"Strike 30 enemies",          key:"tapsTotal",        goal:30  },
-  { id:"rare_5",    desc:"Hit 5 Enchanted+ targets",   key:"rareHits",         goal:5   },
-  { id:"combo_15",  desc:"Reach 15× battle chain",     key:"bestCombo",        goal:15  },
-  { id:"boss_1",    desc:"Slay a world boss",           key:"bossKills",        goal:1   },
-  { id:"fever_2",   desc:"Trigger Battle Frenzy 2×",   key:"feverCount",       goal:2   },
-  { id:"perfect_5", desc:"5 Perfect Strikes",          key:"perfectTaps",      goal:5   },
-  { id:"levels_3",  desc:"Clear 3 stages",             key:"levelsCompleted",  goal:3   },
-  { id:"powerup_3", desc:"Collect 3 relics",           key:"powerupCollected", goal:3   },
-  { id:"score_500", desc:"Score 500 in one stage",     key:"score",            goal:500 },
+  { id:"tap_30",    desc:"Tap 30 targets! 👆",          key:"tapsTotal",        goal:30  },
+  { id:"rare_5",    desc:"Tap 5 Magic+ targets ✨",      key:"rareHits",         goal:5   },
+  { id:"combo_15",  desc:"Reach a 15× tap chain 🔥",    key:"bestCombo",        goal:15  },
+  { id:"boss_1",    desc:"Defeat a world boss 🐉",       key:"bossKills",        goal:1   },
+  { id:"fever_2",   desc:"Activate Magic Mode 2× ⚡",   key:"feverCount",       goal:2   },
+  { id:"perfect_5", desc:"5 Perfect Taps 🎯",           key:"perfectTaps",      goal:5   },
+  { id:"levels_3",  desc:"Finish 3 levels 🏆",          key:"levelsCompleted",  goal:3   },
+  { id:"powerup_3", desc:"Collect 3 power-ups 🔮",      key:"powerupCollected", goal:3   },
+  { id:"score_500", desc:"Score 500 points in a level", key:"score",            goal:500 },
 ];
 
 const SHOP_ITEMS = [
-  { id:"extra_life",   name:"Healing Potion",  desc:"Start with +1 life",            cost:60,  icon:"🧪" },
-  { id:"head_start",   name:"War Banner",       desc:"+300 score at battle start",     cost:80,  icon:"⚔️" },
-  { id:"shield_start", name:"Knight's Shield",  desc:"Begin battle with active Shield",cost:100, icon:"🛡️" },
-  { id:"power_pack",   name:"Relic Pack",       desc:"Start with a random relic",      cost:120, icon:"🔮" },
+  { id:"extra_life",   name:"Magic Potion 🧪",  desc:"Start with +1 extra life",       cost:60,  icon:"🧪" },
+  { id:"head_start",   name:"Lucky Start ⭐",    desc:"+300 bonus points at the start", cost:80,  icon:"⭐" },
+  { id:"shield_start", name:"Magic Shield 🛡️",  desc:"Begin with a Magic Shield",      cost:100, icon:"🛡️" },
+  { id:"power_pack",   name:"Power Pack 🔮",     desc:"Start with a random power-up",   cost:120, icon:"🔮" },
+];
+
+// ═══════════════════════════════════════════════════════════════
+// STORY DATA
+// ═══════════════════════════════════════════════════════════════
+const MAIN_STORY = {
+  title: "The Rainbow Crystal Quest",
+  intro: [
+    "Long ago, the Rainbow Dragon kept 10 magical crystals that made the world colourful and happy. ✨",
+    "One stormy night a mischievous wizard zapped the crystals away — sending one into each magical world! 🌩️",
+    "Now YOU must travel through all 10 worlds, tap your way past creatures and bosses, and bring the crystals home! 🌈",
+  ],
+};
+
+const WORLD_STORIES = [
+  {
+    worldId: 1,
+    title: "Dragon's Lair",
+    panels: [
+      { emoji:"🐉", text:"Deep inside a glowing cave lives Ember the Dragon. He accidentally swallowed a crystal and now sneezes fire everywhere! 🔥" },
+      { emoji:"😮", text:"All the little dragon hatchlings are running around in a panic — bouncing off the walls!" },
+      { emoji:"👆", text:"Tap the fireballs and gems to calm everything down. Help Ember find peace and the crystal will pop right out!" },
+    ],
+    bossIntro: { emoji:"🐉🔥", title:"EMBER THE DRAGON!", text:"Ember is on his last sneeze! Tap him gently to help him feel better and release the crystal!" },
+    victory: "Ember sneezed out the crystal — and said THANK YOU with a happy roar! 🐉💎 World 2 unlocked!",
+  },
+  {
+    worldId: 2,
+    title: "Troll Forest",
+    panels: [
+      { emoji:"🌿", text:"The Troll Forest is usually a quiet, happy place — but the crystal landed in the mushroom patch and now the trolls are dancing and bouncing EVERYWHERE! 🍄" },
+      { emoji:"🧌", text:"Big Bork the Troll Chief is doing the wildest dance of all! He can't stop! The magic crystal is making him wiggle!" },
+      { emoji:"👆", text:"Tap the bouncing mushrooms and help the trolls calm their wiggles! The crystal will be yours!" },
+    ],
+    bossIntro: { emoji:"🧌🍄", title:"BORK THE TROLL CHIEF!", text:"Big Bork is wiggling so hard the whole forest is shaking! Tap him in rhythm to stop the dance!" },
+    victory: "Bork finally stopped dancing and gave you the crystal as a thank-you gift! 🍄💎 World 3 unlocked!",
+  },
+  {
+    worldId: 3,
+    title: "Elven Kingdom",
+    panels: [
+      { emoji:"✨", text:"The Elven Kingdom glitters with golden light — but ever since the crystal landed here, the elves have been shooting sparkling arrows in every direction! 🏹" },
+      { emoji:"🧝", text:"Queen Elara is trying to cast a calming spell but her wand keeps shooting rainbow stars!" },
+      { emoji:"👆", text:"Tap the magical sparks before they disappear — collect enough and you'll earn the crystal!" },
+    ],
+    bossIntro: { emoji:"🧝‍♀️✨", title:"QUEEN ELARA!", text:"The queen's magic is going wild! Tap her sparkling stars to absorb the excess magic — then the crystal will appear!" },
+    victory: "Queen Elara's magic calmed down and the crystal floated right into your hands! ✨💎 World 4 unlocked!",
+  },
+  {
+    worldId: 4,
+    title: "Magic Tower",
+    panels: [
+      { emoji:"🔮", text:"In the tallest tower in the land lives Professor Zap, a very friendly wizard — but his spells went haywire when the crystal crashed through his window! 🪟" },
+      { emoji:"🧙", text:"Magic orbs, potion bubbles and sparkle bolts are flying around the tower!" },
+      { emoji:"👆", text:"Tap the flying magic orbs before they explode — help Professor Zap clean up his tower!" },
+    ],
+    bossIntro: { emoji:"🧙‍♂️🔮", title:"PROFESSOR ZAP!", text:"Zap has accidentally turned himself into a giant magic orb! Tap him to bring him back to normal!" },
+    victory: "Zap popped back to normal and thanked you with the crystal and a bag of magic sweets! 🔮💎 World 5 unlocked!",
+  },
+  {
+    worldId: 5,
+    title: "Viking Fjords",
+    panels: [
+      { emoji:"❄️", text:"The Viking Fjords are icy and beautiful — but the crystal landed on a frozen lake and now the Vikings are having the biggest snowball fight EVER! ❄️🏔️" },
+      { emoji:"⛵", text:"Chief Björn is throwing snowballs so fast that even his reindeer are scared!" },
+      { emoji:"👆", text:"Tap the snowballs before they land! Survive the blizzard and Chief Björn will give you the crystal!" },
+    ],
+    bossIntro: { emoji:"⛵❄️", title:"CHIEF BJÖRN!", text:"Björn is spinning on the ice throwing snowballs in every direction! Tap them all to win the crystal!" },
+    victory: "Björn declared you the snowball champion and handed over the crystal with a big Viking smile! ❄️💎 World 6 unlocked!",
+  },
+  {
+    worldId: 6,
+    title: "Goblin Mines",
+    panels: [
+      { emoji:"⛏️", text:"The Goblin Mines are full of glittering gems and happy little goblins — but the crystal fell deep in the mine and now ALL the goblins are super excited, throwing gems everywhere! 💎" },
+      { emoji:"🟢", text:"The Goblin Chief is so happy he's spinning in circles, flinging gold coins and crystals in all directions!" },
+      { emoji:"👆", text:"Tap the flying gems and gold coins! Collect them all to earn the magical crystal!" },
+    ],
+    bossIntro: { emoji:"⛏️💰", title:"THE GOBLIN CHIEF!", text:"The Chief is dizzy with excitement! Tap him and his flying treasure to claim the magic crystal!" },
+    victory: "The Goblin Chief was SO happy to share his treasure with a brave hero like you! ⛏️💎 World 7 unlocked!",
+  },
+  {
+    worldId: 7,
+    title: "Haunted Castle",
+    panels: [
+      { emoji:"👻", text:"Don't be scared — this is actually a FRIENDLY haunted castle! The ghosts love to play hide-and-seek, but the crystal has made them invisible for real! 🏰" },
+      { emoji:"😄", text:"Giggles the Ghost is laughing so hard you can barely see him at all!" },
+      { emoji:"👆", text:"Tap the spots where ghosts are hiding before they giggle away! Find Giggles last for the crystal!" },
+    ],
+    bossIntro: { emoji:"👻🎃", title:"GIGGLES THE GHOST!", text:"Giggles is nearly invisible from all the laughing! Tap him when you see a shimmer to win the crystal!" },
+    victory: "Giggles laughed so hard the crystal fell out of his pocket! The nicest ghost ever! 👻💎 World 8 unlocked!",
+  },
+  {
+    worldId: 8,
+    title: "Ocean Deep",
+    panels: [
+      { emoji:"🌊", text:"Under the sparkling ocean live wonderful sea creatures — but the crystal sank to the bottom and now everyone is blowing bubbles in total excitement! 🐠🐙" },
+      { emoji:"🐋", text:"Wally the Friendly Whale is blowing so many bubbles that the whole ocean looks like a giant bubble bath!" },
+      { emoji:"👆", text:"Pop the colourful bubbles before they float to the surface! Pop them all and Wally will give you the crystal!" },
+    ],
+    bossIntro: { emoji:"🐋🫧", title:"WALLY THE WHALE!", text:"Wally is the biggest bubble-blower in the whole ocean! Tap his bubbles to win the crystal!" },
+    victory: "Wally sang you a happy whale song and pushed the crystal to shore with his nose! 🌊💎 World 9 unlocked!",
+  },
+  {
+    worldId: 9,
+    title: "Giant's Peak",
+    panels: [
+      { emoji:"⛰️", text:"High in the clouds live the gentlest giants you've ever met — but the crystal got stuck in a storm cloud and now boulders are rolling down the mountain! 🪨⚡" },
+      { emoji:"🌩️", text:"Grumble the Giant is stomping around trying to catch the boulders but his big feet keep making things worse!" },
+      { emoji:"👆", text:"Tap the rolling boulders before they reach the bottom! Help Grumble and he'll fish out the crystal!" },
+    ],
+    bossIntro: { emoji:"⛰️🌩️", title:"GRUMBLE THE GIANT!", text:"Grumble is stomping through a thunderstorm! Tap his boulders to calm the mountain!" },
+    victory: "Grumble finally caught all the boulders and found the crystal in his pocket all along! ⛰️💎 World 10 unlocked!",
+  },
+  {
+    worldId: 10,
+    title: "Rainbow Dragon",
+    panels: [
+      { emoji:"🌈", text:"You've made it to the magical sky palace where the Rainbow Dragon lives! All the other creatures cheered you on every step of the way! 🎉" },
+      { emoji:"🐲", text:"The Rainbow Dragon has been waiting for a true hero to return the last crystal — this is your moment!" },
+      { emoji:"👆", text:"The Rainbow Dragon will test you with its most amazing rainbow powers! Tap everything you see to prove you are the QUEST MASTER!" },
+    ],
+    bossIntro: { emoji:"🌈👑", title:"THE RAINBOW DRAGON!", text:"The greatest challenge of the whole adventure! Tap every single rainbow burst to prove your skill!" },
+    victory: "🌈 YOU DID IT! 🌈 All 10 crystals returned! The Rainbow Dragon crowned you the greatest hero in all the land! 🎊👑",
+  },
 ];
 
 const DEFAULT_SAVE = {
@@ -158,6 +283,7 @@ const DEFAULT_SAVE = {
   scores:[], lastLoginDate:null, loginStreak:0,
   missionDate:null, missionProgress:{}, missionCompleted:false,
   levelStars:{}, unlockedLevel:1,
+  seenWorldStories:[], seenMainStory:false, seenBossIntros:[],
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -537,7 +663,7 @@ function drawPowerup(ctx, r, pwrType, ts) {
 }
 
 // World boss emojis
-const BOSS_EMOJIS=["🐉","🌿","✨","🔮","❄️","⛏️","💀","🌊","⛰️","👑"];
+const BOSS_EMOJIS=["🐉","🌿","✨","🔮","❄️","⛏️","👻","🌊","⛰️","🌈"];
 
 // ── Boss target ──
 function drawBoss(ctx, r, hitsLeft, maxHits, ts, worldId=1) {
@@ -1229,7 +1355,8 @@ export default function NexusTap(){
   const [levelCompleteData, setLevelCompleteData] = useState(null);
   const [gameOverData,      setGameOverData]      = useState(null);
   const [selectedLevel,     setSelectedLevel]     = useState(1);
-  const [scrollToLevel,     setScrollToLevel]     = useState(null); // signal map to scroll
+  const [scrollToLevel,     setScrollToLevel]     = useState(null);
+  const [storyData,         setStoryData]         = useState(null); // {worldId, type:'world'|'main', onDone:fn}
 
   // Canvas & game refs
   const canvasRef    = useRef(null);
@@ -1762,6 +1889,147 @@ export default function NexusTap(){
   // SCREEN RENDERERS
   // ═════════════════════════════════════════════════════════════
 
+  // ── World Story ──
+  const renderWorldStory=()=>{
+    if(!storyData)return null;
+    const{worldId,type,onDone,bossIntro,panelIndex=0}=storyData;
+    // Boss intro panel
+    if(type==="boss"&&bossIntro){
+      const wld=WORLDS[(worldId||1)-1];
+      return(
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center px-6"
+          style={{background:`linear-gradient(160deg,${wld.bg} 0%,rgba(0,0,0,0.92) 100%)`}}>
+          <style>{`@keyframes storyFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}} @keyframes bossShake{0%,100%{transform:rotate(-2deg)}50%{transform:rotate(2deg)}}`}</style>
+          <div className="w-full max-w-sm flex flex-col items-center gap-5 text-center">
+            <div className="text-xs uppercase tracking-widest font-bold" style={{color:wld.color,opacity:0.7}}>⚠️ BOSS STAGE ⚠️</div>
+            <div className="text-6xl" style={{animation:"bossShake 0.4s ease-in-out infinite",filter:`drop-shadow(0 0 18px ${wld.color})`}}>{bossIntro.emoji}</div>
+            <div className="font-black text-2xl leading-tight" style={{
+              color:wld.color,fontFamily:"'Rajdhani','Exo 2',sans-serif",
+              textShadow:`0 0 24px ${wld.color}88`}}>{bossIntro.title}</div>
+            <div className="rounded-3xl px-6 py-5 text-sm leading-relaxed"
+              style={{background:`${wld.color}12`,border:`1px solid ${wld.color}55`,
+                backdropFilter:"blur(10px)",color:"#f0f0e8",lineHeight:1.7,fontSize:"1rem"}}>
+              {bossIntro.text}
+            </div>
+            <NeonButton onClick={()=>{
+              const bs=saveRef.current.seenBossIntros||[];
+              if(!bs.includes(worldId))saveRef.current.seenBossIntros=[...bs,worldId];
+              debounceSave();onDone&&onDone();setStoryData(null);
+            }} className="w-full py-4 text-lg font-black"
+              style={{background:`linear-gradient(135deg,${wld.accent},${wld.color})`,
+                boxShadow:`0 0 32px ${wld.color}77`}}>
+              🥊 I'm Ready! Let's Go!
+            </NeonButton>
+          </div>
+        </div>
+      );
+    }
+    if(type==="main"){
+      const panels=MAIN_STORY.intro.map((text,i)=>({emoji:["🌈","🌩️","🦸"][i]||"✨",text}));
+      const idx=panelIndex||0;
+      const panel=panels[idx];
+      const isLast=idx===panels.length-1;
+      return(
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center px-6"
+          style={{background:"linear-gradient(160deg,#060010 0%,#001020 60%,#080800 100%)"}}>
+          <style>{`@keyframes storyFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}`}</style>
+          {/* Stars bg */}
+          <div className="absolute inset-0 pointer-events-none overflow-hidden">
+            {[...Array(22)].map((_,i)=>(
+              <div key={i} style={{position:"absolute",width:2,height:2,borderRadius:"50%",background:"#fff",
+                left:`${(i*37+7)%100}%`,top:`${(i*23+5)%100}%`,opacity:0.2+Math.random()*0.4}}/>
+            ))}
+          </div>
+          <div className="relative z-10 w-full max-w-sm flex flex-col items-center gap-6">
+            <div className="text-5xl" style={{animation:"storyFloat 3s ease-in-out infinite"}}>{panel.emoji}</div>
+            <div className="text-center font-black text-xl leading-tight" style={{
+              color:"#ffd700",fontFamily:"'Rajdhani','Exo 2',sans-serif",
+              textShadow:"0 0 20px #ffd70088"}}>
+              {MAIN_STORY.title}
+            </div>
+            <div className="rounded-3xl px-6 py-5 text-center text-sm leading-relaxed"
+              style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,215,0,0.25)",
+                backdropFilter:"blur(10px)",color:"#f0e8c0",lineHeight:1.7,fontSize:"1rem"}}>
+              {panel.text}
+            </div>
+            {/* Dots */}
+            <div className="flex gap-2">
+              {panels.map((_,i)=>(
+                <div key={i} style={{width:8,height:8,borderRadius:"50%",background:i===idx?"#ffd700":"#ffffff22",
+                  boxShadow:i===idx?"0 0 8px #ffd700":"none"}}/>
+              ))}
+            </div>
+            <NeonButton onClick={()=>{
+              if(!isLast){setStoryData(d=>({...d,panelIndex:(d.panelIndex||0)+1}));}
+              else{saveRef.current.seenMainStory=true;debounceSave();onDone&&onDone();setStoryData(null);}
+            }} className="w-full py-4 text-lg font-black"
+              style={{background:"linear-gradient(135deg,#b8860b,#ffd700)",boxShadow:"0 0 28px #ffd70066",color:"#000"}}>
+              {isLast?"🚀 START THE QUEST!":"Next →"}
+            </NeonButton>
+            {idx===0&&<button onClick={()=>{saveRef.current.seenMainStory=true;debounceSave();onDone&&onDone();setStoryData(null);}}
+              className="text-xs opacity-30 mt-1" style={{color:"#fff",background:"none",border:"none",cursor:"pointer"}}>
+              Skip
+            </button>}
+          </div>
+        </div>
+      );
+    }
+    // World story
+    const ws=WORLD_STORIES.find(s=>s.worldId===worldId);
+    if(!ws)return null;
+    const idx=panelIndex||0;
+    const panel=ws.panels[idx];
+    const isLast=idx===ws.panels.length-1;
+    const wld=WORLDS[worldId-1];
+    return(
+      <div className="absolute inset-0 z-50 flex flex-col items-center justify-center px-6"
+        style={{background:`linear-gradient(160deg,${wld.bg} 0%,${wld.color}18 100%)`}}>
+        <div className="relative z-10 w-full max-w-sm flex flex-col items-center gap-5">
+          {/* World title */}
+          <div className="flex items-center gap-2">
+            <span style={{fontSize:32}}>{wld.emoji}</span>
+            <div className="font-black text-lg" style={{color:wld.color,fontFamily:"'Rajdhani','Exo 2',sans-serif",
+              textShadow:`0 0 16px ${wld.color}88`}}>{ws.title}</div>
+          </div>
+          {/* Panel emoji big */}
+          <div className="text-6xl" style={{animation:"storyFloat 3s ease-in-out infinite",filter:`drop-shadow(0 0 12px ${wld.color}88)`}}>{panel.emoji}</div>
+          {/* Story text */}
+          <div className="rounded-3xl px-6 py-5 text-center text-sm leading-relaxed w-full"
+            style={{background:`${wld.color}10`,border:`1px solid ${wld.color}44`,
+              backdropFilter:"blur(10px)",color:"#f0f0e8",lineHeight:1.7,fontSize:"0.97rem"}}>
+            {panel.text}
+          </div>
+          {/* Dots */}
+          <div className="flex gap-2">
+            {ws.panels.map((_,i)=>(
+              <div key={i} style={{width:8,height:8,borderRadius:"50%",background:i===idx?wld.color:"#ffffff22",
+                boxShadow:i===idx?`0 0 8px ${wld.color}`:"none"}}/>
+            ))}
+          </div>
+          <NeonButton onClick={()=>{
+            if(!isLast){setStoryData(d=>({...d,panelIndex:(d.panelIndex||0)+1}));}
+            else{
+              const seen=saveRef.current.seenWorldStories||[];
+              if(!seen.includes(worldId))saveRef.current.seenWorldStories=[...seen,worldId];
+              debounceSave();onDone&&onDone();setStoryData(null);
+            }
+          }} className="w-full py-4 text-lg font-black"
+            style={{background:`linear-gradient(135deg,${wld.accent},${wld.color})`,
+              boxShadow:`0 0 28px ${wld.color}66`}}>
+            {isLast?"▶ Let's Go! 🎮":"Next →"}
+          </NeonButton>
+          {idx===0&&<button onClick={()=>{
+            const seen=saveRef.current.seenWorldStories||[];
+            if(!seen.includes(worldId))saveRef.current.seenWorldStories=[...seen,worldId];
+            debounceSave();onDone&&onDone();setStoryData(null);
+          }} className="text-xs opacity-30 mt-1" style={{color:"#fff",background:"none",border:"none",cursor:"pointer"}}>
+            Skip
+          </button>}
+        </div>
+      </div>
+    );
+  };
+
   // ── Menu ──
   const renderMenu=()=>{
     // Cycle through world emojis for the title decoration
@@ -1770,7 +2038,7 @@ export default function NexusTap(){
     <div className="flex flex-col items-center justify-center h-full gap-4 px-5 relative z-10 pb-6">
       {/* Title block */}
       <div className="text-center">
-        <div className="text-base tracking-widest opacity-50 mb-1" style={{color:theme.accent}}>⚔️ 🐉 ✨ 🌊 ⛰️</div>
+        <div className="text-base tracking-widest opacity-50 mb-1" style={{color:theme.accent}}>🐉 🌿 ✨ 🔮 ❄️ ⛏️ 👻 🌊 ⛰️ 🌈</div>
         <h1 className="font-black leading-none" style={{
           fontSize:"clamp(2.8rem,11vw,4.2rem)",letterSpacing:"0.1em",
           fontFamily:"'Rajdhani','Exo 2',sans-serif",
@@ -1782,8 +2050,8 @@ export default function NexusTap(){
         }}>
           REALM<br/><span style={{fontSize:"0.62em",letterSpacing:"0.22em"}}>QUEST</span>
         </h1>
-        <p className="text-xs mt-2 opacity-50 tracking-widest uppercase" style={{color:theme.accent,fontFamily:"'Rajdhani',sans-serif"}}>
-          10 Worlds · 100 Levels · Epic Adventure
+        <p className="text-xs mt-2 opacity-60 tracking-widest uppercase" style={{color:theme.accent,fontFamily:"'Rajdhani',sans-serif"}}>
+          10 Worlds · 100 Levels · Fun for Everyone!
         </p>
         {/* XP bar */}
         <div className="mt-3 flex items-center gap-2 justify-center">
@@ -1794,6 +2062,19 @@ export default function NexusTap(){
           <span className="text-xs opacity-35" style={{color:theme.accent}}>{xpToNext(sv.xp)}xp</span>
         </div>
       </div>
+
+      {/* Quest story teaser */}
+      {(sv.unlockedLevel||1)<=3&&(
+        <div className="w-full rounded-2xl px-4 py-3 flex items-center gap-3 cursor-pointer"
+          style={{background:`${theme.accent}0c`,border:`1px solid ${theme.accent}30`}}
+          onClick={()=>setStoryData({type:"main",panelIndex:0,onDone:()=>setScreen("levelmap")})}>
+          <span style={{fontSize:28}}>🌈</span>
+          <div>
+            <div className="text-xs font-bold mb-0.5" style={{color:theme.accent}}>🗺️ Your Quest</div>
+            <div className="text-xs opacity-60 leading-snug" style={{color:theme.accent}}>{MAIN_STORY.intro[0].slice(0,70)}…</div>
+          </div>
+        </div>
+      )}
 
       {/* World progress strip */}
       <div className="flex gap-1 justify-center flex-wrap">
@@ -1823,15 +2104,21 @@ export default function NexusTap(){
       </div>
 
       {/* Play button */}
-      <NeonButton onClick={()=>setScreen("levelmap")} className="w-full py-5 text-2xl"
+      <NeonButton onClick={()=>{
+        if(!saveRef.current.seenMainStory){
+          setStoryData({type:"main",panelIndex:0,onDone:()=>setScreen("levelmap")});
+        } else {
+          setScreen("levelmap");
+        }
+      }} className="w-full py-5 text-2xl"
         style={{background:`linear-gradient(135deg,${theme.secondary},${theme.accent})`,boxShadow:`0 0 36px ${theme.accent}66`,
           fontSize:"1.4rem",letterSpacing:"0.1em"}}>
-        ⚔️ EMBARK
+        🌟 START ADVENTURE!
       </NeonButton>
 
       {/* Quick links */}
       <div className="grid grid-cols-2 gap-3 w-full">
-        {[{label:"🎯 Quests",sc:"missions"},{label:"🏆 Hall of Fame",sc:"leaderboard"},{label:"🎖 Trophies",sc:"achievements"},{label:"⚙ Settings",sc:"settings"}].map(b=>(
+        {[{label:"🎯 Daily Quests",sc:"missions"},{label:"🏆 High Scores",sc:"leaderboard"},{label:"🏅 Trophies",sc:"achievements"},{label:"⚙️ Settings",sc:"settings"}].map(b=>(
           <NeonButton key={b.sc} onClick={()=>setScreen(b.sc)} className="py-3 text-sm"
             style={{background:"#ffffff0d",border:`1px solid ${theme.accent}30`}}>{b.label}</NeonButton>
         ))}
@@ -1850,7 +2137,7 @@ export default function NexusTap(){
         {/* Header */}
         <div className="flex items-center gap-3 px-4 py-3 z-10" style={{background:"rgba(0,0,0,0.6)",backdropFilter:"blur(6px)",borderBottom:`1px solid ${theme.accent}22`}}>
           <NeonButton onClick={()=>setScreen("menu")} className="px-3 py-2 text-sm" style={{background:"#ffffff10"}}>← Back</NeonButton>
-          <h2 className="text-xl font-black" style={{color:theme.accent}}>⚔️ Adventure Map</h2>
+          <h2 className="text-xl font-black" style={{color:theme.accent}}>🗺️ Adventure Map</h2>
           <span className="ml-auto text-sm font-bold" style={{color:"#fbbf24"}}>🪙 {sv.coins||0}</span>
         </div>
         {/* Scrollable map */}
@@ -1862,16 +2149,24 @@ export default function NexusTap(){
             const worldFullyDone=doneLevels===10;
             return(
               <div key={world.id} className="mb-2">
-                {/* World banner — immersive */}
+                {/* World banner — immersive, tappable for story */}
                 <div className="flex items-center gap-3 px-4 py-3 mx-2 mt-3 rounded-2xl relative overflow-hidden"
+                  onClick={()=>{
+                    const seen=saveRef.current.seenWorldStories||[];
+                    if(!seen.includes(world.id)){
+                      setStoryData({type:"world",worldId:world.id,panelIndex:0,onDone:()=>{}});
+                    } else {
+                      setStoryData({type:"world",worldId:world.id,panelIndex:0,onDone:()=>{}});
+                    }
+                  }}
                   style={{background:`${world.color}15`,border:`1px solid ${world.color}55`,backdropFilter:"blur(6px)",
-                    boxShadow:worldFullyDone?`0 0 20px ${world.color}44`:"none"}}>
+                    boxShadow:worldFullyDone?`0 0 20px ${world.color}44`:"none",cursor:"pointer"}}>
                   {/* Subtle world-color gradient bg */}
                   <div style={{position:"absolute",inset:0,background:`linear-gradient(120deg,${world.color}12 0%,transparent 60%)`,pointerEvents:"none"}}/>
                   <span style={{fontSize:28,lineHeight:1,zIndex:1}}>{world.emoji}</span>
                   <div style={{zIndex:1}}>
                     <div className="font-black text-base leading-tight" style={{color:world.color}}>{world.name}</div>
-                    <div className="text-xs opacity-50" style={{color:world.color}}>World {world.id} · {doneLevels}/10 cleared</div>
+                    <div className="text-xs opacity-50" style={{color:world.color}}>World {world.id} · {doneLevels}/10 cleared · 📖 Story</div>
                   </div>
                   {worldFullyDone&&<span style={{marginLeft:"auto",fontSize:20,zIndex:1}}>🏆</span>}
                   {!worldFullyDone&&<div className="ml-auto flex gap-0.5" style={{zIndex:1}}>
@@ -1985,6 +2280,26 @@ export default function NexusTap(){
             {cfg.modifier&&<span className="font-bold" style={{color:"#fbbf24"}}>⚡ {cfg.modifier.desc}</span>}
           </div>
         </div>
+        {/* Story teaser card */}
+        {(()=>{const ws=WORLD_STORIES.find(s=>s.worldId===cfg.world);if(!ws)return null;
+          const snippet=cfg.isBoss?ws.bossIntro?.text:ws.panels[0]?.text;
+          if(!snippet)return null;
+          const emo=cfg.isBoss?(ws.bossIntro?.emoji||WORLDS[cfg.world-1].emoji):ws.panels[0]?.emoji;
+          return(
+            <div className="rounded-2xl px-4 py-3 flex items-center gap-3 cursor-pointer"
+              style={{background:`${cfg.worldColor}0c`,border:`1px solid ${cfg.worldColor}33`}}
+              onClick={()=>{
+                if(cfg.isBoss){setStoryData({type:"boss",worldId:cfg.world,bossIntro:ws.bossIntro,onDone:()=>{}});}
+                else{setStoryData({type:"world",worldId:cfg.world,panelIndex:0,onDone:()=>{}});}
+              }}>
+              <span style={{fontSize:26,flexShrink:0}}>{emo}</span>
+              <div>
+                <div className="text-xs font-bold mb-0.5" style={{color:cfg.worldColor}}>📖 Story</div>
+                <div className="text-xs opacity-60 leading-snug" style={{color:cfg.worldColor,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{snippet}</div>
+              </div>
+            </div>
+          );
+        })()}
         <p className="text-xs opacity-40 uppercase tracking-widest" style={{color:cfg.worldColor}}>Optional Boosts</p>
         {SHOP_ITEMS.map(item=>{
           const inCart=cartItems.includes(item.id),canBuy=coins>=item.cost||inCart;
@@ -2010,7 +2325,24 @@ export default function NexusTap(){
         <NeonButton onClick={()=>{
           const total=cartItems.reduce((s,id)=>s+(SHOP_ITEMS.find(i=>i.id===id)?.cost||0),0);
           if(sv.coins<total){setNotif("Not enough coins! 🪙");return;}
-          sv.coins-=total;flushSave();startGame(selectedLevel,cartItems);
+          sv.coins-=total;flushSave();
+          // Show world story intro when first entering a new world (level 1 of each world)
+          const isFirstLevelOfWorld=cfg.id%10===1;
+          const seenWorlds=saveRef.current.seenWorldStories||[];
+          const seenBoss=`boss_${cfg.world}`;
+          const seenBosses=saveRef.current.seenBossIntros||[];
+          if(cfg.isBoss&&!seenBosses.includes(cfg.world)){
+            const ws=WORLD_STORIES.find(s=>s.worldId===cfg.world);
+            if(ws?.bossIntro){
+              setStoryData({type:"boss",worldId:cfg.world,bossIntro:ws.bossIntro,onDone:()=>startGame(selectedLevel,cartItems)});
+              return;
+            }
+          }
+          if(isFirstLevelOfWorld&&!seenWorlds.includes(cfg.world)){
+            setStoryData({type:"world",worldId:cfg.world,panelIndex:0,onDone:()=>startGame(selectedLevel,cartItems)});
+          } else {
+            startGame(selectedLevel,cartItems);
+          }
         }} className="w-full py-4 text-xl mt-1"
           style={{background:`linear-gradient(135deg,${cfg.worldColor}88,${cfg.worldColor})`,boxShadow:`0 0 28px ${cfg.worldColor}55`}}>
           {cartItems.length>0?`▶ START (${cartItems.reduce((s,id)=>s+(SHOP_ITEMS.find(i=>i.id===id)?.cost||0),0)}🪙)`:"▶ START FREE"}
@@ -2073,7 +2405,7 @@ export default function NexusTap(){
         {/* Fever */}
         {feverBorder&&<div className="absolute inset-0 pointer-events-none z-10" style={{border:"4px solid #fbbf24",boxShadow:"inset 0 0 60px #fbbf2445,0 0 60px #fbbf2445",animation:"feverPulse 0.6s ease-in-out infinite alternate"}}/>}
         {feverBorder&&<div className="absolute left-0 right-0 flex justify-center pointer-events-none z-30" style={{top:140}}>
-          <span className="font-black text-base px-4 py-1 rounded-full" style={{color:"#fbbf24",textShadow:"0 0 20px #fbbf24",background:"#fbbf2420",animation:"feverPulse 0.5s infinite alternate"}}>⚡ BATTLE FRENZY!</span>
+          <span className="font-black text-base px-4 py-1 rounded-full" style={{color:"#fbbf24",textShadow:"0 0 20px #fbbf24",background:"#fbbf2420",animation:"feverPulse 0.5s infinite alternate"}}>✨ MAGIC MODE!</span>
         </div>}
         {epicFlash&&<div className="absolute inset-0 pointer-events-none z-10" style={{background:"#f472b633",animation:"epicFlash 0.5s ease-out forwards"}}/>}
         {perfectFlash&&<div className="absolute inset-0 pointer-events-none z-10" style={{background:"#fbbf2422",animation:"epicFlash 0.35s ease-out forwards"}}/>}
@@ -2145,7 +2477,7 @@ export default function NexusTap(){
             </div>
             <div className="ml-auto px-2 py-0.5 rounded-full text-xs font-black"
               style={{background:`${wld.color}22`,color:wld.color,border:`1px solid ${wld.color}44`,letterSpacing:"0.08em"}}>
-              {isBossLevel?"👑 BOSS SLAIN":"⚔️ CLEARED"}
+              {isBossLevel?"👑 BOSS BEATEN!":"⭐ CLEARED!"}
             </div>
           </div>
           {/* Star row */}
@@ -2188,8 +2520,8 @@ export default function NexusTap(){
         {/* Stats grid */}
         <div className="w-full rounded-2xl py-3 px-4 grid grid-cols-3 gap-2"
           style={{background:"rgba(0,0,0,0.35)",border:`1px solid ${wld.color}1a`,backdropFilter:"blur(10px)"}}>
-          {[["⚔️ Hits",sessionStats.tapsTotal],["💎 Rare+",sessionStats.rareHits],["🐉 Bosses",sessionStats.bossKills||0],
-            ["🎯 Perfect",sessionStats.perfectTaps||0],["⚡ Frenzy",sessionStats.feverCount||0],["⏱ Time",sessionStats.timeSurvived+"s"]
+          {[["👆 Taps",sessionStats.tapsTotal],["✨ Magic+",sessionStats.rareHits],["🐉 Bosses",sessionStats.bossKills||0],
+            ["🎯 Perfect",sessionStats.perfectTaps||0],["⚡ Magic Mode",sessionStats.feverCount||0],["⏱ Time",sessionStats.timeSurvived+"s"]
           ].map(([l,v])=>(
             <div key={l} className="text-center py-1">
               <div className="text-xs opacity-40 mb-0.5" style={{color:wld.color,letterSpacing:"0.02em"}}>{l}</div>
@@ -2198,18 +2530,28 @@ export default function NexusTap(){
           ))}
         </div>
 
+        {/* Boss victory story */}
+        {isBossLevel&&(()=>{const ws=WORLD_STORIES.find(s=>s.worldId===cfg.world);return ws?(
+          <div className="w-full rounded-2xl px-4 py-4 text-center text-sm leading-relaxed"
+            style={{background:`${wld.color}14`,border:`1px solid ${wld.color}44`,backdropFilter:"blur(8px)",color:"#f0f0d8",lineHeight:1.65}}>
+            <div className="text-2xl mb-2">🎉</div>
+            <div style={{color:wld.color,fontWeight:"bold",marginBottom:6}}>{wld.name} Conquered!</div>
+            {ws.victory}
+          </div>
+        ):null;})()}
+
         {/* CTA buttons */}
         {!isLast&&(
           <NeonButton onClick={()=>{setSelectedLevel(levelId+1);setCartItems([]);setScreen("shop");}}
             className="w-full py-4 text-lg font-black"
             style={{background:`linear-gradient(135deg,${wld.accent},${wld.color})`,
               boxShadow:`0 0 36px ${wld.color}55,0 4px 20px rgba(0,0,0,0.5)`,letterSpacing:"0.06em"}}>
-            NEXT STAGE →
+            🚀 NEXT STAGE →
           </NeonButton>
         )}
         {isLast&&<div className="text-center font-black text-2xl py-2"
           style={{color:"#ffd700",textShadow:"0 0 40px #ffd700,0 0 80px #ffd70044",animation:"floatGlow 2s ease-in-out infinite"}}>
-          👑 REALM CONQUERED! 👑
+          🌈 YOU ARE THE QUEST MASTER! 🌈
         </div>}
         <NeonButton onClick={()=>{setScrollToLevel(levelId);setScreen("levelmap");}}
           className="w-full py-3 text-sm" style={{background:"rgba(255,255,255,0.06)",border:`1px solid ${wld.color}33`,backdropFilter:"blur(8px)"}}>
@@ -2228,9 +2570,9 @@ export default function NexusTap(){
     return(
       <div className="flex flex-col items-center h-full overflow-y-auto px-5 py-6 gap-4 relative z-10">
         <div className="text-center">
-          <div className="text-4xl mb-1">⚔️💀</div>
+          <div className="text-4xl mb-1">😮🌟</div>
           <div className="text-sm uppercase tracking-widest opacity-50 mb-1" style={{color:cfg.worldColor}}>{WORLDS[cfg.world-1].emoji} {WORLDS[cfg.world-1].name}</div>
-          <div className="text-xs uppercase tracking-widest font-bold opacity-60 mb-1" style={{color:"#ef4444"}}>— FALLEN IN BATTLE —</div>
+          <div className="text-xs uppercase tracking-widest font-bold opacity-60 mb-1" style={{color:"#ef4444"}}>— Almost there! Try again! —</div>
           <div className="text-xl font-black" style={{color:cfg.worldColor}}>{levelName}</div>
         </div>
         {/* Score + progress */}
@@ -2253,7 +2595,7 @@ export default function NexusTap(){
         </div>
         <div className="w-full rounded-2xl p-3 grid grid-cols-3 gap-2"
           style={{background:"rgba(0,0,0,0.3)",border:`1px solid ${cfg.worldColor}1a`,backdropFilter:"blur(8px)"}}>
-          {[["⚔️ Hits",sessionStats.tapsTotal],["💎 Rare+",sessionStats.rareHits],["⚡ Streak",sessionStats.bestCombo+"×"],
+          {[["👆 Taps",sessionStats.tapsTotal],["✨ Magic+",sessionStats.rareHits],["🔥 Streak",sessionStats.bestCombo+"×"],
             ["🐉 Bosses",sessionStats.bossKills||0],["🎯 Perfect",sessionStats.perfectTaps||0],["⏱ Time",sessionStats.timeSurvived+"s"]
           ].map(([l,v])=>(
             <div key={l} className="text-center py-1">
@@ -2266,7 +2608,7 @@ export default function NexusTap(){
           className="w-full py-4 text-lg font-black"
           style={{background:`linear-gradient(135deg,${cfg.worldColor}99,${cfg.worldColor})`,
             boxShadow:`0 0 32px ${cfg.worldColor}55,0 4px 20px rgba(0,0,0,0.5)`,letterSpacing:"0.06em"}}>
-          ⚔️ TRY AGAIN
+          🌟 TRY AGAIN!
         </NeonButton>
         <NeonButton onClick={()=>setScreen("levelmap")} className="w-full py-3 text-sm"
           style={{background:"rgba(255,255,255,0.06)",border:`1px solid ${cfg.worldColor}33`,backdropFilter:"blur(8px)"}}>
@@ -2465,6 +2807,7 @@ export default function NexusTap(){
       {screen==="achievements"  &&renderAchievements()}
       {screen==="leaderboard"   &&renderLeaderboard()}
       {screen==="settings"      &&renderSettings()}
+      {storyData&&renderWorldStory()}
     </div>
   );
 }
