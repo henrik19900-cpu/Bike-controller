@@ -284,6 +284,7 @@ const DEFAULT_SAVE = {
   missionDate:null, missionProgress:{}, missionCompleted:false,
   levelStars:{}, unlockedLevel:1,
   seenWorldStories:[], seenMainStory:false, seenBossIntros:[],
+  seenTutorial:false, lastSpinDate:null,
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -347,8 +348,44 @@ function createAudio() {
     shieldBreak:()=>{t(660,"sine",0.12,0.22);t(440,"sawtooth",0.18,0.16,0.08);},
     lucky:      ()=>{chord([784,1047,1319,1568],"sine",0.14,0.24,0.06);},
     nearMiss:   ()=>{chord([262,330,392,523],"sine",0.2,0.2,0.1);},
+    // ── Background music ──
+    startBgMusic:(wid)=>{
+      const WM=[
+        [196,220,247,262,294,262,247,220], // Dragon
+        [330,370,415,440,494,440,415,370], // Forest
+        [440,494,554,587,659,587,554,494], // Elven
+        [262,294,330,370,415,370,330,294], // Magic
+        [174,196,220,247,262,247,220,196], // Viking
+        [220,247,262,294,330,294,262,247], // Goblin
+        [196,220,247,262,247,220,196,174], // Haunted
+        [294,330,370,415,440,415,370,330], // Ocean
+        [262,294,330,370,415,440,415,370], // Giant
+        [523,587,659,784,880,784,659,587], // Rainbow
+      ];
+      if(ctx&&ctx.state==="suspended")ctx.resume().catch(()=>{});
+      const mel=WM[Math.max(0,(wid||1)-1)];
+      let note=0,tmpo=460,tmr=null,on=true;
+      const tick=()=>{
+        if(!on)return;
+        try{
+          const c=C(),o=c.createOscillator(),g=c.createGain();
+          o.connect(g);g.connect(c.destination);
+          o.type="triangle";o.frequency.setValueAtTime(mel[note%mel.length],c.currentTime);
+          g.gain.setValueAtTime(0.032,c.currentTime);
+          g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+tmpo*0.0008);
+          o.start(c.currentTime);o.stop(c.currentTime+tmpo*0.0009);
+        }catch{}
+        note++;
+        tmr=setTimeout(tick,tmpo);
+      };
+      tick();
+      bgMusicCtl={stop:()=>{on=false;if(tmr)clearTimeout(tmr);},setFever:(f)=>{tmpo=f?280:460;}};
+    },
+    stopBgMusic:()=>{bgMusicCtl&&bgMusicCtl.stop();bgMusicCtl=null;},
+    setBgMusicFever:(f)=>{bgMusicCtl&&bgMusicCtl.setFever(f);},
   };
 }
+let bgMusicCtl=null;
 
 // ═══════════════════════════════════════════════════════════════
 // HELPERS
@@ -1450,6 +1487,11 @@ export default function NexusTap(){
   const luckyRef    = useRef(null);   // null | "active" | "countdown"
   const luckyTimer  = useRef(null);
   const streakShRef = useRef(false);
+  const [tutStep,    setTutStep]    = useState(null); // null = not active
+  const [mascotMood, setMascotMood] = useState("idle");
+  const [spinState,  setSpinState]  = useState(null); // null | "spinning" | "done"
+  const [spinResult, setSpinResult] = useState(null);
+  const [spinDeg,    setSpinDeg]    = useState(0);
 
   // Canvas & game refs
   const canvasRef    = useRef(null);
@@ -1655,6 +1697,7 @@ export default function NexusTap(){
     if(luckyTimer.current){clearTimeout(luckyTimer.current);luckyTimer.current=null;}
     luckyRef.current=null;setLuckyMode(false);
     streakShRef.current=false;setStreakShieldActive(false);
+    audioRef.current?.stopBgMusic?.();
     const cfg=levelCfgRef.current;
     const sv=saveRef.current,score=gs.score;
     const timeSurvived=Math.floor((Date.now()-gs.startTime)/1000);
@@ -1787,8 +1830,8 @@ export default function NexusTap(){
       }
       return;
     }
-    // NORMAL
-    targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+    // NORMAL — squish then remove
+    hit.dying=performance.now();
     gs.streak++;
     const combo=Math.min(10,1+Math.floor(gs.streak/5));
     const isDouble=activePwrRef.current.some(p=>p.type==="DOUBLE"&&p.endsAt>Date.now());
@@ -1806,6 +1849,11 @@ export default function NexusTap(){
 
     // Activate streak shield at streak 10
     if(gs.streak===10&&!streakShRef.current){streakShRef.current=true;setStreakShieldActive(true);sfx("lucky");}
+    // Mascot mood
+    if(gs.streak>=20)setMascotMood("fire");
+    else if(gs.streak>=10)setMascotMood("excited");
+    else if(gs.streak>=5)setMascotMood("happy");
+    else setMascotMood("idle");
 
     // Musical pentatonic scale note (most addictive mechanic!) — rising melody as streak grows
     sfx("comboNote", gs.streak);
@@ -1849,7 +1897,8 @@ export default function NexusTap(){
     // Fever
     if(gs.streak>=FEVER_STREAK&&!gs.feverActive){
       gs.feverActive=true;gs.feverTimeLeft=FEVER_DUR;setFeverBorder(true);sfx("feverStart");vibrate([35,20,35,20,65]);
-      spawnPopup(hit.x,hit.y-45,"🌡 FEVER!","#fbbf24",21);unlock("fever_mode");
+      audioRef.current?.setBgMusicFever?.(true);
+      spawnPopup(hit.x,hit.y-45,"🌡 FEVER!","#fbbf24",21);unlock("fever_mode");setMascotMood("fever");
       gs.sessionStats.feverCount=(gs.sessionStats.feverCount||0)+1;
     }
     // Check level win conditions
@@ -1915,9 +1964,10 @@ export default function NexusTap(){
     setActivePwrDisp([...activePwrRef.current]);
     setHud({score:headStart?300:0,lives:gsRef.current.lives,streak:0,fever:false,coins:saveRef.current.coins,timeLeft:null,modGoal:cfg.modifier?.desc||null});
     setLevelCompleteData(null);setGameOverData(null);setEpicFlash(false);setFeverBorder(false);setComboLabel("");
-    setCartItems([]);setScreen("playing");
+    setCartItems([]);setScreen("playing");setMascotMood("idle");
+    if(soundOn&&audioRef.current?.startBgMusic)audioRef.current.startBgMusic(cfg.world);
     runCountdown(()=>{lastTickRef.current=performance.now();rafRef.current=requestAnimationFrame(gl=>gameLoopFn(gl));});
-  },[initMissions,initBgParts,runCountdown]); // eslint-disable-line
+  },[initMissions,initBgParts,runCountdown,soundOn]); // eslint-disable-line
 
   // Lucky golden event — all targets turn legendary for 7 seconds
   const triggerLucky=useCallback(()=>{
@@ -1942,7 +1992,7 @@ export default function NexusTap(){
 
   // Menu canvas loop
   useEffect(()=>{
-    if(screen!=="menu"&&screen!=="levelmap"&&screen!=="shop"&&screen!=="levelcomplete"&&screen!=="gameover")return;
+    if(screen!=="menu"&&screen!=="levelmap"&&screen!=="shop"&&screen!=="levelcomplete"&&screen!=="gameover"&&screen!=="spinwheel"&&screen!=="missions"&&screen!=="achievements"&&screen!=="leaderboard"&&screen!=="settings")return;
     let raf;
     const loop=(ts)=>{
       const canvas=canvasRef.current;if(!canvas)return;
@@ -1997,6 +2047,19 @@ export default function NexusTap(){
         if(t.y<t.radius+95||t.y>h-margin){t.vy*=-1;t.y=Math.max(t.radius+95,Math.min(h-margin,t.y));}
         if(t.trail){t.trail.push({x:t.x,y:t.y});if(t.trail.length>12)t.trail.shift();}
       }
+      // Squish (dying) animation — plays for 120ms then removes
+      if(t.dying){
+        const age=pnow-t.dying;
+        if(age>=120)return false;
+        const p=age/120;
+        const sx=1+Math.sin(p*Math.PI)*0.55;
+        const sy=1-Math.sin(p*Math.PI)*0.42;
+        ctx.save();ctx.translate(t.x,t.y);ctx.scale(sx,sy);ctx.translate(-t.x,-t.y);
+        ctx.globalAlpha=1-p*0.8;
+        drawTarget(ctx,t,ts);
+        ctx.restore();ctx.globalAlpha=1;
+        return true;
+      }
       // Expiry
       if((now-t.spawnedAt)>=t.lifetime){
         if(t.type==="powerup"||t.type==="bomb"||t.type==="boss"||t.type==="treasure")return false;
@@ -2007,7 +2070,7 @@ export default function NexusTap(){
           streakShRef.current=false;setStreakShieldActive(false);sfx("shieldBreak");vibrate([8,12,8]);
         } else{
           gs.lives--;sfx("miss");vibrate(42);lostLife=true;
-          gs.streak=0;streakShRef.current=false;setStreakShieldActive(false);
+          gs.streak=0;streakShRef.current=false;setStreakShieldActive(false);setMascotMood("sad");setTimeout(()=>setMascotMood("idle"),1200);
           // no_miss modifier: instant fail
           if(cfg?.modifier?.type==="no_miss"){endLevel(false);return false;}
         }
@@ -2028,7 +2091,7 @@ export default function NexusTap(){
     if(activePwrRef.current.length!==pl)setActivePwrDisp([...activePwrRef.current]);
 
     // Fever
-    if(gs.feverActive){gs.feverTimeLeft-=dt;if(gs.feverTimeLeft<=0){gs.feverActive=false;setFeverBorder(false);sfx("feverEnd");}}
+    if(gs.feverActive){gs.feverTimeLeft-=dt;if(gs.feverTimeLeft<=0){gs.feverActive=false;setFeverBorder(false);sfx("feverEnd");audioRef.current?.setBgMusicFever?.(false);setMascotMood("idle");}}
 
     // Spawn
     spawnTimer.current+=dt;
@@ -2197,6 +2260,73 @@ export default function NexusTap(){
     );
   };
 
+  // ── Tutorial ──
+  const TUT_STEPS=[
+    {emoji:"👆",title:"Tap the targets!",body:"Glowing circles appear on screen. Tap them before they disappear to score points!",cta:"Got it! →",demo:true},
+    {emoji:"🔥",title:"Build your streak!",body:"Tap targets one after another without missing. The longer your streak, the bigger your bonus!",cta:"Cool! →"},
+    {emoji:"💣",title:"Avoid bombs!",body:"Red bombs will appear — do NOT tap them! They cost you a life. Tap AROUND them!",cta:"Understood! →"},
+    {emoji:"🌟",title:"You're ready!",body:"Collect stars, unlock new worlds, and chase the high score. Have fun on your adventure!",cta:"LET'S GO! 🚀"},
+  ];
+  const renderTutorial=()=>{
+    const step=TUT_STEPS[tutStep]||TUT_STEPS[0];
+    const isLast=tutStep===TUT_STEPS.length-1;
+    return(
+      <div className="absolute inset-0 z-50 flex flex-col items-center justify-center px-6"
+        style={{background:"linear-gradient(160deg,#05001a 0%,#001020 60%,#050a00 100%)"}}>
+        <div className="w-full max-w-sm flex flex-col items-center gap-6 text-center">
+          <div className="text-xs uppercase tracking-widest opacity-50" style={{color:theme.accent}}>
+            Step {(tutStep||0)+1} / {TUT_STEPS.length}
+          </div>
+          <div className="text-7xl" style={{animation:"storyFloat 1.8s ease-in-out infinite",filter:`drop-shadow(0 0 24px ${theme.accent})`}}>
+            {step.emoji}
+          </div>
+          {/* Demo fake tap target */}
+          {step.demo&&(
+            <div onClick={()=>{sfx("tap");spawnParticles&&null;}}
+              className="w-16 h-16 rounded-full flex items-center justify-center cursor-pointer"
+              style={{background:`radial-gradient(circle at 38% 36%,${theme.accent}cc,${theme.accent}44)`,
+                boxShadow:`0 0 32px ${theme.accent}99`,border:`2px solid ${theme.accent}`,
+                animation:"floatGlow 1s ease-in-out infinite"}}>
+              <span className="text-2xl font-black" style={{color:"#fff"}}>!</span>
+            </div>
+          )}
+          <h2 className="font-black text-2xl" style={{color:theme.accent,fontFamily:"'Rajdhani','Exo 2',sans-serif",textShadow:`0 0 20px ${theme.accent}88`}}>
+            {step.title}
+          </h2>
+          <p className="text-base leading-relaxed opacity-80" style={{color:"#e8e8f0",lineHeight:1.7}}>
+            {step.body}
+          </p>
+          {/* Dot indicators */}
+          <div className="flex gap-2">
+            {TUT_STEPS.map((_,i)=>(
+              <div key={i} style={{width:8,height:8,borderRadius:"50%",background:i===(tutStep||0)?theme.accent:"#ffffff22"}}/>
+            ))}
+          </div>
+          <NeonButton onClick={()=>{
+            if(isLast){
+              saveRef.current.seenTutorial=true;debounceSave();
+              setTutStep(null);
+              if(!saveRef.current.seenMainStory){
+                setStoryData({type:"main",panelIndex:0,onDone:()=>setScreen("levelmap")});
+              } else {setScreen("levelmap");}
+            } else {
+              setTutStep((tutStep||0)+1);
+            }
+          }} className="w-full py-4 text-lg font-black"
+            style={{background:`linear-gradient(135deg,${theme.secondary||theme.accent},${theme.accent})`,
+              boxShadow:`0 0 32px ${theme.accent}77`}}>
+            {step.cta}
+          </NeonButton>
+          <button onClick={()=>{
+            saveRef.current.seenTutorial=true;debounceSave();setTutStep(null);setScreen("levelmap");
+          }} style={{color:"#ffffff30",background:"none",border:"none",cursor:"pointer",fontSize:"0.75rem"}}>
+            Skip tutorial
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   // ── Menu ──
   const renderMenu=()=>{
     // Cycle through world emojis for the title decoration
@@ -2272,7 +2402,9 @@ export default function NexusTap(){
 
       {/* Play button */}
       <NeonButton onClick={()=>{
-        if(!saveRef.current.seenMainStory){
+        if(!saveRef.current.seenTutorial){
+          setTutStep(0);
+        } else if(!saveRef.current.seenMainStory){
           setStoryData({type:"main",panelIndex:0,onDone:()=>setScreen("levelmap")});
         } else {
           setScreen("levelmap");
@@ -2283,6 +2415,15 @@ export default function NexusTap(){
         🌟 START ADVENTURE!
       </NeonButton>
 
+      {/* Daily Spin */}
+      {(()=>{const alreadySpun=sv.lastSpinDate===getTodayKey();return(
+        <NeonButton onClick={()=>!alreadySpun&&setScreen("spinwheel")} className="w-full py-3 text-base"
+          style={{background:alreadySpun?"#ffffff08":`${theme.accent}22`,border:`1px solid ${alreadySpun?"#ffffff15":theme.accent+"66"}`,
+            color:alreadySpun?"#ffffff30":theme.accent,opacity:alreadySpun?0.5:1}}>
+          🎡 {alreadySpun?"Daily Spin (come back tomorrow)":"Daily Spin — FREE prize!"}
+        </NeonButton>
+      );})()}
+
       {/* Quick links */}
       <div className="grid grid-cols-2 gap-3 w-full">
         {[{label:"🎯 Daily Quests",sc:"missions"},{label:"🏆 High Scores",sc:"leaderboard"},{label:"🏅 Trophies",sc:"achievements"},{label:"⚙️ Settings",sc:"settings"}].map(b=>(
@@ -2292,6 +2433,109 @@ export default function NexusTap(){
       </div>
     </div>
   );};
+
+  // ── Daily Spin Wheel ──
+  const SPIN_PRIZES=[
+    {label:"20 coins",   emoji:"🪙", value:20,  type:"coins", color:"#fbbf24"},
+    {label:"50 coins",   emoji:"🪙", value:50,  type:"coins", color:"#f59e0b"},
+    {label:"100 coins",  emoji:"💰", value:100, type:"coins", color:"#d97706"},
+    {label:"100 XP",     emoji:"⭐", value:100, type:"xp",    color:"#60a5fa"},
+    {label:"200 XP",     emoji:"🌟", value:200, type:"xp",    color:"#818cf8"},
+    {label:"+1 Life",    emoji:"❤️", value:1,   type:"life",  color:"#f87171"},
+    {label:"Lucky Star", emoji:"✨", value:0,   type:"lucky", color:"#ffd700"},
+    {label:"Power-Up",   emoji:"⚡", value:0,   type:"powerup",color:"#34d399"},
+  ];
+  const renderSpinWheel=()=>{
+    const sliceAngle=360/SPIN_PRIZES.length;
+    const canSpin=!spinState;
+    const doSpin=()=>{
+      if(!canSpin)return;
+      const prizeIdx=Math.floor(Math.random()*SPIN_PRIZES.length);
+      const targetDeg=1800+prizeIdx*sliceAngle+(sliceAngle/2-10);
+      setSpinState("spinning");setSpinDeg(prev=>prev+targetDeg);
+      sfx("jackpot");
+      setTimeout(()=>{
+        const prize=SPIN_PRIZES[prizeIdx];
+        const sv2=saveRef.current;
+        if(prize.type==="coins"){sv2.coins=(sv2.coins||0)+prize.value;sv2.totalCoins=(sv2.totalCoins||0)+prize.value;}
+        else if(prize.type==="xp"){sv2.xp=(sv2.xp||0)+prize.value;}
+        else if(prize.type==="lucky"){/* handled in next session via lucky mode */}
+        else if(prize.type==="life"){/* awarded at start of next level */sv2.pendingLife=true;}
+        sv2.lastSpinDate=getTodayKey();
+        flushSave();
+        setSpinResult(prize);setSpinState("done");
+        sfx("levelComplete");vibrate([20,30,20,60]);
+      },2400);
+    };
+    return(
+      <div className="flex flex-col h-full overflow-y-auto relative z-10 items-center justify-center px-5 gap-6"
+        style={{background:"radial-gradient(ellipse at top,#0d0025 0%,#000510 60%)"}}>
+        <style>{`@keyframes wheelSpin{to{transform:rotate(var(--wheel-end))}} @keyframes prizeReveal{0%{transform:scale(0.4);opacity:0}70%{transform:scale(1.18)}100%{transform:scale(1);opacity:1}}`}</style>
+        <div className="flex items-center gap-3 self-start">
+          <NeonButton onClick={()=>{setSpinState(null);setSpinResult(null);setScreen("menu");}} className="px-3 py-2 text-sm" style={{background:"#ffffff10"}}>← Back</NeonButton>
+          <h2 className="text-xl font-black" style={{color:theme.accent}}>🎡 Daily Spin</h2>
+        </div>
+        {/* Wheel */}
+        <div className="relative flex items-center justify-center" style={{width:260,height:260}}>
+          {/* Pointer */}
+          <div className="absolute z-10" style={{top:-12,left:"50%",transform:"translateX(-50%)",width:0,height:0,
+            borderLeft:"10px solid transparent",borderRight:"10px solid transparent",
+            borderTop:`22px solid ${theme.accent}`,filter:`drop-shadow(0 0 8px ${theme.accent})`}}/>
+          {/* Wheel SVG */}
+          <div style={{width:260,height:260,borderRadius:"50%",overflow:"hidden",
+            transform:`rotate(${spinDeg}deg)`,
+            transition:spinState==="spinning"?"transform 2.4s cubic-bezier(0.17,0.67,0.24,1)":"none",
+            boxShadow:`0 0 40px ${theme.accent}55`,border:`3px solid ${theme.accent}66`}}>
+            <svg width="260" height="260" viewBox="0 0 260 260">
+              {SPIN_PRIZES.map((p,i)=>{
+                const startAngle=(i*sliceAngle-90)*Math.PI/180;
+                const endAngle=((i+1)*sliceAngle-90)*Math.PI/180;
+                const x1=130+120*Math.cos(startAngle),y1=130+120*Math.sin(startAngle);
+                const x2=130+120*Math.cos(endAngle),y2=130+120*Math.sin(endAngle);
+                const mx=130+75*Math.cos((startAngle+endAngle)/2),my=130+75*Math.sin((startAngle+endAngle)/2);
+                return(
+                  <g key={i}>
+                    <path d={`M130,130 L${x1},${y1} A120,120 0 0,1 ${x2},${y2} Z`} fill={p.color} opacity={0.85}/>
+                    <text x={mx} y={my} textAnchor="middle" dominantBaseline="middle"
+                      fontSize="18" style={{userSelect:"none"}}>{p.emoji}</text>
+                  </g>
+                );
+              })}
+              <circle cx="130" cy="130" r="18" fill="#1a1a2e" stroke={theme.accent} strokeWidth="2"/>
+            </svg>
+          </div>
+        </div>
+        {/* Prize reveal */}
+        {spinState==="done"&&spinResult&&(
+          <div className="flex flex-col items-center gap-3 text-center" style={{animation:"prizeReveal 0.6s ease-out"}}>
+            <div style={{fontSize:56,filter:`drop-shadow(0 0 20px ${spinResult.color})`}}>{spinResult.emoji}</div>
+            <div className="font-black text-2xl" style={{color:spinResult.color,fontFamily:"'Rajdhani',sans-serif",
+              textShadow:`0 0 20px ${spinResult.color}`}}>
+              YOU WON: {spinResult.label.toUpperCase()}!
+            </div>
+            <NeonButton onClick={()=>{setSpinState(null);setSpinResult(null);setScreen("menu");}} className="px-8 py-3 text-base"
+              style={{background:`linear-gradient(135deg,${theme.secondary||theme.accent},${theme.accent})`}}>
+              🎉 Awesome! Collect
+            </NeonButton>
+          </div>
+        )}
+        {/* Spin button */}
+        {!spinState&&(
+          <NeonButton onClick={doSpin} className="px-12 py-4 text-xl font-black"
+            style={{background:`linear-gradient(135deg,${theme.secondary||theme.accent},${theme.accent})`,
+              boxShadow:`0 0 40px ${theme.accent}88`,fontSize:"1.3rem",letterSpacing:"0.08em"}}>
+            🎡 SPIN!
+          </NeonButton>
+        )}
+        {spinState==="spinning"&&(
+          <div className="font-black text-lg" style={{color:theme.accent,animation:"shimmer 1s linear infinite"}}>
+            ✨ Spinning... ✨
+          </div>
+        )}
+        <p className="text-xs opacity-40 text-center" style={{color:theme.accent}}>One free spin per day — come back tomorrow!</p>
+      </div>
+    );
+  };
 
   // ── Level Map ──
   const renderLevelMap=()=>{
@@ -2535,6 +2779,10 @@ export default function NexusTap(){
           <div className="flex flex-col items-center justify-center px-2 py-1.5 gap-1">
             <div className="flex gap-0.5">{Array.from({length:MAX_LIVES},(_,i)=><span key={i} style={{fontSize:13,opacity:i<hud.lives?1:0.18}}>{i<hud.lives?"❤️":"🖤"}</span>)}</div>
             {cfg&&<div className="text-xs font-bold px-1.5 py-0.5 rounded-full" style={{background:wc+"22",color:wc}}>{WORLDS[cfg.world-1].emoji} L{cfg.id}</div>}
+            {/* Mascot */}
+            <div style={{fontSize:18,lineHeight:1,filter:`drop-shadow(0 0 6px ${wc})`,animation:mascotMood==="fire"||mascotMood==="fever"?"heartbeat 0.6s ease-in-out infinite":"none"}}>
+              {mascotMood==="idle"?"😊":mascotMood==="happy"?"😄":mascotMood==="excited"?"🤩":mascotMood==="fire"?"🔥":mascotMood==="fever"?"🌟":mascotMood==="sad"?"😢":mascotMood==="scared"?"😱":"🎉"}
+            </div>
           </div>
           <div className="flex-1 flex flex-col items-center justify-center py-2 px-1">
             <div className="text-xs opacity-35 tracking-widest uppercase" style={{color:wc}}>Streak</div>
@@ -3071,7 +3319,9 @@ export default function NexusTap(){
       {screen==="achievements"  &&renderAchievements()}
       {screen==="leaderboard"   &&renderLeaderboard()}
       {screen==="settings"      &&renderSettings()}
+      {screen==="spinwheel"     &&renderSpinWheel()}
       {storyData&&renderWorldStory()}
+      {tutStep!==null&&renderTutorial()}
     </div>
   );
 }
