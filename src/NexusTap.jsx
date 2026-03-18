@@ -536,8 +536,11 @@ function drawPowerup(ctx, r, pwrType, ts) {
   ctx.globalAlpha=1;
 }
 
+// World boss emojis
+const BOSS_EMOJIS=["🐉","🌿","✨","🔮","❄️","⛏️","💀","🌊","⛰️","👑"];
+
 // ── Boss target ──
-function drawBoss(ctx, r, hitsLeft, maxHits, ts) {
+function drawBoss(ctx, r, hitsLeft, maxHits, ts, worldId=1) {
   const phase=(maxHits-hitsLeft)/maxHits;
   const colors=["#ff6030","#f472b6","#ef4444"];
   const c=colors[Math.min(Math.floor(phase*3),2)];
@@ -587,11 +590,11 @@ function drawBoss(ctx, r, hitsLeft, maxHits, ts) {
   ctx.globalAlpha=0.75;
   for(let i=0;i<6;i++) drawArc(ctx,tips[i].x,tips[i].y,tips[(i+2)%6].x,tips[(i+2)%6].y,c,ts,i);
   ctx.restore();
-  // "BOSS" label
-  ctx.save(); ctx.globalAlpha=0.85;
-  ctx.font=`bold ${r*0.38}px 'Segoe UI',sans-serif`; ctx.textAlign="center"; ctx.textBaseline="middle";
-  ctx.fillStyle="#fff"; ctx.shadowColor="#fff"; ctx.shadowBlur=10;
-  ctx.fillText("BOSS",0,0); ctx.restore();
+  // World emoji label
+  ctx.save(); ctx.globalAlpha=0.9;
+  ctx.font=`${r*0.72}px serif`; ctx.textAlign="center"; ctx.textBaseline="middle";
+  ctx.shadowColor="#fff"; ctx.shadowBlur=16;
+  ctx.fillText(BOSS_EMOJIS[(worldId||1)-1]||"🐉",0,r*0.06); ctx.restore();
   // HP bar
   const bw=r*2.4, bh=8, by=r+12;
   ctx.fillStyle="#1a1a1a"; ctx.fillRect(-bw/2,by,bw,bh);
@@ -647,7 +650,7 @@ function drawTarget(ctx, t, ts) {
 
   if     (t.type==="bomb")    drawBomb(ctx,t.radius,t.color,t.glow,ts);
   else if(t.type==="powerup") drawPowerup(ctx,t.radius,t.pwrType,ts);
-  else if(t.type==="boss")    drawBoss(ctx,t.radius,t.hitsLeft,t.maxHits,ts);
+  else if(t.type==="boss")    drawBoss(ctx,t.radius,t.hitsLeft,t.maxHits,ts,t.worldId||1);
   else{
     const nm=t.rarity?.name;
     if     (nm==="common")    drawCommon(ctx,t.radius,t.color,t.glow,ts,timeLeft);
@@ -693,10 +696,241 @@ function drawParticle(ctx,p,now){
   ctx.restore();
 }
 
+// ── World Foreground Silhouettes (drawn AFTER targets for depth) ──
+function drawWorldForeground(ctx,w,h,worldId,ts){
+  if(!worldId)return;
+  const pulse=0.5+0.5*Math.sin(ts*0.0009);
+  ctx.save();
+  if(worldId===1){
+    // Dragon's Lair: stalactites + lava seam
+    ctx.fillStyle="rgba(35,4,0,0.88)";
+    for(let i=0;i<9;i++){
+      const sx=w*0.06+w*0.88*(i/8);
+      const sh=18+Math.sin(i*1.9)*15+Math.sin(i*3.1)*8;
+      const sw=10+Math.sin(i*2.4)*5;
+      ctx.beginPath();ctx.moveTo(sx-sw,0);ctx.lineTo(sx+sw,0);ctx.lineTo(sx,sh);ctx.closePath();ctx.fill();
+    }
+    // Lava seam glow at bottom
+    const lv=ctx.createLinearGradient(0,h-20,0,h);
+    lv.addColorStop(0,"transparent");lv.addColorStop(1,`rgba(255,60,0,${0.35+pulse*0.18})`);
+    ctx.fillStyle=lv;ctx.fillRect(0,h-20,w,20);
+    ctx.strokeStyle=`rgba(255,100,0,${0.5+pulse*0.2})`;ctx.lineWidth=2.5;
+    ctx.shadowColor="#ff4500";ctx.shadowBlur=22;
+    ctx.beginPath();ctx.moveTo(0,h-3);ctx.lineTo(w,h-3);ctx.stroke();
+    // Drip dots
+    for(let i=0;i<5;i++){
+      const dx=w*0.12+w*0.76*(i/4),dy=h-6-Math.abs(Math.sin(ts*0.0012+i*1.4))*9;
+      ctx.fillStyle=`rgba(255,80,0,${0.7+pulse*0.2})`;
+      ctx.beginPath();ctx.arc(dx,dy,2.5+Math.abs(Math.sin(ts*0.0018+i))*1.5,0,Math.PI*2);ctx.fill();
+    }
+  } else if(worldId===2){
+    // Troll Forest: pine tree silhouettes on sides + ground fog
+    const drawPine=(bx,base,h2,w2)=>{
+      ctx.fillStyle="rgba(4,18,4,0.9)";
+      ctx.beginPath();ctx.moveTo(bx,base);
+      ctx.lineTo(bx-w2*0.5,base-h2*0.3);ctx.lineTo(bx-w2*0.3,base-h2*0.3);
+      ctx.lineTo(bx-w2*0.42,base-h2*0.58);ctx.lineTo(bx-w2*0.22,base-h2*0.58);
+      ctx.lineTo(bx-w2*0.3,base-h2*0.82);ctx.lineTo(bx,base-h2);
+      ctx.lineTo(bx+w2*0.3,base-h2*0.82);ctx.lineTo(bx+w2*0.22,base-h2*0.58);
+      ctx.lineTo(bx+w2*0.42,base-h2*0.58);ctx.lineTo(bx+w2*0.3,base-h2*0.3);
+      ctx.lineTo(bx+w2*0.5,base-h2*0.3);ctx.closePath();ctx.fill();
+    };
+    drawPine(-10,h*0.95+5,h*0.58,72);drawPine(50,h*0.98+5,h*0.44,55);
+    drawPine(w+10,h*0.95+5,h*0.6,72);drawPine(w-50,h*0.98+5,h*0.46,55);
+    // Canopy top hint
+    const cg=ctx.createLinearGradient(0,0,0,h*0.12);
+    cg.addColorStop(0,"rgba(5,22,5,0.6)");cg.addColorStop(1,"transparent");
+    ctx.fillStyle=cg;ctx.fillRect(0,0,w,h*0.12);
+    // Ground fog
+    const fg=ctx.createLinearGradient(0,h*0.78,0,h);
+    fg.addColorStop(0,"transparent");fg.addColorStop(1,"rgba(8,28,8,0.65)");
+    ctx.fillStyle=fg;ctx.fillRect(0,h*0.78,w,h*0.22);
+  } else if(worldId===3){
+    // Elven Kingdom: crystal pillar silhouettes at bottom corners + starlight arch
+    const drawCrystal=(cx,base,cw2,ch2)=>{
+      ctx.fillStyle=`rgba(200,168,75,${0.12+pulse*0.06})`;
+      ctx.shadowColor="#c8a84b";ctx.shadowBlur=25;
+      ctx.beginPath();ctx.moveTo(cx-cw2*0.28,base);ctx.lineTo(cx-cw2*0.5,base-ch2*0.8);
+      ctx.lineTo(cx,base-ch2);ctx.lineTo(cx+cw2*0.5,base-ch2*0.8);
+      ctx.lineTo(cx+cw2*0.28,base);ctx.closePath();ctx.fill();
+      ctx.shadowBlur=0;
+      // Crystal shine
+      ctx.fillStyle=`rgba(255,240,180,${0.35+pulse*0.3})`;
+      ctx.beginPath();ctx.arc(cx,base-ch2,3.5,0,Math.PI*2);ctx.fill();
+    };
+    drawCrystal(16,h,14,h*0.22);drawCrystal(44,h-8,10,h*0.16);
+    drawCrystal(w-16,h,14,h*0.22);drawCrystal(w-44,h-8,10,h*0.16);
+    // Golden arch at top
+    ctx.strokeStyle=`rgba(200,168,75,${0.08+pulse*0.04})`;ctx.lineWidth=2;
+    ctx.shadowColor="#c8a84b";ctx.shadowBlur=15;
+    ctx.beginPath();ctx.arc(w/2,-h*0.3,w*0.65,0,Math.PI);ctx.stroke();
+    ctx.shadowBlur=0;
+  } else if(worldId===4){
+    // Dark Wizard Tower: floating rune sigils + lightning at corners
+    const runes=[[w*0.08,h*0.14],[w*0.9,h*0.22],[w*0.05,h*0.74],[w*0.94,h*0.68]];
+    runes.forEach(([rx,ry],i)=>{
+      const rr=16+i*3;
+      ctx.save();ctx.translate(rx,ry);ctx.rotate(ts*0.00025*(i%2?1:-1));
+      ctx.strokeStyle=`rgba(155,89,182,${0.22+pulse*0.1})`;
+      ctx.lineWidth=1.5;ctx.setLineDash([3,4]);
+      ctx.beginPath();ctx.arc(0,0,rr,0,Math.PI*2);ctx.stroke();
+      ctx.setLineDash([]);
+      for(let p=0;p<6;p++){
+        const pa=(p/6)*Math.PI*2;
+        ctx.fillStyle=`rgba(155,89,182,${0.45+pulse*0.3})`;
+        ctx.beginPath();ctx.arc(Math.cos(pa)*rr,Math.sin(pa)*rr,2,0,Math.PI*2);ctx.fill();
+      }
+      ctx.restore();
+    });
+    if(Math.sin(ts*0.023)>0.88){
+      ctx.strokeStyle="rgba(180,80,255,0.65)";ctx.lineWidth=1.5;ctx.shadowColor="#9b59b6";ctx.shadowBlur=18;
+      ctx.beginPath();ctx.moveTo(8,0);ctx.lineTo(28,22);ctx.lineTo(14,38);ctx.lineTo(40,58);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(w-8,0);ctx.lineTo(w-28,22);ctx.lineTo(w-14,38);ctx.lineTo(w-40,58);ctx.stroke();
+      ctx.shadowBlur=0;
+    }
+  } else if(worldId===5){
+    // Viking Fjords: mountain silhouettes + aurora edge
+    ctx.fillStyle="rgba(4,12,28,0.85)";
+    ctx.beginPath();ctx.moveTo(0,h);ctx.lineTo(0,h*0.7);ctx.lineTo(w*0.07,h*0.55);
+    ctx.lineTo(w*0.13,h*0.64);ctx.lineTo(w*0.2,h*0.49);ctx.lineTo(w*0.27,h*0.61);ctx.lineTo(w*0.32,h);ctx.closePath();ctx.fill();
+    ctx.beginPath();ctx.moveTo(w,h);ctx.lineTo(w,h*0.7);ctx.lineTo(w*0.93,h*0.55);
+    ctx.lineTo(w*0.87,h*0.64);ctx.lineTo(w*0.8,h*0.49);ctx.lineTo(w*0.73,h*0.61);ctx.lineTo(w*0.68,h);ctx.closePath();ctx.fill();
+    // Snow caps
+    ctx.fillStyle=`rgba(200,225,255,${0.32+pulse*0.12})`;
+    [[w*0.07,h*0.55,13],[w*0.2,h*0.49,16],[w*0.93,h*0.55,13],[w*0.8,h*0.49,16]].forEach(([px,py,pr])=>{
+      ctx.beginPath();ctx.arc(px,py,pr,Math.PI,0);ctx.fill();
+    });
+    // Aurora edge at top
+    const au=ctx.createLinearGradient(0,0,w,h*0.18);
+    au.addColorStop(0,"rgba(0,200,120,0)");au.addColorStop(0.4,`rgba(0,180,140,${0.06+pulse*0.04})`);au.addColorStop(0.7,"rgba(0,150,255,0.04)");au.addColorStop(1,"transparent");
+    ctx.fillStyle=au;ctx.fillRect(0,0,w,h*0.18);
+  } else if(worldId===6){
+    // Goblin Mines: mine frame timbers
+    const bc="rgba(55,35,8,0.9)";ctx.fillStyle=bc;
+    ctx.fillRect(0,h*0.08,18,h*0.84);ctx.fillRect(w-18,h*0.08,18,h*0.84);
+    ctx.fillRect(0,h*0.08,w,18);ctx.fillRect(0,h*0.9,w,18);
+    [0.28,0.54,0.77].forEach(f=>{
+      ctx.fillRect(0,h*f-8,38,16);ctx.fillRect(w-38,h*f-8,38,16);
+    });
+    // Gold ore glints in walls
+    ctx.shadowColor="#ffd700";ctx.shadowBlur=14;
+    [[10,h*0.25],[10,h*0.52],[10,h*0.76],[w-10,h*0.3],[w-10,h*0.6],[w-10,h*0.78]].forEach(([gx,gy])=>{
+      ctx.fillStyle=`rgba(255,210,0,${0.4+Math.abs(Math.sin(ts*0.002+gx))*0.4})`;
+      ctx.beginPath();ctx.arc(gx,gy,3,0,Math.PI*2);ctx.fill();
+    });
+    ctx.shadowBlur=0;
+  } else if(worldId===7){
+    // Undead Catacombs: tombstones + bone arch at top
+    const drawTomb=(tx,ty,tw2,th2)=>{
+      ctx.fillStyle="rgba(12,22,12,0.92)";
+      ctx.beginPath();ctx.moveTo(tx-tw2/2,ty+th2);ctx.lineTo(tx-tw2/2,ty+th2*0.3);
+      ctx.arc(tx,ty,tw2/2,Math.PI,0);ctx.lineTo(tx+tw2/2,ty+th2);ctx.closePath();ctx.fill();
+      // RIP text
+      ctx.fillStyle=`rgba(100,150,100,${0.3+pulse*0.15})`;
+      ctx.font=`bold ${tw2*0.28}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";
+      ctx.fillText("R.I.P",tx,ty+th2*0.6);
+    };
+    drawTomb(w*0.07,h-55,32,58);drawTomb(w*0.18,h-50,26,50);
+    drawTomb(w*0.82,h-55,28,52);drawTomb(w*0.93,h-50,30,56);
+    // Bone arch at top
+    ctx.strokeStyle=`rgba(90,130,90,${0.15+pulse*0.07})`;ctx.lineWidth=14;ctx.lineCap="round";
+    ctx.beginPath();ctx.arc(w/2,-h*0.25,w*0.6,0,Math.PI);ctx.stroke();
+    // Miasma on ground
+    const mg=ctx.createLinearGradient(0,h*0.8,0,h);
+    mg.addColorStop(0,"transparent");mg.addColorStop(1,"rgba(15,45,15,0.6)");
+    ctx.fillStyle=mg;ctx.fillRect(0,h*0.8,w,h*0.2);
+  } else if(worldId===8){
+    // Sea Serpent's Deep: seaweed + water surface shimmer
+    for(let i=0;i<7;i++){
+      const sx=w*0.05+w*0.9*(i/6);
+      const sh=50+Math.sin(i*1.8)*22;
+      ctx.strokeStyle=`rgba(0,110,85,0.72)`;ctx.lineWidth=7+Math.sin(i*1.3)*3;ctx.lineCap="round";
+      ctx.shadowColor="#1abc9c";ctx.shadowBlur=6;
+      ctx.beginPath();ctx.moveTo(sx,h);
+      for(let j=5;j>=0;j--){
+        const t=j/5,sway=Math.sin(ts*0.0009+i*0.9+t*Math.PI)*9;
+        ctx.lineTo(sx+sway,h-sh*t);
+      }
+      ctx.stroke();
+      ctx.shadowBlur=0;
+    }
+    // Water caustic flicker at top
+    ctx.strokeStyle=`rgba(26,188,156,${0.18+pulse*0.1})`;ctx.lineWidth=2;
+    ctx.beginPath();
+    for(let x=0;x<=w;x+=18){
+      const y=3+Math.sin(x*0.045+ts*0.0007)*4;
+      x===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+    // Bubble highlights top
+    const bs=ctx.createLinearGradient(0,0,0,h*0.08);
+    bs.addColorStop(0,`rgba(26,188,156,${0.1+pulse*0.05})`);bs.addColorStop(1,"transparent");
+    ctx.fillStyle=bs;ctx.fillRect(0,0,w,h*0.08);
+  } else if(worldId===9){
+    // Giant's Peak: rocky peaks + lightning flash
+    ctx.fillStyle="rgba(18,22,32,0.88)";
+    ctx.beginPath();ctx.moveTo(0,h);ctx.lineTo(0,h*0.76);ctx.lineTo(w*0.06,h*0.6);
+    ctx.lineTo(w*0.12,h*0.7);ctx.lineTo(w*0.19,h*0.53);ctx.lineTo(w*0.25,h*0.66);ctx.lineTo(w*0.3,h);ctx.closePath();ctx.fill();
+    ctx.beginPath();ctx.moveTo(w,h);ctx.lineTo(w,h*0.76);ctx.lineTo(w*0.94,h*0.6);
+    ctx.lineTo(w*0.88,h*0.7);ctx.lineTo(w*0.81,h*0.53);ctx.lineTo(w*0.75,h*0.66);ctx.lineTo(w*0.7,h);ctx.closePath();ctx.fill();
+    ctx.fillStyle=`rgba(215,228,255,${0.28+pulse*0.1})`;
+    [[w*0.06,h*0.6,14],[w*0.19,h*0.53,17],[w*0.94,h*0.6,14],[w*0.81,h*0.53,17]].forEach(([px,py,pr])=>{
+      ctx.beginPath();ctx.arc(px,py,pr,Math.PI,0);ctx.fill();
+    });
+    if(Math.sin(ts*0.019)>0.9){
+      ctx.strokeStyle="rgba(210,225,255,0.85)";ctx.lineWidth=2.5;ctx.shadowColor="#dce4ff";ctx.shadowBlur=25;
+      const lx=w*0.5+Math.sin(ts*0.003)*w*0.18;
+      ctx.beginPath();ctx.moveTo(lx,0);ctx.lineTo(lx-12,h*0.28);ctx.lineTo(lx+6,h*0.28);ctx.lineTo(lx-16,h*0.56);ctx.stroke();
+      ctx.shadowBlur=0;
+    }
+  } else if(worldId===10){
+    // Ancient Dragon God: temple pillars + sacred altar
+    const drawPillar=(cx,y0,cw2,ch2)=>{
+      ctx.fillStyle=`rgba(170,120,8,${0.28+pulse*0.08})`;
+      ctx.shadowColor="#ffd700";ctx.shadowBlur=22;
+      ctx.fillRect(cx-cw2*0.75,y0,cw2*1.5,ch2*0.06);
+      ctx.fillRect(cx-cw2*0.5,y0+ch2*0.06,cw2,ch2*0.88);
+      ctx.fillRect(cx-cw2*0.75,y0+ch2*0.94,cw2*1.5,ch2*0.06);
+      ctx.shadowBlur=0;
+      ctx.strokeStyle="rgba(255,200,50,0.12)";ctx.lineWidth=1;
+      for(let li=0;li<3;li++){
+        ctx.beginPath();ctx.moveTo(cx-cw2*0.3+li*cw2*0.3,y0+ch2*0.07);
+        ctx.lineTo(cx-cw2*0.3+li*cw2*0.3,y0+ch2*0.93);ctx.stroke();
+      }
+    };
+    drawPillar(12,h*0.04,22,h*0.96);drawPillar(w-12,h*0.04,22,h*0.96);
+    // Sacred altar glow at bottom
+    const ag=ctx.createLinearGradient(w*0.3,h-10,w*0.7,h-10);
+    ag.addColorStop(0,"transparent");ag.addColorStop(0.5,`rgba(255,200,0,${0.3+pulse*0.14})`);ag.addColorStop(1,"transparent");
+    ctx.fillStyle=ag;ctx.fillRect(w*0.3,h-10,w*0.4,10);
+    // Sacred glow pillar
+    const sp=ctx.createLinearGradient(w*0.42,0,w*0.58,0);
+    sp.addColorStop(0,"transparent");sp.addColorStop(0.5,`rgba(255,200,0,${0.04+pulse*0.03})`);sp.addColorStop(1,"transparent");
+    ctx.fillStyle=sp;ctx.fillRect(w*0.42,0,w*0.16,h);
+  }
+  ctx.restore();
+}
+
+// ── Depth vignette ──
+function drawVignette(ctx,w,h,worldColor){
+  const vg=ctx.createRadialGradient(w/2,h/2,w*0.28,w/2,h/2,w*0.9);
+  vg.addColorStop(0,"transparent");
+  vg.addColorStop(1,"rgba(0,0,0,0.72)");
+  ctx.fillStyle=vg;ctx.fillRect(0,0,w,h);
+  if(worldColor){
+    const eg=ctx.createRadialGradient(w/2,h/2,w*0.55,w/2,h/2,w*1.05);
+    eg.addColorStop(0,"transparent");
+    eg.addColorStop(1,worldColor+"18");
+    ctx.fillStyle=eg;ctx.fillRect(0,0,w,h);
+  }
+}
+
 // ── Background ──
 function drawBg(ctx,w,h,accent,gridColor,ts,fever,worldId=0){
   ctx.clearRect(0,0,w,h);
-  const gs=44, pulse=0.5+0.5*Math.sin(ts/1500);
+  // Fill with world background color
+  if(worldId>0){ctx.fillStyle=WORLDS[worldId-1].bg;ctx.fillRect(0,0,w,h);}
+  const pulse=0.5+0.5*Math.sin(ts/1500);
 
   // ── World-specific atmospheric overlays ──
   if(worldId===1){
@@ -947,9 +1181,16 @@ function NeonButton({children,onClick,style,className="",disabled=false}){
       onTouchStart={e=>{e.preventDefault();setPressed(true);}}
       onTouchEnd={e=>{e.preventDefault();setPressed(false);if(!disabled&&onClick)onClick(e);}}
       onClick={e=>{if(!disabled&&onClick)onClick(e);}}
-      className={`select-none transition-all duration-75 rounded-2xl font-bold text-white ${className}`}
-      style={{transform:pressed?"scale(0.93)":"scale(1)",opacity:disabled?0.35:1,cursor:disabled?"not-allowed":"pointer",
-        userSelect:"none",WebkitTapHighlightColor:"transparent",...style}}>
+      className={`shine-btn select-none rounded-2xl font-bold text-white ${className}`}
+      style={{
+        transform:pressed?"scale(0.92)":"scale(1)",
+        opacity:disabled?0.35:1,
+        cursor:disabled?"not-allowed":"pointer",
+        userSelect:"none",WebkitTapHighlightColor:"transparent",
+        transition:pressed?"transform 0.06s ease":"transform 0.12s cubic-bezier(0.34,1.56,0.64,1)",
+        letterSpacing:"0.04em",fontFamily:"inherit",
+        ...style
+      }}>
       {children}
     </button>
   );
@@ -982,6 +1223,7 @@ export default function NexusTap(){
   const [paused,        setPaused]        = useState(false);
   const [screenShake,   setScreenShake]   = useState(false);
   const [epicFlash,     setEpicFlash]     = useState(false);
+  const [legendaryFlash,setLegendaryFlash]= useState(false);
   const [feverBorder,   setFeverBorder]   = useState(false);
   const [perfectFlash,  setPerfectFlash]  = useState(false);
   const [levelCompleteData, setLevelCompleteData] = useState(null);
@@ -1177,6 +1419,7 @@ export default function NexusTap(){
       id:Math.random().toString(36).slice(2),type,rarity:type==="normal"?rarity:null,
       x:pos.x,y:pos.y,radius:baseR,color,glow,lifetime,spawnedAt:Date.now(),born:performance.now(),
       moving,ghost,vx,vy,pwrType,hitsLeft,maxHits,trail:moving?[]:null,
+      worldId:cfg.world, worldColor:cfg.worldColor,
     });
   },[sfx,pickPos]);
 
@@ -1302,7 +1545,9 @@ export default function NexusTap(){
     // SFX + particles
     if(hit.rarity.name==="legendary"){
       sfx("legendary");vibrate([30,15,30,15,60,15,90]);spawnParticles(hit.x,hit.y,hit.color,45,"spark");
-      setEpicFlash(true);setTimeout(()=>setEpicFlash(false),650);unlock("legendary");
+      setEpicFlash(true);setTimeout(()=>setEpicFlash(false),650);
+      setLegendaryFlash(true);setTimeout(()=>setLegendaryFlash(false),900);
+      unlock("legendary");
     } else if(hit.rarity.name==="epic"){
       sfx("epic");vibrate([22,30,22]);spawnParticles(hit.x,hit.y,hit.color,30,"spark");
       setEpicFlash(true);setTimeout(()=>setEpicFlash(false),420);unlock("first_epic");
@@ -1414,6 +1659,7 @@ export default function NexusTap(){
       const th=THEMES.find(t=>t.id===(saveRef.current.themeId||"neon"))||THEMES[0];
       drawBg(ctx,canvas.width,canvas.height,th.accent,th.grid,ts,false);
       drawBgParticles(ctx,bgPartsRef.current,th.accent,false);
+      drawVignette(ctx,canvas.width,canvas.height,th.accent);
       drawRipples(ctx,ripplesRef.current);
       raf=requestAnimationFrame(loop);
     };
@@ -1476,6 +1722,10 @@ export default function NexusTap(){
       drawTarget(ctx,t,ts);return true;
     });
 
+    // World foreground silhouettes + depth vignette (on top of targets)
+    drawWorldForeground(ctx,w,h,cfg?cfg.world:0,ts);
+    drawVignette(ctx,w,h,accentColor);
+
     if(lostLife){if(gs.lives<=0){endLevel(false);return;}}
 
     // Expire power-ups
@@ -1522,14 +1772,19 @@ export default function NexusTap(){
       <div className="text-center">
         <div className="text-base tracking-widest opacity-50 mb-1" style={{color:theme.accent}}>⚔️ 🐉 ✨ 🌊 ⛰️</div>
         <h1 className="font-black leading-none" style={{
-          fontSize:"clamp(2.6rem,10vw,3.8rem)",letterSpacing:"0.08em",
-          background:`linear-gradient(135deg,${theme.accent},#fff,${theme.accent})`,
+          fontSize:"clamp(2.8rem,11vw,4.2rem)",letterSpacing:"0.1em",
+          fontFamily:"'Rajdhani','Exo 2',sans-serif",
+          background:`linear-gradient(160deg,${theme.accent} 0%,#ffffff 50%,${theme.accent} 100%)`,
+          backgroundSize:"200% auto",
           WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",
-          textShadow:"none",filter:`drop-shadow(0 0 22px ${theme.accent}88)`,
+          filter:`drop-shadow(0 0 28px ${theme.accent}aa)`,
+          animation:"shimmer 4s linear infinite",
         }}>
-          REALM<br/><span style={{fontSize:"0.65em",letterSpacing:"0.18em"}}>QUEST</span>
+          REALM<br/><span style={{fontSize:"0.62em",letterSpacing:"0.22em"}}>QUEST</span>
         </h1>
-        <p className="text-xs mt-2 opacity-40 tracking-widest uppercase" style={{color:theme.accent}}>10 Worlds · 100 Levels · Epic Adventure</p>
+        <p className="text-xs mt-2 opacity-50 tracking-widest uppercase" style={{color:theme.accent,fontFamily:"'Rajdhani',sans-serif"}}>
+          10 Worlds · 100 Levels · Epic Adventure
+        </p>
         {/* XP bar */}
         <div className="mt-3 flex items-center gap-2 justify-center">
           <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{background:theme.accent+"22",color:theme.accent}}>LV {lvl}</span>
@@ -1830,11 +2085,19 @@ export default function NexusTap(){
             </div>
           </div>
         )}
+        {/* Screen edge world-color glow */}
+        <div className="absolute inset-0 pointer-events-none z-5" style={{
+          boxShadow:`inset 0 0 80px ${wc}0a,inset 0 0 160px ${wc}05`,
+          border:`1px solid ${wc}0a`}}/>
         {/* Score progress bar */}
         {cfg&&(
-          <div className="absolute bottom-0 left-0 right-0 z-20" style={{height:4,background:"#ffffff10"}}>
-            <div className="h-full transition-all duration-300"
-              style={{width:`${Math.min(100,hud.score/cfg.scoreGoal*100)}%`,background:wc,boxShadow:`0 0 8px ${wc}`}}/>
+          <div className="absolute bottom-0 left-0 right-0 z-20" style={{height:5,background:"#00000055"}}>
+            <div className="h-full transition-all duration-300 relative"
+              style={{width:`${Math.min(100,hud.score/cfg.scoreGoal*100)}%`,
+                background:`linear-gradient(90deg,${wc}aa,${wc})`,
+                boxShadow:`0 0 12px ${wc},0 0 4px ${wc}`}}>
+              <div style={{position:"absolute",right:0,top:-2,width:8,height:9,borderRadius:"50%",background:wc,boxShadow:`0 0 10px ${wc}`}}/>
+            </div>
           </div>
         )}
         {countdownVal!==null&&(
@@ -1863,49 +2126,95 @@ export default function NexusTap(){
     if(!levelCompleteData)return null;
     const{score,stars,newStars,xpEarned,coinsEarned,levelId,isLast,sessionStats}=levelCompleteData;
     const cfg=getLevelConfig(levelId);
+    const wld=WORLDS[cfg.world-1];
+    const isBossLevel=cfg.isBoss;
     return(
-      <div className="flex flex-col items-center h-full overflow-y-auto px-5 py-6 gap-4 relative z-10">
-        <div className="text-center">
-          <div className="text-sm uppercase tracking-widest opacity-50 mb-1" style={{color:cfg.worldColor}}>{WORLDS[cfg.world-1].emoji} {WORLDS[cfg.world-1].name}</div>
-          <div className="text-2xl font-black mb-1" style={{color:cfg.worldColor}}>{cfg.name}</div>
-          <div className="text-xs font-bold tracking-widest uppercase opacity-60 mb-2" style={{color:cfg.worldColor}}>⚔️ VICTORY!</div>
-          <div className="flex justify-center gap-2 mb-1">
+      <div className="flex flex-col items-center h-full overflow-y-auto px-5 py-5 gap-3.5 relative z-10">
+        {/* Cinematic hero banner */}
+        <div className="w-full rounded-3xl relative overflow-hidden" style={{
+          background:`linear-gradient(160deg,${wld.color}22 0%,${wld.bg} 60%)`,
+          border:`1px solid ${wld.color}55`,
+          boxShadow:`0 0 40px ${wld.color}33,inset 0 0 30px ${wld.color}0a`,
+          padding:"20px 20px 16px",animation:"victoryBurst 0.5s cubic-bezier(0.34,1.4,0.64,1)"}}>
+          {/* World label */}
+          <div className="flex items-center gap-2 mb-2">
+            <span style={{fontSize:22}}>{wld.emoji}</span>
+            <div>
+              <div className="text-xs uppercase tracking-widest opacity-55 font-bold" style={{color:wld.color}}>{wld.name}</div>
+              <div className="text-base font-black leading-tight" style={{color:wld.color}}>{cfg.name}</div>
+            </div>
+            <div className="ml-auto px-2 py-0.5 rounded-full text-xs font-black"
+              style={{background:`${wld.color}22`,color:wld.color,border:`1px solid ${wld.color}44`,letterSpacing:"0.08em"}}>
+              {isBossLevel?"👑 BOSS SLAIN":"⚔️ CLEARED"}
+            </div>
+          </div>
+          {/* Star row */}
+          <div className="flex justify-center gap-3 my-2">
             {[1,2,3].map(s=>(
-              <span key={s} className="transition-all" style={{fontSize:s<=stars?44:28,opacity:s<=stars?1:0.15,
-                filter:s<=stars?"drop-shadow(0 0 12px #fbbf24)":"none",animation:s<=stars?`starPop ${0.3+s*0.2}s ease-out`:"none"}}>⭐</span>
+              <span key={s} style={{fontSize:s<=stars?46:30,opacity:s<=stars?1:0.12,
+                filter:s<=stars?`drop-shadow(0 0 14px #fbbf24) drop-shadow(0 0 28px #fbbf2488)`:"none",
+                animation:s<=stars?`starPop ${0.25+s*0.18}s cubic-bezier(0.34,1.5,0.64,1) both`:"none",
+                animationDelay:`${(s-1)*0.12}s`}}>⭐</span>
             ))}
           </div>
-          {newStars>stars&&<div className="text-xs opacity-60" style={{color:"#fbbf24"}}>Best: {newStars}★</div>}
-        </div>
-        <div className="text-4xl font-black tabular-nums" style={{color:cfg.worldColor}}>{score.toLocaleString()}</div>
-        <div className="flex gap-3">
-          <div className="px-3 py-1.5 rounded-xl flex items-center gap-1.5" style={{background:"#ffffff08",border:`1px solid ${cfg.worldColor}33`}}>
-            <span className="text-sm">✨</span><span className="font-bold text-sm" style={{color:cfg.worldColor}}>+{xpEarned} XP</span>
-          </div>
-          <div className="px-3 py-1.5 rounded-xl flex items-center gap-1.5" style={{background:"#fbbf2415",border:"1px solid #fbbf2435"}}>
-            <span className="text-sm">🪙</span><span className="font-bold text-sm" style={{color:"#fbbf24"}}>+{coinsEarned}</span>
+          {newStars>stars&&<div className="text-center text-xs" style={{color:"#fbbf24",opacity:0.7}}>Personal best: {newStars}★</div>}
+          {/* Score */}
+          <div className="text-center mt-2">
+            <div className="text-xs uppercase opacity-40 tracking-widest mb-0.5" style={{color:wld.color}}>Score</div>
+            <div className="font-black tabular-nums" style={{fontSize:"clamp(2rem,10vw,3rem)",color:wld.color,
+              textShadow:`0 0 30px ${wld.color}66`,lineHeight:1}}>{score.toLocaleString()}</div>
           </div>
         </div>
-        <div className="w-full rounded-2xl p-4 grid grid-cols-3 gap-3" style={{background:"#ffffff06",border:`1px solid ${cfg.worldColor}28`}}>
-          {[["Hits",sessionStats.tapsTotal],["Rare+",sessionStats.rareHits],["Streak",sv.bestStreak+"×"],
-            ["Bosses",sessionStats.bossKills||0],["Perfect",sessionStats.perfectTaps||0],["Fever",sessionStats.feverCount||0]
+
+        {/* Rewards row */}
+        <div className="flex gap-2.5 w-full">
+          <div className="flex-1 rounded-2xl py-3 flex flex-col items-center gap-0.5"
+            style={{background:`${wld.color}12`,border:`1px solid ${wld.color}33`,backdropFilter:"blur(8px)"}}>
+            <div className="text-lg">✨</div>
+            <div className="font-black text-sm" style={{color:wld.color}}>+{xpEarned} XP</div>
+          </div>
+          <div className="flex-1 rounded-2xl py-3 flex flex-col items-center gap-0.5"
+            style={{background:"#fbbf2412",border:"1px solid #fbbf2433",backdropFilter:"blur(8px)"}}>
+            <div className="text-lg">🪙</div>
+            <div className="font-black text-sm" style={{color:"#fbbf24"}}>+{coinsEarned}</div>
+          </div>
+          <div className="flex-1 rounded-2xl py-3 flex flex-col items-center gap-0.5"
+            style={{background:"#ffffff08",border:"1px solid #ffffff15",backdropFilter:"blur(8px)"}}>
+            <div className="text-lg">⚡</div>
+            <div className="font-black text-sm" style={{color:"#fff"}}>×{sv.bestStreak} best</div>
+          </div>
+        </div>
+
+        {/* Stats grid */}
+        <div className="w-full rounded-2xl py-3 px-4 grid grid-cols-3 gap-2"
+          style={{background:"rgba(0,0,0,0.35)",border:`1px solid ${wld.color}1a`,backdropFilter:"blur(10px)"}}>
+          {[["⚔️ Hits",sessionStats.tapsTotal],["💎 Rare+",sessionStats.rareHits],["🐉 Bosses",sessionStats.bossKills||0],
+            ["🎯 Perfect",sessionStats.perfectTaps||0],["⚡ Frenzy",sessionStats.feverCount||0],["⏱ Time",sessionStats.timeSurvived+"s"]
           ].map(([l,v])=>(
-            <div key={l} className="text-center">
-              <div className="text-xs opacity-35 uppercase mb-0.5" style={{color:cfg.worldColor}}>{l}</div>
-              <div className="font-bold text-sm" style={{color:cfg.worldColor}}>{v}</div>
+            <div key={l} className="text-center py-1">
+              <div className="text-xs opacity-40 mb-0.5" style={{color:wld.color,letterSpacing:"0.02em"}}>{l}</div>
+              <div className="font-black text-sm" style={{color:wld.color}}>{v}</div>
             </div>
           ))}
         </div>
+
+        {/* CTA buttons */}
         {!isLast&&(
           <NeonButton onClick={()=>{setSelectedLevel(levelId+1);setCartItems([]);setScreen("shop");}}
-            className="w-full py-4 text-xl"
-            style={{background:`linear-gradient(135deg,${cfg.worldColor}88,${cfg.worldColor})`,boxShadow:`0 0 28px ${cfg.worldColor}55`}}>
-            Next Level →
+            className="w-full py-4 text-lg font-black"
+            style={{background:`linear-gradient(135deg,${wld.accent},${wld.color})`,
+              boxShadow:`0 0 36px ${wld.color}55,0 4px 20px rgba(0,0,0,0.5)`,letterSpacing:"0.06em"}}>
+            NEXT STAGE →
           </NeonButton>
         )}
-        {isLast&&<div className="text-center font-black text-xl" style={{color:"#fbbf24",textShadow:"0 0 30px #fbbf24"}}>🏆 YOU BEAT ALL 100 LEVELS! 🏆</div>}
+        {isLast&&<div className="text-center font-black text-2xl py-2"
+          style={{color:"#ffd700",textShadow:"0 0 40px #ffd700,0 0 80px #ffd70044",animation:"floatGlow 2s ease-in-out infinite"}}>
+          👑 REALM CONQUERED! 👑
+        </div>}
         <NeonButton onClick={()=>{setScrollToLevel(levelId);setScreen("levelmap");}}
-          className="w-full py-3" style={{background:"#ffffff0d",border:`1px solid ${cfg.worldColor}33`}}>← Level Map</NeonButton>
+          className="w-full py-3 text-sm" style={{background:"rgba(255,255,255,0.06)",border:`1px solid ${wld.color}33`,backdropFilter:"blur(8px)"}}>
+          ← Adventure Map
+        </NeonButton>
       </div>
     );
   };
@@ -1924,32 +2233,45 @@ export default function NexusTap(){
           <div className="text-xs uppercase tracking-widest font-bold opacity-60 mb-1" style={{color:"#ef4444"}}>— FALLEN IN BATTLE —</div>
           <div className="text-xl font-black" style={{color:cfg.worldColor}}>{levelName}</div>
         </div>
-        <div className="text-4xl font-black tabular-nums" style={{color:cfg.worldColor}}>{score.toLocaleString()}</div>
-        <div className="w-full rounded-xl p-3" style={{background:"#ffffff08",border:`1px solid ${cfg.worldColor}33`}}>
-          <div className="flex justify-between text-xs mb-2 opacity-50" style={{color:cfg.worldColor}}>
-            <span>Progress to goal</span><span>{pct}%</span>
+        {/* Score + progress */}
+        <div className="w-full rounded-3xl p-4" style={{
+          background:`linear-gradient(160deg,${cfg.worldColor}14 0%,rgba(0,0,0,0.4) 100%)`,
+          border:`1px solid ${cfg.worldColor}44`,backdropFilter:"blur(10px)"}}>
+          <div className="text-center mb-3">
+            <div className="text-xs uppercase tracking-widest opacity-40 mb-1" style={{color:cfg.worldColor}}>Score</div>
+            <div className="font-black tabular-nums" style={{fontSize:"clamp(1.8rem,9vw,2.8rem)",color:cfg.worldColor,
+              textShadow:`0 0 24px ${cfg.worldColor}55`}}>{score.toLocaleString()}</div>
           </div>
-          <div className="h-3 rounded-full" style={{background:"#ffffff15"}}>
-            <div className="h-full rounded-full transition-all" style={{width:`${pct}%`,background:cfg.worldColor,boxShadow:`0 0 8px ${cfg.worldColor}`}}/>
+          <div className="flex justify-between text-xs mb-1.5 opacity-55" style={{color:cfg.worldColor}}>
+            <span>Quest progress</span><span>{pct}%</span>
+          </div>
+          <div className="h-3 rounded-full relative" style={{background:"#ffffff12"}}>
+            <div className="h-full rounded-full" style={{width:`${pct}%`,
+              background:`linear-gradient(90deg,${cfg.worldColor}88,${cfg.worldColor})`,
+              boxShadow:`0 0 12px ${cfg.worldColor}88`}}/>
           </div>
         </div>
-        <div className="w-full rounded-2xl p-4 grid grid-cols-3 gap-3" style={{background:"#ffffff06",border:`1px solid ${cfg.worldColor}28`}}>
-          {[["Hits",sessionStats.tapsTotal],["Rare+",sessionStats.rareHits],["Streak",sessionStats.bestCombo+"×"],
-            ["Bosses",sessionStats.bossKills||0],["Perfect",sessionStats.perfectTaps||0],["Time",sessionStats.timeSurvived+"s"]
+        <div className="w-full rounded-2xl p-3 grid grid-cols-3 gap-2"
+          style={{background:"rgba(0,0,0,0.3)",border:`1px solid ${cfg.worldColor}1a`,backdropFilter:"blur(8px)"}}>
+          {[["⚔️ Hits",sessionStats.tapsTotal],["💎 Rare+",sessionStats.rareHits],["⚡ Streak",sessionStats.bestCombo+"×"],
+            ["🐉 Bosses",sessionStats.bossKills||0],["🎯 Perfect",sessionStats.perfectTaps||0],["⏱ Time",sessionStats.timeSurvived+"s"]
           ].map(([l,v])=>(
-            <div key={l} className="text-center">
-              <div className="text-xs opacity-35 uppercase mb-0.5" style={{color:cfg.worldColor}}>{l}</div>
-              <div className="font-bold text-sm" style={{color:cfg.worldColor}}>{v}</div>
+            <div key={l} className="text-center py-1">
+              <div className="text-xs opacity-40 mb-0.5" style={{color:cfg.worldColor}}>{l}</div>
+              <div className="font-black text-sm" style={{color:cfg.worldColor}}>{v}</div>
             </div>
           ))}
         </div>
         <NeonButton onClick={()=>{setSelectedLevel(levelId);setCartItems([]);setScreen("shop");}}
-          className="w-full py-4 text-xl"
-          style={{background:`linear-gradient(135deg,${cfg.worldColor}88,${cfg.worldColor})`,boxShadow:`0 0 24px ${cfg.worldColor}55`}}>
-          🔄 RETRY
+          className="w-full py-4 text-lg font-black"
+          style={{background:`linear-gradient(135deg,${cfg.worldColor}99,${cfg.worldColor})`,
+            boxShadow:`0 0 32px ${cfg.worldColor}55,0 4px 20px rgba(0,0,0,0.5)`,letterSpacing:"0.06em"}}>
+          ⚔️ TRY AGAIN
         </NeonButton>
-        <NeonButton onClick={()=>setScreen("levelmap")} className="w-full py-3"
-          style={{background:"#ffffff0d",border:`1px solid ${cfg.worldColor}33`}}>← Level Map</NeonButton>
+        <NeonButton onClick={()=>setScreen("levelmap")} className="w-full py-3 text-sm"
+          style={{background:"rgba(255,255,255,0.06)",border:`1px solid ${cfg.worldColor}33`,backdropFilter:"blur(8px)"}}>
+          ← Adventure Map
+        </NeonButton>
       </div>
     );
   };
@@ -2089,28 +2411,46 @@ export default function NexusTap(){
   const activeWorldColor = levelCfgRef.current ? WORLDS[levelCfgRef.current.world-1].color : theme.accent;
   return(
     <div className="relative w-full h-screen overflow-hidden select-none"
-      style={{background:theme.bg,fontFamily:"'Segoe UI',system-ui,sans-serif",
+      style={{background:theme.bg,fontFamily:"'Exo 2','Rajdhani','Segoe UI',system-ui,sans-serif",
         transform:screenShake?`translate(${(Math.random()>0.5?1:-1)*5}px,${(Math.random()>0.5?1:-1)*3}px)`:"none",
         transition:screenShake?"none":"transform 0.04s ease"}}>
 
       <style>{`
-        @keyframes feverPulse{from{opacity:.6}to{opacity:1}}
-        @keyframes epicFlash{from{opacity:1}to{opacity:0}}
-        @keyframes comboAnnounce{0%{transform:scale(.5);opacity:0}60%{transform:scale(1.15)}100%{transform:scale(1);opacity:1}}
-        @keyframes countAnim{0%{transform:scale(2);opacity:0}50%{transform:scale(1);opacity:1}100%{transform:scale(.8);opacity:0}}
-        @keyframes levelPulse{0%,100%{box-shadow:0 0 12px var(--wc,#a78bfa)}50%{box-shadow:0 0 28px var(--wc,#a78bfa)}}
-        @keyframes starPop{0%{transform:scale(0) rotate(-30deg);opacity:0}70%{transform:scale(1.3) rotate(8deg)}100%{transform:scale(1) rotate(0);opacity:1}}
-        @keyframes waveIn{0%{transform:scale(.6) translateY(-20px);opacity:0}70%{transform:scale(1.05)}100%{transform:scale(1);opacity:1}}
+        @keyframes feverPulse{0%{box-shadow:inset 0 0 40px #fbbf2430,0 0 40px #fbbf2430}100%{box-shadow:inset 0 0 80px #fbbf2455,0 0 80px #fbbf2455}}
+        @keyframes epicFlash{0%{opacity:1}100%{opacity:0}}
+        @keyframes legendaryRainbow{0%{opacity:1;filter:hue-rotate(0deg) brightness(1.6)}40%{opacity:0.9;filter:hue-rotate(180deg) brightness(1.4)}100%{opacity:0;filter:hue-rotate(360deg) brightness(1)}}
+        @keyframes comboAnnounce{0%{transform:scale(.4) translateY(20px);opacity:0}55%{transform:scale(1.18) translateY(-4px)}75%{transform:scale(0.96)}100%{transform:scale(1) translateY(0);opacity:1}}
+        @keyframes countAnim{0%{transform:scale(2.2);opacity:0}40%{transform:scale(0.95);opacity:1}80%{transform:scale(1);opacity:1}100%{transform:scale(.75);opacity:0}}
+        @keyframes levelPulse{0%,100%{box-shadow:0 0 14px var(--wc,#a78bfa),0 0 0 2px var(--wc,#a78bfa)33}50%{box-shadow:0 0 34px var(--wc,#a78bfa),0 0 0 4px var(--wc,#a78bfa)55}}
+        @keyframes starPop{0%{transform:scale(0) rotate(-40deg);opacity:0}60%{transform:scale(1.4) rotate(10deg)}85%{transform:scale(0.92)}100%{transform:scale(1) rotate(0);opacity:1}}
+        @keyframes waveIn{0%{transform:scale(.55) translateY(-28px);opacity:0}65%{transform:scale(1.06)}85%{transform:scale(0.97)}100%{transform:scale(1);opacity:1}}
+        @keyframes shimmer{0%{background-position:200% center}100%{background-position:-200% center}}
+        @keyframes floatGlow{0%,100%{transform:translateY(0);filter:brightness(1)}50%{transform:translateY(-4px);filter:brightness(1.15)}}
+        @keyframes bannerSlide{0%{transform:translateX(-20px);opacity:0}100%{transform:translateX(0);opacity:1}}
+        @keyframes victoryBurst{0%{transform:scale(0.5);opacity:0}60%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}
+        @keyframes heartbeat{0%,100%{transform:scale(1)}15%{transform:scale(1.18)}30%{transform:scale(1)}45%{transform:scale(1.1)}60%{transform:scale(1)}}
+        @keyframes perfectPop{0%{transform:scale(0.6) rotate(-8deg);opacity:0}50%{transform:scale(1.15) rotate(3deg)}100%{transform:scale(1) rotate(0);opacity:1}}
+        @keyframes notifSlide{0%{transform:translateX(-50%) translateY(-24px);opacity:0}15%{transform:translateX(-50%) translateY(0);opacity:1}80%{transform:translateX(-50%) translateY(0);opacity:1}100%{transform:translateX(-50%) translateY(-12px);opacity:0}}
         *{-webkit-tap-highlight-color:transparent;box-sizing:border-box}
         ::-webkit-scrollbar{width:0}
+        .shine-btn{position:relative;overflow:hidden}
+        .shine-btn::after{content:'';position:absolute;top:-50%;left:-75%;width:50%;height:200%;background:linear-gradient(to right,transparent,rgba(255,255,255,0.12),transparent);transform:skewX(-20deg);transition:left 0.4s}
+        .shine-btn:active::after{left:125%}
       `}</style>
 
       <canvas ref={canvasRef} className="absolute inset-0 z-0" style={{width:"100%",height:"100%",pointerEvents:"none"}}/>
 
+      {legendaryFlash&&(
+        <div className="absolute inset-0 pointer-events-none z-40"
+          style={{background:"linear-gradient(135deg,rgba(255,0,80,0.18),rgba(255,160,0,0.15),rgba(255,230,0,0.12),rgba(0,200,80,0.12),rgba(0,140,255,0.15),rgba(160,0,255,0.18))",
+            animation:"legendaryRainbow 0.9s ease-out forwards"}}/>
+      )}
+
       {notif&&(
-        <div className="absolute top-4 left-1/2 z-50 px-4 py-2 rounded-xl text-sm font-bold pointer-events-none"
-          style={{transform:"translateX(-50%)",background:"#000000ee",border:`1px solid ${activeWorldColor}`,color:activeWorldColor,
-            boxShadow:`0 0 24px ${activeWorldColor}44`,maxWidth:"85vw",whiteSpace:"nowrap",textAlign:"center"}}>
+        <div className="absolute top-4 left-1/2 z-50 px-4 py-2.5 rounded-2xl text-sm font-bold pointer-events-none"
+          style={{transform:"translateX(-50%)",background:"rgba(0,0,0,0.92)",border:`1px solid ${activeWorldColor}`,color:activeWorldColor,
+            boxShadow:`0 0 28px ${activeWorldColor}55,0 4px 24px rgba(0,0,0,0.6)`,maxWidth:"85vw",whiteSpace:"nowrap",textAlign:"center",
+            backdropFilter:"blur(12px)",animation:"notifSlide 2.6s ease-in-out forwards",letterSpacing:"0.04em"}}>
           {notif}
         </div>
       )}
