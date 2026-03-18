@@ -328,6 +328,25 @@ function createAudio() {
     starEarn:   ()=>{t(880,"sine",0.15,0.25);t(1108,"sine",0.1,0.2,0.12);},
     unlock:     ()=>{chord([440,554,659,784],"sine",0.2,0.22,0.07);},
     waveUp:     ()=>{chord([330,415,523,659],"square",0.2,0.2,0.07);},
+    // Musical pentatonic scale — each streak note rises chromatically
+    // C major pentatonic: C5 D5 E5 G5 A5 C6 D6 E6 G6 A6 C7
+    comboNote:  (streak)=>{
+      const scale=[523,587,659,784,880,1047,1175,1319,1568,1760,2093,2349];
+      const n=scale[Math.min(Math.max(0,streak-1),scale.length-1)];
+      const vol=0.13+Math.min(0.09,streak*0.004);
+      t(n,"sine",0.09,vol);
+      if(streak>=5)t(n*1.498,"sine",0.065,vol*0.4,0.02);  // perfect 5th
+      if(streak>=10)t(n*2,"sine",0.045,vol*0.25,0.04);     // octave
+      if(streak>=20)t(n*3,"sine",0.03,vol*0.15,0.06);      // 12th
+    },
+    treasure:   ()=>{chord([523,659,784,1047,1319,1568],"sine",0.22,0.26,0.06);t(2093,"sine",0.12,0.2,0.38);},
+    jackpot:    ()=>{
+      [523,659,784,1047,1319,1568,2093].forEach((f,i)=>t(f,"sine",0.18,0.28,i*0.055));
+      setTimeout(()=>chord([1047,1319,1568,2093],"sine",0.18,0.24,0.04),500);
+    },
+    shieldBreak:()=>{t(660,"sine",0.12,0.22);t(440,"sawtooth",0.18,0.16,0.08);},
+    lucky:      ()=>{chord([784,1047,1319,1568],"sine",0.14,0.24,0.06);},
+    nearMiss:   ()=>{chord([262,330,392,523],"sine",0.2,0.2,0.1);},
   };
 }
 
@@ -732,6 +751,52 @@ function drawBoss(ctx, r, hitsLeft, maxHits, ts, worldId=1) {
   ctx.restore();
 }
 
+// ── Treasure chest target ──
+function drawTreasure(ctx, r, ts) {
+  const bob=Math.sin(ts*0.003)*3;
+  const spin=ts*0.0012;
+  ctx.save();ctx.translate(0,bob);
+  // Outer glow
+  const grd=ctx.createRadialGradient(0,0,r*0.3,0,0,r*1.8);
+  grd.addColorStop(0,"#ffd70055");grd.addColorStop(1,"transparent");
+  ctx.fillStyle=grd;ctx.beginPath();ctx.arc(0,0,r*1.8,0,Math.PI*2);ctx.fill();
+  // Chest lid (top half)
+  ctx.shadowColor="#ffd700";ctx.shadowBlur=r*0.8;
+  ctx.fillStyle="#d4a017";
+  ctx.beginPath();ctx.roundRect(-r*0.88,-r*0.72,r*1.76,r*0.82,6);ctx.fill();
+  // Chest body (bottom half)
+  ctx.fillStyle="#c8860a";
+  ctx.beginPath();ctx.roundRect(-r*0.88,-r*0.08,r*1.76,r*0.85,4);ctx.fill();
+  // Gold bands
+  ctx.strokeStyle="#ffd700";ctx.lineWidth=3;ctx.shadowBlur=8;
+  ctx.beginPath();ctx.moveTo(-r*0.88,-r*0.06);ctx.lineTo(r*0.88,-r*0.06);ctx.stroke();
+  ctx.strokeStyle="#ffc800";ctx.lineWidth=1.5;
+  [-0.62,0.62].forEach(x=>{ctx.beginPath();ctx.moveTo(r*x,-r*0.72);ctx.lineTo(r*x,r*0.77);ctx.stroke();});
+  // Keyhole
+  ctx.fillStyle="#7a4800";ctx.shadowBlur=0;
+  ctx.beginPath();ctx.arc(0,r*0.2,r*0.18,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle="#5a3200";
+  ctx.beginPath();ctx.rect(-r*0.08,r*0.2,r*0.16,r*0.28);ctx.fill();
+  // "?" sparkling on lid
+  ctx.fillStyle="#fff";ctx.shadowColor="#fff";ctx.shadowBlur=16;
+  ctx.font=`bold ${r*0.68}px serif`;ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.fillText("?",0,-r*0.32);
+  // Orbiting sparkles
+  for(let i=0;i<8;i++){
+    const a=i*Math.PI/4+spin;const dist=r*1.4;
+    const sx=Math.cos(a)*dist,sy=Math.sin(a)*dist*0.6;
+    const pulse=0.5+0.5*Math.abs(Math.sin(ts*0.006+i*0.8));
+    ctx.save();ctx.translate(sx,sy);ctx.globalAlpha=pulse*0.9;
+    ctx.fillStyle=i%2===0?"#ffd700":"#fff";ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=8;
+    const ss=r*0.18*pulse;
+    ctx.beginPath();
+    for(let p=0;p<4;p++){const pa=p*Math.PI/2-Math.PI/4;ctx.lineTo(Math.cos(pa)*ss,Math.sin(pa)*ss);}
+    ctx.closePath();ctx.fill();
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
 // ── Motion trail for moving targets ──
 function drawTrail(ctx, t) {
   if(!t.trail||t.trail.length<2) return;
@@ -769,14 +834,35 @@ function drawTarget(ctx, t, ts) {
 
   if(t.moving) drawTrail(ctx,t);
 
+  // Timing ring — shrinks toward target, turns gold in perfect zone
+  if(t.type==="normal" && t.rarity){
+    const tl=Math.max(0,1-(now-t.spawnedAt)/t.lifetime);
+    const ringR=t.radius*(1.18+tl*1.5);
+    const inPerfZone=tl>0.36&&tl<0.67;
+    ctx.save();ctx.translate(t.x,t.y);
+    ctx.globalAlpha=ghostAlpha*(inPerfZone?0.7:0.28+tl*0.22);
+    ctx.strokeStyle=inPerfZone?"#ffd700":t.color;
+    ctx.lineWidth=inPerfZone?3:1.5;
+    if(inPerfZone){ctx.shadowColor="#ffd700";ctx.shadowBlur=12;}
+    ctx.beginPath();ctx.arc(0,0,ringR,0,Math.PI*2);ctx.stroke();
+    // Second inner ring pulsing in perfect zone
+    if(inPerfZone){
+      ctx.globalAlpha=0.35+0.3*Math.abs(Math.sin(ts/80));
+      ctx.lineWidth=1.5;
+      ctx.beginPath();ctx.arc(0,0,t.radius*1.08,0,Math.PI*2);ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   ctx.save();
   ctx.globalAlpha=ghostAlpha;
   ctx.translate(t.x,t.y);
   ctx.scale(spawnScale,spawnScale);
 
-  if     (t.type==="bomb")    drawBomb(ctx,t.radius,t.color,t.glow,ts);
-  else if(t.type==="powerup") drawPowerup(ctx,t.radius,t.pwrType,ts);
-  else if(t.type==="boss")    drawBoss(ctx,t.radius,t.hitsLeft,t.maxHits,ts,t.worldId||1);
+  if     (t.type==="bomb")     drawBomb(ctx,t.radius,t.color,t.glow,ts);
+  else if(t.type==="powerup")  drawPowerup(ctx,t.radius,t.pwrType,ts);
+  else if(t.type==="boss")     drawBoss(ctx,t.radius,t.hitsLeft,t.maxHits,ts,t.worldId||1);
+  else if(t.type==="treasure") drawTreasure(ctx,t.radius,ts);
   else{
     const nm=t.rarity?.name;
     if     (nm==="common")    drawCommon(ctx,t.radius,t.color,t.glow,ts,timeLeft);
@@ -1357,6 +1443,13 @@ export default function NexusTap(){
   const [selectedLevel,     setSelectedLevel]     = useState(1);
   const [scrollToLevel,     setScrollToLevel]     = useState(null);
   const [storyData,         setStoryData]         = useState(null); // {worldId, type:'world'|'main', onDone:fn}
+  const [streakShieldActive,setStreakShieldActive] = useState(false);
+  const [luckyMode,         setLuckyMode]         = useState(false);
+  const [newRecord,         setNewRecord]         = useState(false);
+  const [closeBanner,       setCloseBanner]       = useState(false); // "SO CLOSE!" banner
+  const luckyRef    = useRef(null);   // null | "active" | "countdown"
+  const luckyTimer  = useRef(null);
+  const streakShRef = useRef(false);
 
   // Canvas & game refs
   const canvasRef    = useRef(null);
@@ -1375,7 +1468,7 @@ export default function NexusTap(){
 
   // Audio
   useEffect(()=>{audioRef.current=createAudio();},[]);
-  const sfx=useCallback((n)=>{if(soundOn&&audioRef.current?.[n])audioRef.current[n]();},[soundOn]);
+  const sfx=useCallback((n,...args)=>{if(soundOn&&audioRef.current?.[n])audioRef.current[n](...args);},[soundOn]);
 
   // Save
   const flushSave=useCallback(()=>{try{localStorage.setItem("nexustap_v5",JSON.stringify(saveRef.current));}catch{}},[]);
@@ -1517,7 +1610,9 @@ export default function NexusTap(){
     const effGhost=modifier?.type==="ghost_rush"?0.7:ghostRate;
     const effBomb=modifier?.type==="no_miss"?0:bombRate;
     const r=Math.random();
-    let type="normal",rarity=getRarity(rarityBonus),color,glow,moving=false,ghost=false;
+    // Lucky mode: force legendary rarity!
+    const isLucky=luckyRef.current==="active";
+    let type="normal",rarity=isLucky?RARITY.LEGENDARY:getRarity(rarityBonus),color,glow,moving=false,ghost=false;
     let pwrType=null,hitsLeft=1,maxHits=1,vx=0,vy=0;
     if(modifier?.type==="final_boss"){
       type="boss";color="#fbbf24";glow="#d97706";maxHits=10;hitsLeft=10;
@@ -1529,6 +1624,9 @@ export default function NexusTap(){
       type="powerup";color="#60a5fa";glow="#3b82f6";
       const pt=["SHIELD","SLOW","DOUBLE","LIFE","FREEZE"];
       pwrType=pt[Math.floor(Math.random()*pt.length)];
+    } else if(r<(bossRate||0)+effBomb+0.07+0.045&&(gs.score>0||Math.random()<0.3)&&luckyRef.current!=="active"){
+      // 4.5% treasure chest — the variable reward slot machine
+      type="treasure";color="#ffd700";glow="#c8a000";
     } else {
       color=rarity.color;glow=rarity.glow;
       if(Math.random()<effMoving){
@@ -1537,7 +1635,7 @@ export default function NexusTap(){
       }
       if(!moving&&Math.random()<effGhost)ghost=true;
     }
-    const baseR=type==="boss"?BASE_R*2.4:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
+    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
     if(activePwrRef.current.some(p=>p.type==="SLOW"&&p.endsAt>Date.now()))lifetime*=1.6;
@@ -1554,6 +1652,9 @@ export default function NexusTap(){
   const endLevel=useCallback((won)=>{
     const gs=gsRef.current;if(!gs)return;
     if(rafRef.current){cancelAnimationFrame(rafRef.current);rafRef.current=null;}
+    if(luckyTimer.current){clearTimeout(luckyTimer.current);luckyTimer.current=null;}
+    luckyRef.current=null;setLuckyMode(false);
+    streakShRef.current=false;setStreakShieldActive(false);
     const cfg=levelCfgRef.current;
     const sv=saveRef.current,score=gs.score;
     const timeSurvived=Math.floor((Date.now()-gs.startTime)/1000);
@@ -1586,10 +1687,13 @@ export default function NexusTap(){
       setScrollToLevel(cfg.id);
       setScreen("levelcomplete");
     } else {
-      sfx("gameOver");
+      const pct=score/cfg.scoreGoal;
+      const isNearMiss=pct>=0.82&&pct<1;
+      if(isNearMiss)sfx("nearMiss"); else sfx("gameOver");
       flushSave();
       setGameOverData({score,levelId:cfg.id,levelName:cfg.name,scoreGoal:cfg.scoreGoal,
-        sessionStats:{...gs.sessionStats,timeSurvived}});
+        sessionStats:{...gs.sessionStats,timeSurvived},
+        nearMiss:isNearMiss,shortfall:Math.max(0,cfg.scoreGoal-score)});
       setScreen("gameover");
     }
     gsRef.current=null;targetsRef.current=[];particlesRef.current=[];activePwrRef.current=[];
@@ -1613,6 +1717,30 @@ export default function NexusTap(){
     ripplesRef.current.push({x:tx,y:ty,r:12,alpha:0.7,color:hit?(hit.color||"#a78bfa"):"#ffffff44"});
     if(!hit)return;
 
+    // TREASURE CHEST — jackpot variable reward
+    if(hit.type==="treasure"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const cfg=levelCfgRef.current;
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const rewards=[80,120,200,350,600,1000];
+      const reward=rewards[Math.floor(Math.random()*rewards.length)]*combo*feverMult;
+      const coins=Math.floor(reward*0.25);
+      gs.score+=reward;
+      saveRef.current.coins=(saveRef.current.coins||0)+coins;
+      saveRef.current.totalCoins=(saveRef.current.totalCoins||0)+coins;
+      gs.sessionStats.score=gs.score;
+      sfx("jackpot");vibrate([20,15,20,15,40,15,80]);
+      spawnParticles(hit.x,hit.y,"#ffd700",60,"spark");
+      spawnParticles(hit.x,hit.y,"#ff6030",20,"spark");
+      spawnPopup(hit.x,hit.y-28,`💰 +${reward}!`,"#ffd700",22);
+      setTimeout(()=>spawnPopup(hit.x,hit.y+10,`+${coins}🪙`,"#ffc800",15),300);
+      setLegendaryFlash(true);setTimeout(()=>setLegendaryFlash(false),1100);
+      setScreenShake(true);setTimeout(()=>setScreenShake(false),500);
+      const cfg2=levelCfgRef.current;
+      if(cfg2){const scoreWin=gs.score>=cfg2.scoreGoal;if(scoreWin&&(!cfg2.modifier||checkModGoal(cfg2.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
     // BOMB
     if(hit.type==="bomb"){
       targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
@@ -1623,7 +1751,7 @@ export default function NexusTap(){
         setActivePwrDisp([...activePwrRef.current]);
         spawnPopup(hit.x,hit.y,"SHIELD!","#60a5fa",17);vibrate([5,15,5]);
       } else {
-        gs.lives=Math.max(0,gs.lives-1);gs.streak=0;
+        gs.lives=Math.max(0,gs.lives-1);gs.streak=0;streakShRef.current=false;setStreakShieldActive(false);
         spawnPopup(hit.x,hit.y,"BOOM!","#ef4444",19);
         setScreenShake(true);setTimeout(()=>setScreenShake(false),450);vibrate([45,20,45]);
         if(gs.lives<=0){endLevel(false);return;}
@@ -1640,10 +1768,17 @@ export default function NexusTap(){
       hit.hitsLeft--;sfx("bossHit");vibrate(22);spawnParticles(hit.x,hit.y,hit.color,10,"spark");
       if(hit.hitsLeft<=0){
         targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
-        sfx("bossKill");vibrate([35,20,35,20,60]);spawnParticles(hit.x,hit.y,hit.color,40,"spark");
-        const pts=600*Math.min(10,1+Math.floor(gs.streak/5))*(gs.feverActive?2:1);
+        sfx("jackpot");vibrate([35,20,35,20,60,20,80]);
+        // Confetti explosion in world colors
+        const wc=hit.worldColor||hit.color;
+        const rainbowColors=["#ff6030","#ffd700","#34d399","#60a5fa","#f472b6","#a78bfa","#ff6b35"];
+        rainbowColors.forEach(c=>spawnParticles(hit.x,hit.y,c,18,"spark"));
+        spawnParticles(hit.x,hit.y,"#ffffff",25,"dot");
+        setLegendaryFlash(true);setTimeout(()=>setLegendaryFlash(false),1200);
+        setScreenShake(true);setTimeout(()=>setScreenShake(false),600);
+        const pts=800*Math.min(10,1+Math.floor(gs.streak/5))*(gs.feverActive?2:1);
         gs.score+=pts;gs.sessionStats.bossKills=(gs.sessionStats.bossKills||0)+1;
-        spawnPopup(hit.x,hit.y-20,`BOSS! +${pts}`,"#ff6030",21);
+        spawnPopup(hit.x,hit.y-28,`🏆 BOSS! +${pts}`,"#ffd700",24);
         unlock("boss_kill");
         // Check modifier goal
         const cfg=levelCfgRef.current;
@@ -1669,21 +1804,34 @@ export default function NexusTap(){
     if(gs.streak>gs.sessionStats.bestCombo)gs.sessionStats.bestCombo=gs.streak;
     if(isPerfect){gs.sessionStats.perfectTaps=(gs.sessionStats.perfectTaps||0)+1;}
 
+    // Activate streak shield at streak 10
+    if(gs.streak===10&&!streakShRef.current){streakShRef.current=true;setStreakShieldActive(true);sfx("lucky");}
+
+    // Musical pentatonic scale note (most addictive mechanic!) — rising melody as streak grows
+    sfx("comboNote", gs.streak);
+
+    // Check personal best mid-game
+    if(gs.score>saveRef.current.highScore&&gs.score>200&&!newRecord){
+      setNewRecord(true);setTimeout(()=>setNewRecord(false),2000);
+    }
+
     // SFX + particles
     if(hit.rarity.name==="legendary"){
-      sfx("legendary");vibrate([30,15,30,15,60,15,90]);spawnParticles(hit.x,hit.y,hit.color,45,"spark");
+      sfx("legendary");vibrate([30,15,30,15,60,15,90]);spawnParticles(hit.x,hit.y,hit.color,55,"spark");
+      spawnParticles(hit.x,hit.y,"#ffffff",20,"dot");
       setEpicFlash(true);setTimeout(()=>setEpicFlash(false),650);
       setLegendaryFlash(true);setTimeout(()=>setLegendaryFlash(false),900);
       unlock("legendary");
     } else if(hit.rarity.name==="epic"){
-      sfx("epic");vibrate([22,30,22]);spawnParticles(hit.x,hit.y,hit.color,30,"spark");
+      sfx("epic");vibrate([22,30,22]);spawnParticles(hit.x,hit.y,hit.color,35,"spark");
+      spawnParticles(hit.x,hit.y,hit.color+"88",12,"dot");
       setEpicFlash(true);setTimeout(()=>setEpicFlash(false),420);unlock("first_epic");
     } else if(hit.rarity.name==="rare"){
-      sfx("rare");vibrate([20,20]);spawnParticles(hit.x,hit.y,hit.color,18,"dot");unlock("first_rare");
+      sfx("rare");vibrate([20,20]);spawnParticles(hit.x,hit.y,hit.color,22,"dot");unlock("first_rare");
     } else if(hit.rarity.name==="uncommon"){
-      sfx("uncommon");vibrate(14);spawnParticles(hit.x,hit.y,hit.color,10,"dot");
+      sfx("uncommon");vibrate(14);spawnParticles(hit.x,hit.y,hit.color,12,"dot");
     } else {
-      sfx("tap");vibrate(8);spawnParticles(hit.x,hit.y,hit.color,7,"dot");
+      vibrate(8);spawnParticles(hit.x,hit.y,hit.color,8,"dot");
     }
     if(isPerfect){
       sfx("perfect");vibrate([8,8,8]);spawnPopup(hit.x,hit.y-22,"✨ PERFECT!","#fbbf24",18);
@@ -1747,6 +1895,10 @@ export default function NexusTap(){
     initBgParts(cfg.world);
     targetsRef.current=[];particlesRef.current=[];activePwrRef.current=[];ripplesRef.current=[];
     spawnTimer.current=0;pausedRef.current=false;setPaused(false);
+    streakShRef.current=false;setStreakShieldActive(false);setNewRecord(false);setCloseBanner(false);
+    luckyRef.current=null;if(luckyTimer.current)clearTimeout(luckyTimer.current);
+    // Schedule first lucky event 45-70 seconds in
+    luckyTimer.current=setTimeout(()=>triggerLucky(),45000+Math.random()*25000);
 
     const extraLife=shopCart.includes("extra_life");
     const headStart=shopCart.includes("head_start");
@@ -1766,6 +1918,18 @@ export default function NexusTap(){
     setCartItems([]);setScreen("playing");
     runCountdown(()=>{lastTickRef.current=performance.now();rafRef.current=requestAnimationFrame(gl=>gameLoopFn(gl));});
   },[initMissions,initBgParts,runCountdown]); // eslint-disable-line
+
+  // Lucky golden event — all targets turn legendary for 7 seconds
+  const triggerLucky=useCallback(()=>{
+    if(!gsRef.current||pausedRef.current)return;
+    luckyRef.current="active";setLuckyMode(true);
+    sfx("lucky");
+    spawnPopup(window.innerWidth/2,window.innerHeight/2-60,"⭐ LUCKY STARS! ⭐","#ffd700",24);
+    setTimeout(()=>{luckyRef.current=null;setLuckyMode(false);
+      // Schedule next lucky event 50-80s later
+      luckyTimer.current=setTimeout(()=>triggerLucky(),50000+Math.random()*30000);
+    },7000);
+  },[sfx,spawnPopup]);// eslint-disable-line
 
   // Pause
   const togglePause=useCallback(()=>{
@@ -1835,12 +1999,15 @@ export default function NexusTap(){
       }
       // Expiry
       if((now-t.spawnedAt)>=t.lifetime){
-        if(t.type==="powerup"||t.type==="bomb"||t.type==="boss")return false;
+        if(t.type==="powerup"||t.type==="bomb"||t.type==="boss"||t.type==="treasure")return false;
         const hasShield=activePwrRef.current.some(p=>p.type==="SHIELD"&&p.endsAt>now);
         if(hasShield){activePwrRef.current=activePwrRef.current.filter(p=>p.type!=="SHIELD");setActivePwrDisp([...activePwrRef.current]);}
-        else{
+        else if(streakShRef.current){
+          // Streak Shield — absorbs one miss, preserves streak!
+          streakShRef.current=false;setStreakShieldActive(false);sfx("shieldBreak");vibrate([8,12,8]);
+        } else{
           gs.lives--;sfx("miss");vibrate(42);lostLife=true;
-          gs.streak=0;
+          gs.streak=0;streakShRef.current=false;setStreakShieldActive(false);
           // no_miss modifier: instant fail
           if(cfg?.modifier?.type==="no_miss"){endLevel(false);return false;}
         }
@@ -2402,33 +2569,94 @@ export default function NexusTap(){
             ))}
           </div>
         )}
+        {/* Streak Shield indicator */}
+        {streakShieldActive&&(
+          <div className="absolute right-3 z-25 flex items-center gap-1 px-2 py-1 rounded-xl"
+            style={{top:82,background:"#ffd70022",border:"1px solid #ffd70066",animation:"floatGlow 1s ease-in-out infinite"}}>
+            <span style={{fontSize:14}}>🛡️</span>
+            <span className="text-xs font-black" style={{color:"#ffd700"}}>STREAK SAFE</span>
+          </div>
+        )}
+        {/* Lucky Mode banner */}
+        {luckyMode&&(
+          <div className="absolute left-0 right-0 flex justify-center pointer-events-none z-30" style={{top:140}}>
+            <div className="font-black text-lg px-5 py-2 rounded-2xl"
+              style={{color:"#ffd700",textShadow:"0 0 24px #ffd700",background:"#ffd70020",border:"2px solid #ffd700aa",
+                animation:"legendaryRainbow 1.5s linear infinite"}}>
+              ⭐ LUCKY STARS! TAP EVERYTHING! ⭐
+            </div>
+          </div>
+        )}
+        {/* New Record banner */}
+        {newRecord&&(
+          <div className="absolute left-0 right-0 flex justify-center pointer-events-none z-30" style={{top:luckyMode?180:140}}>
+            <div className="font-black text-sm px-4 py-1.5 rounded-xl"
+              style={{color:"#34d399",textShadow:"0 0 16px #34d399",background:"#34d39920",border:"1px solid #34d39966",
+                animation:"waveIn 0.4s ease-out"}}>
+              🏆 NEW PERSONAL BEST!
+            </div>
+          </div>
+        )}
         {/* Fever */}
         {feverBorder&&<div className="absolute inset-0 pointer-events-none z-10" style={{border:"4px solid #fbbf24",boxShadow:"inset 0 0 60px #fbbf2445,0 0 60px #fbbf2445",animation:"feverPulse 0.6s ease-in-out infinite alternate"}}/>}
-        {feverBorder&&<div className="absolute left-0 right-0 flex justify-center pointer-events-none z-30" style={{top:140}}>
+        {feverBorder&&<div className="absolute left-0 right-0 flex justify-center pointer-events-none z-30" style={{top:luckyMode||newRecord?184:140}}>
           <span className="font-black text-base px-4 py-1 rounded-full" style={{color:"#fbbf24",textShadow:"0 0 20px #fbbf24",background:"#fbbf2420",animation:"feverPulse 0.5s infinite alternate"}}>✨ MAGIC MODE!</span>
         </div>}
         {epicFlash&&<div className="absolute inset-0 pointer-events-none z-10" style={{background:"#f472b633",animation:"epicFlash 0.5s ease-out forwards"}}/>}
         {perfectFlash&&<div className="absolute inset-0 pointer-events-none z-10" style={{background:"#fbbf2422",animation:"epicFlash 0.35s ease-out forwards"}}/>}
         {comboLabel&&(
           <div className="absolute left-0 right-0 flex justify-center pointer-events-none z-30" style={{top:"40%",transform:"translateY(-50%)"}}>
-            <div className="font-black text-2xl px-6 py-2 rounded-2xl"
-              style={{color:"#fff",textShadow:`0 0 30px ${theme.accent}`,background:theme.accent+"22",border:`2px solid ${theme.accent}`,animation:"comboAnnounce 0.3s ease-out"}}>
+            <div className="font-black px-6 py-2 rounded-2xl"
+              style={{fontSize:"clamp(1.4rem,6vw,2.2rem)",color:"#fff",
+                textShadow:`0 0 30px ${theme.accent},0 0 60px ${theme.accent}55`,
+                background:theme.accent+"22",border:`2px solid ${theme.accent}`,
+                animation:"comboAnnounce 0.35s cubic-bezier(0.34,1.5,0.64,1)"}}>
               {comboLabel}
             </div>
           </div>
         )}
-        {/* Screen edge world-color glow */}
+        {/* Screen edge world-color glow (intensifies with fever/lucky) */}
         <div className="absolute inset-0 pointer-events-none z-5" style={{
-          boxShadow:`inset 0 0 80px ${wc}0a,inset 0 0 160px ${wc}05`,
-          border:`1px solid ${wc}0a`}}/>
-        {/* Score progress bar */}
+          boxShadow:luckyMode
+            ?`inset 0 0 80px #ffd70033,inset 0 0 160px #ffd70018`
+            :`inset 0 0 80px ${wc}0a,inset 0 0 160px ${wc}05`,
+          border:`1px solid ${luckyMode?"#ffd70033":wc+"0a"}`}}/>
+        {/* HEAT METER — streak-powered bar above score bar */}
         {cfg&&(
-          <div className="absolute bottom-0 left-0 right-0 z-20" style={{height:5,background:"#00000055"}}>
-            <div className="h-full transition-all duration-300 relative"
-              style={{width:`${Math.min(100,hud.score/cfg.scoreGoal*100)}%`,
-                background:`linear-gradient(90deg,${wc}aa,${wc})`,
-                boxShadow:`0 0 12px ${wc},0 0 4px ${wc}`}}>
-              <div style={{position:"absolute",right:0,top:-2,width:8,height:9,borderRadius:"50%",background:wc,boxShadow:`0 0 10px ${wc}`}}/>
+          <div className="absolute bottom-0 left-0 right-0 z-20" style={{height:10,background:"#00000055"}}>
+            {/* Score bar (bottom 5px) */}
+            <div style={{position:"absolute",bottom:0,left:0,right:0,height:5,background:"#00000055"}}>
+              {(()=>{const pct=Math.min(100,hud.score/cfg.scoreGoal*100);const isClose=pct>=82;return(
+                <div className="h-full transition-all duration-300 relative"
+                  style={{width:`${pct}%`,
+                    background:isClose?`linear-gradient(90deg,${wc}aa,#ffd700)`:
+                      `linear-gradient(90deg,${wc}aa,${wc})`,
+                    boxShadow:isClose?`0 0 16px #ffd700,0 0 6px #ffd700`:`0 0 12px ${wc},0 0 4px ${wc}`,
+                    animation:isClose?"scorePulse 0.4s ease-in-out infinite alternate":"none"}}>
+                  <div style={{position:"absolute",right:0,top:-2,width:8,height:9,borderRadius:"50%",background:isClose?"#ffd700":wc,boxShadow:`0 0 10px ${isClose?"#ffd700":wc}`}}/>
+                </div>
+              );})()}
+              {/* SO CLOSE text */}
+              {cfg&&hud.score/cfg.scoreGoal>=0.82&&hud.score<cfg.scoreGoal&&(
+                <div className="absolute right-2 pointer-events-none" style={{bottom:6}}>
+                  <span className="text-xs font-black" style={{color:"#ffd700",textShadow:"0 0 8px #ffd700",
+                    animation:"floatGlow 0.5s ease-in-out infinite"}}>SO CLOSE! 🔥</span>
+                </div>
+              )}
+            </div>
+            {/* Heat bar (top 5px) — fills with combo */}
+            <div style={{position:"absolute",top:0,left:0,right:0,height:5,background:"#00000033"}}>
+              {(()=>{const heat=Math.min(100,(hud.streak/FEVER_STREAK)*100);const isHot=heat>=60;return(
+                <div style={{width:`${heat}%`,height:"100%",transition:"width 0.15s ease",
+                  background:isHot?
+                    `linear-gradient(90deg,#ff6030,#ff9800,#ffd700)`:
+                    `linear-gradient(90deg,${wc}66,${wc}aa)`,
+                  boxShadow:isHot?`0 0 8px #ff9800`:`0 0 4px ${wc}88`}}>
+                </div>
+              );})()}
+              {hud.streak>=3&&<div className="absolute right-1 top-0 flex items-center pointer-events-none" style={{height:5}}>
+                <span style={{fontSize:8,color:"#ff9800",fontWeight:"black",lineHeight:1}}>🔥</span>
+              </div>}
             </div>
           </div>
         )}
@@ -2462,6 +2690,18 @@ export default function NexusTap(){
     const isBossLevel=cfg.isBoss;
     return(
       <div className="flex flex-col items-center h-full overflow-y-auto px-5 py-5 gap-3.5 relative z-10">
+        {/* Coin shower — falling coins animation */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+          {Array.from({length:isBossLevel?22:12},(_,i)=>(
+            <div key={i} style={{
+              position:"absolute",top:"-10%",left:`${(i*7+3)%97}%`,
+              fontSize:isBossLevel?18:14,
+              animation:`coinFall ${1.4+Math.random()*1.8}s ${i*0.15}s ease-in forwards`,
+              opacity:0.85}}>
+              {i%3===0?"🪙":i%3===1?"⭐":"💎"}
+            </div>
+          ))}
+        </div>
         {/* Cinematic hero banner */}
         <div className="w-full rounded-3xl relative overflow-hidden" style={{
           background:`linear-gradient(160deg,${wld.color}22 0%,${wld.bg} 60%)`,
@@ -2564,17 +2804,31 @@ export default function NexusTap(){
   // ── Game Over ──
   const renderGameOver=()=>{
     if(!gameOverData)return null;
-    const{score,levelId,levelName,scoreGoal,sessionStats}=gameOverData;
+    const{score,levelId,levelName,scoreGoal,sessionStats,nearMiss,shortfall}=gameOverData;
     const cfg=getLevelConfig(levelId);
     const pct=Math.min(100,Math.round(score/scoreGoal*100));
     return(
       <div className="flex flex-col items-center h-full overflow-y-auto px-5 py-6 gap-4 relative z-10">
-        <div className="text-center">
-          <div className="text-4xl mb-1">😮🌟</div>
-          <div className="text-sm uppercase tracking-widest opacity-50 mb-1" style={{color:cfg.worldColor}}>{WORLDS[cfg.world-1].emoji} {WORLDS[cfg.world-1].name}</div>
-          <div className="text-xs uppercase tracking-widest font-bold opacity-60 mb-1" style={{color:"#ef4444"}}>— Almost there! Try again! —</div>
-          <div className="text-xl font-black" style={{color:cfg.worldColor}}>{levelName}</div>
-        </div>
+        {/* Near-Miss special header */}
+        {nearMiss?(
+          <div className="w-full text-center rounded-3xl px-4 py-4" style={{
+            background:`linear-gradient(160deg,#ff980014,rgba(0,0,0,0.3))`,
+            border:"1px solid #ff980055",backdropFilter:"blur(10px)",animation:"waveIn 0.5s ease-out"}}>
+            <div className="text-4xl mb-1" style={{animation:"floatGlow 1s ease-in-out infinite"}}>😮✨</div>
+            <div className="font-black text-xl mb-1" style={{color:"#ff9800",textShadow:"0 0 20px #ff980077"}}>SO CLOSE!</div>
+            <div className="text-sm opacity-80" style={{color:"#ffc87a"}}>
+              Only <span className="font-black" style={{color:"#ffd700"}}>{shortfall?.toLocaleString()}</span> more points needed!
+            </div>
+            <div className="text-xs opacity-50 mt-1" style={{color:"#ff9800"}}>You reached {pct}% of the goal 🎯</div>
+          </div>
+        ):(
+          <div className="text-center">
+            <div className="text-4xl mb-1">😮🌟</div>
+            <div className="text-sm uppercase tracking-widest opacity-50 mb-1" style={{color:cfg.worldColor}}>{WORLDS[cfg.world-1].emoji} {WORLDS[cfg.world-1].name}</div>
+            <div className="text-xs uppercase tracking-widest font-bold opacity-60 mb-1" style={{color:"#ef4444"}}>— Almost there! Try again! —</div>
+            <div className="text-xl font-black" style={{color:cfg.worldColor}}>{levelName}</div>
+          </div>
+        )}
         {/* Score + progress */}
         <div className="w-full rounded-3xl p-4" style={{
           background:`linear-gradient(160deg,${cfg.worldColor}14 0%,rgba(0,0,0,0.4) 100%)`,
@@ -2588,10 +2842,15 @@ export default function NexusTap(){
             <span>Quest progress</span><span>{pct}%</span>
           </div>
           <div className="h-3 rounded-full relative" style={{background:"#ffffff12"}}>
-            <div className="h-full rounded-full" style={{width:`${pct}%`,
-              background:`linear-gradient(90deg,${cfg.worldColor}88,${cfg.worldColor})`,
-              boxShadow:`0 0 12px ${cfg.worldColor}88`}}/>
+            <div className="h-full rounded-full transition-all" style={{width:`${pct}%`,
+              background:nearMiss?`linear-gradient(90deg,${cfg.worldColor}88,#ff9800)`:
+                `linear-gradient(90deg,${cfg.worldColor}88,${cfg.worldColor})`,
+              boxShadow:nearMiss?`0 0 16px #ff980088`:`0 0 12px ${cfg.worldColor}88`}}/>
+            {/* Near-miss gap indicator */}
+            {nearMiss&&<div style={{position:"absolute",right:0,top:-2,height:18,width:2,background:"#ff9800",
+              boxShadow:"0 0 8px #ff9800",borderRadius:2}}/>}
           </div>
+          {nearMiss&&<div className="text-xs text-center mt-2 font-bold" style={{color:"#ff9800"}}>⬅ This close to winning!</div>}
         </div>
         <div className="w-full rounded-2xl p-3 grid grid-cols-3 gap-2"
           style={{background:"rgba(0,0,0,0.3)",border:`1px solid ${cfg.worldColor}1a`,backdropFilter:"blur(8px)"}}>
@@ -2606,9 +2865,12 @@ export default function NexusTap(){
         </div>
         <NeonButton onClick={()=>{setSelectedLevel(levelId);setCartItems([]);setScreen("shop");}}
           className="w-full py-4 text-lg font-black"
-          style={{background:`linear-gradient(135deg,${cfg.worldColor}99,${cfg.worldColor})`,
-            boxShadow:`0 0 32px ${cfg.worldColor}55,0 4px 20px rgba(0,0,0,0.5)`,letterSpacing:"0.06em"}}>
-          🌟 TRY AGAIN!
+          style={{background:nearMiss?`linear-gradient(135deg,#b45309,#ff9800)`:
+            `linear-gradient(135deg,${cfg.worldColor}99,${cfg.worldColor})`,
+            boxShadow:nearMiss?`0 0 36px #ff980066,0 4px 20px rgba(0,0,0,0.5)`:
+              `0 0 32px ${cfg.worldColor}55,0 4px 20px rgba(0,0,0,0.5)`,
+            letterSpacing:"0.06em",fontSize:nearMiss?"1.2rem":"1rem"}}>
+          {nearMiss?"🔥 SO CLOSE — TRY AGAIN!":"🌟 TRY AGAIN!"}
         </NeonButton>
         <NeonButton onClick={()=>setScreen("levelmap")} className="w-full py-3 text-sm"
           style={{background:"rgba(255,255,255,0.06)",border:`1px solid ${cfg.worldColor}33`,backdropFilter:"blur(8px)"}}>
@@ -2770,6 +3032,8 @@ export default function NexusTap(){
         @keyframes floatGlow{0%,100%{transform:translateY(0);filter:brightness(1)}50%{transform:translateY(-4px);filter:brightness(1.15)}}
         @keyframes bannerSlide{0%{transform:translateX(-20px);opacity:0}100%{transform:translateX(0);opacity:1}}
         @keyframes victoryBurst{0%{transform:scale(0.5);opacity:0}60%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}
+        @keyframes coinFall{0%{transform:translateY(0) rotate(0deg);opacity:0.9}100%{transform:translateY(110vh) rotate(720deg);opacity:0}}
+        @keyframes scorePulse{0%{box-shadow:0 0 12px #ffd700,0 0 4px #ffd700}100%{box-shadow:0 0 24px #ffd700,0 0 10px #ffd700}}
         @keyframes heartbeat{0%,100%{transform:scale(1)}15%{transform:scale(1.18)}30%{transform:scale(1)}45%{transform:scale(1.1)}60%{transform:scale(1)}}
         @keyframes perfectPop{0%{transform:scale(0.6) rotate(-8deg);opacity:0}50%{transform:scale(1.15) rotate(3deg)}100%{transform:scale(1) rotate(0);opacity:1}}
         @keyframes notifSlide{0%{transform:translateX(-50%) translateY(-24px);opacity:0}15%{transform:translateX(-50%) translateY(0);opacity:1}80%{transform:translateX(-50%) translateY(0);opacity:1}100%{transform:translateX(-50%) translateY(-12px);opacity:0}}
