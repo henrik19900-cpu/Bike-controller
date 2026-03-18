@@ -52,6 +52,16 @@ const MASCOTS = [
     dance:"danceUnicorn", unlocked:true },
 ];
 
+// Mystery Box prizes — variable ratio (weights, not percentages)
+const MYSTERY_PRIZES=[
+  {label:"+500 pts",  emoji:"⭐", type:"points", value:500,  weight:30},
+  {label:"+200 pts",  emoji:"✨", type:"points", value:200,  weight:25},
+  {label:"+80 🪙",    emoji:"🪙", type:"coins",  value:80,   weight:20},
+  {label:"+150 🪙",   emoji:"💰", type:"coins",  value:150,  weight:10},
+  {label:"EXTRA LIV", emoji:"❤️", type:"life",   value:1,    weight:10},
+  {label:"JACKPOT!",  emoji:"🌈", type:"jackpot",value:2000, weight:5 },
+];
+
 const LEVEL_NAMES = [
   // World 1 — Dragon's Lair
   "Cave Entrance","Warm Tunnel","Ember Glow","Scale Watch","Fireball Fun","Lava Bridge","Flame Trail","Dragon's Den","Fire Festival","Dragon Buddy",
@@ -870,6 +880,49 @@ function drawTreasure(ctx, r, ts) {
   ctx.restore();
 }
 
+// ── Mystery Box target ──
+function drawMystery(ctx, r, ts) {
+  const pulse=0.5+0.5*Math.sin(ts*0.004);
+  const spin=ts*0.0018;
+  const bob=Math.sin(ts*0.0035)*4;
+  ctx.save();ctx.translate(0,bob);
+  // Outer glow ring
+  const grd=ctx.createRadialGradient(0,0,r*0.2,0,0,r*2);
+  grd.addColorStop(0,"#ffd70066");grd.addColorStop(0.6,"#ffd70022");grd.addColorStop(1,"transparent");
+  ctx.fillStyle=grd;ctx.beginPath();ctx.arc(0,0,r*2,0,Math.PI*2);ctx.fill();
+  // Rotating dashed ring
+  ctx.save();ctx.rotate(spin);
+  ctx.strokeStyle=`rgba(255,215,0,${0.5+pulse*0.5})`;ctx.lineWidth=3;
+  ctx.shadowColor="#ffd700";ctx.shadowBlur=14;
+  ctx.setLineDash([8,6]);ctx.beginPath();ctx.arc(0,0,r*1.22,0,Math.PI*2);ctx.stroke();
+  ctx.setLineDash([]);ctx.restore();
+  // Main body
+  ctx.shadowColor="#ffd700";ctx.shadowBlur=r*(0.6+pulse*0.4);
+  const bodyGrd=ctx.createRadialGradient(-r*0.3,-r*0.3,0,0,0,r);
+  bodyGrd.addColorStop(0,"#ffe566");bodyGrd.addColorStop(0.5,"#ffd700");bodyGrd.addColorStop(1,"#c8a000");
+  ctx.fillStyle=bodyGrd;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  // Gift ribbon vertical
+  ctx.strokeStyle="#ff6030";ctx.lineWidth=r*0.18;ctx.shadowColor="#ff6030";ctx.shadowBlur=8;
+  ctx.beginPath();ctx.moveTo(0,-r*0.95);ctx.lineTo(0,r*0.95);ctx.stroke();
+  // Gift ribbon horizontal
+  ctx.beginPath();ctx.moveTo(-r*0.95,0);ctx.lineTo(r*0.95,0);ctx.stroke();
+  // Bow center
+  ctx.fillStyle="#ff6030";ctx.shadowBlur=12;
+  ctx.beginPath();ctx.arc(0,0,r*0.22,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle="#fff";ctx.shadowColor="#fff";ctx.shadowBlur=8;
+  ctx.beginPath();ctx.arc(0,0,r*0.1,0,Math.PI*2);ctx.fill();
+  // Orbiting stars
+  for(let i=0;i<6;i++){
+    const a=i*Math.PI/3+spin*1.5;const d=r*1.55;
+    const op=0.4+0.6*Math.abs(Math.sin(ts*0.005+i));
+    ctx.save();ctx.translate(Math.cos(a)*d,Math.sin(a)*d);ctx.globalAlpha=op;
+    ctx.fillStyle=i%2===0?"#ffd700":"#fff";ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=6;
+    ctx.font=`${r*0.28}px serif`;ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.fillText(["⭐","✨","💎","⭐","✨","💎"][i],0,0);ctx.restore();
+  }
+  ctx.restore();
+}
+
 // ── Motion trail for moving targets ──
 function drawTrail(ctx, t) {
   if(!t.trail||t.trail.length<2) return;
@@ -936,6 +989,7 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="powerup")  drawPowerup(ctx,t.radius,t.pwrType,ts);
   else if(t.type==="boss")     drawBoss(ctx,t.radius,t.hitsLeft,t.maxHits,ts,t.worldId||1);
   else if(t.type==="treasure") drawTreasure(ctx,t.radius,ts);
+  else if(t.type==="mystery")  drawMystery(ctx,t.radius,ts);
   else{
     const nm=t.rarity?.name;
     if     (nm==="common")    drawCommon(ctx,t.radius,t.color,t.glow,ts,timeLeft);
@@ -1530,6 +1584,21 @@ export default function NexusTap(){
   const [spinResult,    setSpinResult]    = useState(null);
   const [spinDeg,       setSpinDeg]       = useState(0);
   const [streakBurst,   setStreakBurst]   = useState(null); // null | {n, label, color}
+  // Las Vegas mechanics
+  const [mysteryReveal,  setMysteryReveal]  = useState(null); // null | {phase,reels,prize}
+  const tensionRef                          = useRef(0);
+  const [tensionLevel,   setTensionLevel]   = useState(0);   // 0-4
+  const [rescueSecondsLeft,setRescueSecondsLeft]=useState(0);// 0 = no rescue offered
+  const rescuedRef                          = useRef(false);
+  const [bonusRound,     setBonusRound]     = useState(false);
+  const [displayedCoins, setDisplayedCoins] = useState(0);
+  const [displayedXP,    setDisplayedXP]    = useState(0);
+  const [payoutDone,     setPayoutDone]     = useState(false);
+  // Mascot speech bubble
+  const [mascotSpeech,   setMascotSpeech]  = useState(null);
+  const speechTimerRef                      = useRef(null);
+  const [mascotBounce,   setMascotBounce]  = useState(false);
+  const bounceTimerRef                      = useRef(null);
 
   // Canvas & game refs
   const canvasRef    = useRef(null);
@@ -1707,7 +1776,11 @@ export default function NexusTap(){
     } else if(r<(bossRate||0)+effBomb+0.07+0.045&&(gs.score>0||Math.random()<0.3)&&luckyRef.current!=="active"){
       // 4.5% treasure chest — the variable reward slot machine
       type="treasure";color="#ffd700";glow="#c8a000";
+    } else if(Math.random()<0.035&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")&&!gs.mysteryPause){
+      // 3.5% Mystery Box — Las Vegas variable-ratio slot machine
+      type="mystery";color="#ffd700";glow="#b8860b";
     } else {
+      if(gs.bonusRoundActive)rarity=RARITY.LEGENDARY; // Bonus Round: ALL LEGENDARY!
       color=rarity.color;glow=rarity.glow;
       if(Math.random()<effMoving){
         moving=true;const a=Math.random()*Math.PI*2,sp=0.6+Math.random()*1.4;
@@ -1715,7 +1788,7 @@ export default function NexusTap(){
       }
       if(!moving&&Math.random()<effGhost)ghost=true;
     }
-    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
+    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
     if(activePwrRef.current.some(p=>p.type==="SLOW"&&p.endsAt>Date.now()))lifetime*=1.6;
@@ -1773,6 +1846,10 @@ export default function NexusTap(){
       const isNearMiss=pct>=0.82&&pct<1;
       if(isNearMiss)sfx("nearMiss"); else sfx("gameOver");
       flushSave();
+      // Rescue gamble — offer on near-miss if player has enough coins
+      if(isNearMiss&&sv.coins>=50){
+        setRescueSecondsLeft(6);
+      }
       setGameOverData({score,levelId:cfg.id,levelName:cfg.name,scoreGoal:cfg.scoreGoal,
         sessionStats:{...gs.sessionStats,timeSurvived},
         nearMiss:isNearMiss,shortfall:Math.max(0,cfg.scoreGoal-score)});
@@ -1823,6 +1900,45 @@ export default function NexusTap(){
       if(cfg2){const scoreWin=gs.score>=cfg2.scoreGoal;if(scoreWin&&(!cfg2.modifier||checkModGoal(cfg2.modifier,gs))){endLevel(true);return;}}
       return;
     }
+    // MYSTERY BOX — slot machine reveal
+    if(hit.type==="mystery"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      sfx("jackpot");vibrate([20,15,20,15,40]);
+      gs.mysteryPause=Date.now()+1600; // prevent new mystery during reveal
+      // Pick weighted prize
+      const total=MYSTERY_PRIZES.reduce((s,p)=>s+p.weight,0);
+      let rand=Math.random()*total;
+      let prize=MYSTERY_PRIZES[MYSTERY_PRIZES.length-1];
+      for(const p of MYSTERY_PRIZES){rand-=p.weight;if(rand<=0){prize=p;break;}}
+      // Build 3 reels — last one is always the actual prize
+      const fakeReel=()=>Math.floor(Math.random()*MYSTERY_PRIZES.length);
+      const prizeIdx=MYSTERY_PRIZES.indexOf(prize);
+      setMysteryReveal({phase:0,reels:[fakeReel(),fakeReel(),prizeIdx],prize,x:hit.x,y:hit.y});
+      showSpeech("Ooh ooh ooh!! 🎁");
+      setTimeout(()=>setMysteryReveal(r=>r?{...r,phase:1}:null),420);
+      setTimeout(()=>{setMysteryReveal(r=>r?{...r,phase:2}:null);sfx("coin");vibrate(15);},820);
+      setTimeout(()=>{setMysteryReveal(r=>r?{...r,phase:3}:null);sfx("coin");vibrate(15);},1200);
+      setTimeout(()=>{
+        const gs2=gsRef.current;
+        if(gs2){
+          if(prize.type==="points"||prize.type==="jackpot"){
+            gs2.score+=prize.value;
+            spawnPopup(hit.x,hit.y-50,`🎁 +${prize.value}pts!`,"#ffd700",prize.type==="jackpot"?26:22);
+            if(prize.type==="jackpot"){setLegendaryFlash(true);setTimeout(()=>setLegendaryFlash(false),1200);vibrate([30,15,60]);}
+          } else if(prize.type==="coins"){
+            saveRef.current.coins=(saveRef.current.coins||0)+prize.value;flushSave();
+            spawnPopup(hit.x,hit.y-50,`🪙 +${prize.value}!`,"#ffd700",22);
+          } else if(prize.type==="life"){
+            gs2.lives=Math.min(MAX_LIVES,gs2.lives+1);
+            spawnPopup(hit.x,hit.y-50,"❤️ EXTRA LIFE!","#ef4444",20);
+          }
+        }
+        setMysteryReveal(null);
+        sfx("levelComplete");vibrate(40);
+        showSpeech(prize.type==="jackpot"?"JACKPOT!! YESSS!! 🌈":"Lucky! Lucky! ⭐");
+      },1650);
+      return;
+    }
     // BOMB
     if(hit.type==="bomb"){
       targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
@@ -1862,6 +1978,15 @@ export default function NexusTap(){
         gs.score+=pts;gs.sessionStats.bossKills=(gs.sessionStats.bossKills||0)+1;
         spawnPopup(hit.x,hit.y-28,`🏆 BOSS! +${pts}`,"#ffd700",24);
         unlock("boss_kill");
+        // BONUS ROUND — free spins equivalent (non-boss levels only)
+        {const cfgB=levelCfgRef.current;
+        if(cfgB&&!cfgB.isBoss&&!gs.bonusRoundActive){
+          gs.bonusRoundActive=true;setBonusRound(true);
+          spawnPopup(hit.x,hit.y-65,"🌟 BONUS ROUND!","#ffd700",20);
+          sfx("lucky");vibrate([25,15,25,15,55]);
+          showSpeech("FREE BONUS ROUND!! 🌈🌈");
+          setTimeout(()=>{if(gsRef.current)gsRef.current.bonusRoundActive=false;setBonusRound(false);},9000);
+        }}
         // Check modifier goal
         const cfg=levelCfgRef.current;
         if(cfg?.modifier?.type==="boss_kill"&&gs.sessionStats.bossKills>=1&&gs.score>=cfg.scoreGoal){endLevel(true);return;}
@@ -1893,10 +2018,12 @@ export default function NexusTap(){
     else if(gs.streak>=10)setMascotMood("excited");
     else if(gs.streak>=5)setMascotMood("happy");
     else setMascotMood("idle");
-    // Streak milestone burst celebrations
-    {const MILESTONES=[{n:5,label:"🔥 ON FIRE!",color:"#fbbf24"},{n:10,label:"⚡ UNSTOPPABLE!",color:"#f97316"},{n:20,label:"💥 LEGENDARY!",color:"#ef4444"},{n:30,label:"🌈 GODLIKE!!!",color:"#ff00ff"},{n:50,label:"👑 TRANSCENDENT!",color:"#ffd700"}];
+    // Mascot bounce on every hit
+    mascotBouncePlay();
+    // Streak milestone burst celebrations + speech
+    {const MILESTONES=[{n:5,label:"🔥 ON FIRE!",color:"#fbbf24",speech:"Let's GO!! 🔥🔥"},{n:10,label:"⚡ UNSTOPPABLE!",color:"#f97316",speech:"UNSTOPPABLE!! ⚡⚡"},{n:20,label:"💥 LEGENDARY!",color:"#ef4444",speech:"YOU'RE LEGENDARY!! 💥"},{n:30,label:"🌈 GODLIKE!!!",color:"#ff00ff",speech:"GODLIKE!! I'M SO PROUD!! 🌈"},{n:50,label:"👑 TRANSCENDENT!",color:"#ffd700",speech:"BEST PLAYER EVER!! 👑👑"}];
     const ms=MILESTONES.find(m=>m.n===gs.streak);
-    if(ms){setStreakBurst(ms);setTimeout(()=>setStreakBurst(null),1200);}}
+    if(ms){setStreakBurst(ms);setTimeout(()=>setStreakBurst(null),1200);showSpeech(ms.speech);}}
 
     // Musical pentatonic scale note (most addictive mechanic!) — rising melody as streak grows
     sfx("comboNote", gs.streak);
@@ -1941,7 +2068,7 @@ export default function NexusTap(){
     if(gs.streak>=FEVER_STREAK&&!gs.feverActive){
       gs.feverActive=true;gs.feverTimeLeft=FEVER_DUR;setFeverBorder(true);sfx("feverStart");vibrate([35,20,35,20,65]);
       audioRef.current?.setBgMusicFever?.(true);
-      spawnPopup(hit.x,hit.y-45,"🌡 FEVER!","#fbbf24",21);unlock("fever_mode");setMascotMood("fever");
+      spawnPopup(hit.x,hit.y-45,"🌡 FEVER!","#fbbf24",21);unlock("fever_mode");setMascotMood("fever");showSpeech("FEVER!! WOOHOO!! 🌟🌟");
       gs.sessionStats.feverCount=(gs.sessionStats.feverCount||0)+1;
     }
     // Check level win conditions
@@ -1997,8 +2124,11 @@ export default function NexusTap(){
     const shieldStart=shopCart.includes("shield_start");
     const powerPack=shopCart.includes("power_pack");
 
+    const isRescue=rescuedRef.current;rescuedRef.current=false;
+    tensionRef.current=0;setTensionLevel(0);setBonusRound(false);setMysteryReveal(null);
     gsRef.current={
-      score:headStart?300:0, lives:Math.min(MAX_LIVES,cfg.lives+(extraLife?1:0)),
+      score:isRescue?400:headStart?300:0,
+      lives:isRescue?MAX_LIVES:Math.min(MAX_LIVES,cfg.lives+(extraLife?1:0)),
       streak:0, feverActive:false, feverTimeLeft:0, startTime:Date.now(),
       sessionStats:{tapsTotal:0,rareHits:0,bestCombo:0,score:0,feverCount:0,powerupCollected:0,bossKills:0,perfectTaps:0},
     };
@@ -2007,7 +2137,7 @@ export default function NexusTap(){
     setActivePwrDisp([...activePwrRef.current]);
     setHud({score:headStart?300:0,lives:gsRef.current.lives,streak:0,fever:false,coins:saveRef.current.coins,timeLeft:null,modGoal:cfg.modifier?.desc||null});
     setLevelCompleteData(null);setGameOverData(null);setEpicFlash(false);setFeverBorder(false);setComboLabel("");
-    setCartItems([]);setScreen("playing");setMascotMood("idle");
+    setCartItems([]);setScreen("playing");setMascotMood("idle");setMascotSpeech(null);setMascotBounce(false);
     if(soundOn&&audioRef.current?.startBgMusic)audioRef.current.startBgMusic(cfg.world);
     runCountdown(()=>{lastTickRef.current=performance.now();rafRef.current=requestAnimationFrame(gl=>gameLoopFn(gl));});
   },[initMissions,initBgParts,runCountdown,soundOn]); // eslint-disable-line
@@ -2113,7 +2243,9 @@ export default function NexusTap(){
           streakShRef.current=false;setStreakShieldActive(false);sfx("shieldBreak");vibrate([8,12,8]);
         } else{
           gs.lives--;sfx("miss");vibrate(42);lostLife=true;
-          gs.streak=0;streakShRef.current=false;setStreakShieldActive(false);setMascotMood("sad");setTimeout(()=>setMascotMood("idle"),1200);
+          gs.streak=0;streakShRef.current=false;setStreakShieldActive(false);setMascotMood("sad");
+          showSpeech(gs.lives<=1?"Don't give up!! ONE LIFE LEFT! 💪":"Oops! Come on, you've got this! 💪");
+          setTimeout(()=>setMascotMood("idle"),1200);
           // no_miss modifier: instant fail
           if(cfg?.modifier?.type==="no_miss"){endLevel(false);return false;}
         }
@@ -2153,16 +2285,37 @@ export default function NexusTap(){
   const sv=saveRef.current,lvl=getLvl(sv.xp);
   const currentMascot=MASCOTS.find(m=>m.id===(sv.mascotId||"dragon"))||MASCOTS[0];
 
+  // Show mascot speech bubble for 2.5s
+  const showSpeech=useCallback((text)=>{
+    clearTimeout(speechTimerRef.current);
+    setMascotSpeech(text);
+    speechTimerRef.current=setTimeout(()=>setMascotSpeech(null),2500);
+  },[]);
+
+  // Brief mascot bounce on hit
+  const mascotBouncePlay=useCallback(()=>{
+    clearTimeout(bounceTimerRef.current);
+    setMascotBounce(true);
+    bounceTimerRef.current=setTimeout(()=>setMascotBounce(false),320);
+  },[]);
+
   // Helper: render the mascot emoji with dance/idle animation
   const MascotEmoji=({mood="idle",dancing=false,size=36,style:sx={}})=>{
     const m=currentMascot;
     const emoji=m.e[mood]||m.e.idle;
+    const bounce=mascotBounce&&mood!=="sad"&&mood!=="scared"&&!dancing;
     const anim=dancing?`${m.dance} 0.55s ease-in-out infinite`
+      :bounce?"mascotBounce 0.32s cubic-bezier(0.34,1.6,0.64,1)"
       :(mood==="excited"||mood==="fire"||mood==="fever")?`${m.dance} 1.1s ease-in-out infinite`
+      :mood==="sad"?"mascotSad 0.6s ease-in-out 1"
+      :mood==="scared"?"mascotShake 0.4s ease-in-out 1"
       :"mascotIdle 2.2s ease-in-out infinite";
+    const glow=mood==="fire"||mood==="fever"?`drop-shadow(0 0 ${Math.round(size/2.5)}px ${m.color}) drop-shadow(0 0 ${Math.round(size/1.5)}px #ff6030aa)`
+      :mood==="victory"||dancing?`drop-shadow(0 0 ${Math.round(size/2)}px ${m.color}) drop-shadow(0 0 ${Math.round(size)}px ${m.color}55)`
+      :`drop-shadow(0 0 ${Math.round(size/3)}px ${m.color})`;
     return(
       <span style={{fontSize:size,lineHeight:1,display:"inline-block",
-        animation:anim,filter:`drop-shadow(0 0 ${Math.round(size/3)}px ${m.color})`,
+        animation:anim,filter:glow,
         ...sx}}>
         {emoji}
       </span>
@@ -2174,6 +2327,44 @@ export default function NexusTap(){
     if(s>=35)return"#ff00ff";if(s>=20)return"#ef4444";if(s>=10)return"#f97316";if(s>=5)return"#fbbf24";return"#ffffff";
   };
 
+  // ── Score Tension Ramp — fires whenever score changes ──
+  useEffect(()=>{
+    if(screen!=="playing")return;
+    const cfg=levelCfgRef.current;if(!cfg)return;
+    const pct=hud.score/cfg.scoreGoal;
+    const newT=pct>=0.99?4:pct>=0.95?3:pct>=0.90?2:pct>=0.75?1:0;
+    if(newT!==tensionRef.current){
+      tensionRef.current=newT;
+      setTensionLevel(newT);
+      if(newT===2){sfx("comboNote",9);showSpeech("Almost there! GO! 🔥");}
+      if(newT===3){sfx("comboNote",11);try{navigator.vibrate?.([15,10,15]);}catch{}showSpeech("SO CLOSE!! TAP FASTER!! ⚡");}
+      if(newT===4){sfx("comboNote",12);try{navigator.vibrate?.([15,10,15,10,20]);}catch{}showSpeech("ONE MORE TAP!! ⭐⭐⭐");}
+    }
+  },[hud.score,screen]);// eslint-disable-line
+
+  // ── Rescue countdown ──
+  useEffect(()=>{
+    if(rescueSecondsLeft<=0)return;
+    const t=setTimeout(()=>setRescueSecondsLeft(s=>Math.max(0,s-1)),1000);
+    return()=>clearTimeout(t);
+  },[rescueSecondsLeft]);
+
+  // ── Coin/XP payout roll-up ──
+  useEffect(()=>{
+    if(!levelCompleteData)return;
+    const{coinsEarned,xpEarned}=levelCompleteData;
+    setDisplayedCoins(0);setDisplayedXP(0);setPayoutDone(false);
+    let frame=0;const FRAMES=45;
+    const id=setInterval(()=>{
+      frame++;
+      const ease=1-Math.pow(1-frame/FRAMES,3);
+      setDisplayedCoins(Math.floor(ease*coinsEarned));
+      setDisplayedXP(Math.floor(ease*xpEarned));
+      if(frame%5===0)sfx("comboNote",Math.min(11,Math.floor((frame/FRAMES)*12)));
+      if(frame>=FRAMES){clearInterval(id);setPayoutDone(true);}
+    },35);
+    return()=>clearInterval(id);
+  },[levelCompleteData]);// eslint-disable-line
 
   // ═════════════════════════════════════════════════════════════
   // SCREEN RENDERERS
@@ -2421,10 +2612,12 @@ export default function NexusTap(){
       </div>
 
       {/* ── Mascot showcase on menu ── */}
-      <div className="flex flex-col items-center gap-1" style={{marginTop:-4,marginBottom:-4}}>
-        <MascotEmoji mood="idle" size={64}/>
-        <div className="text-xs font-bold tracking-widest" style={{color:currentMascot.color,opacity:0.8}}>
-          {currentMascot.name} — your companion!
+      <div className="flex flex-col items-center gap-2" style={{marginTop:-4,marginBottom:-4}}>
+        <MascotEmoji mood="idle" size={90}/>
+        <div className="font-black tracking-widest" style={{
+          fontSize:"0.8rem",color:currentMascot.color,
+          textShadow:`0 0 14px ${currentMascot.color}`,animation:"floatGlow 2s ease-in-out infinite"}}>
+          {currentMascot.name} — your companion! 🌟
         </div>
       </div>
 
@@ -2847,8 +3040,8 @@ export default function NexusTap(){
           <div className="flex flex-col items-center justify-center px-2 py-1.5 gap-1">
             <div className="flex gap-0.5">{Array.from({length:MAX_LIVES},(_,i)=><span key={i} style={{fontSize:13,opacity:i<hud.lives?1:0.18}}>{i<hud.lives?"❤️":"🖤"}</span>)}</div>
             {cfg&&<div className="text-xs font-bold px-1.5 py-0.5 rounded-full" style={{background:wc+"22",color:wc}}>{WORLDS[cfg.world-1].emoji} L{cfg.id}</div>}
-            {/* Mascot HUD companion */}
-            <MascotEmoji mood={mascotMood} size={24}/>
+            {/* Mascot HUD chip — tiny */}
+            <span style={{fontSize:16,lineHeight:1}}>{currentMascot.e[mascotMood]||currentMascot.e.idle}</span>
           </div>
           <div className="flex-1 flex flex-col items-center justify-center py-2 px-1">
             <div className="text-xs opacity-35 tracking-widest uppercase" style={{color:wc}}>Streak</div>
@@ -2929,11 +3122,28 @@ export default function NexusTap(){
             </div>
           </div>
         )}
-        {/* Large mascot — bottom-left, reacts to gameplay */}
-        <div className="absolute pointer-events-none z-15" style={{bottom:22,left:14}}>
-          <MascotEmoji mood={mascotMood} size={52}/>
-          {/* Mascot name tag */}
-          <div className="text-center" style={{fontSize:8,color:currentMascot.color,opacity:0.65,fontWeight:"bold",letterSpacing:"0.06em",marginTop:2}}>
+        {/* BIG MASCOT COMPANION — right side, cheering you on */}
+        <div className="absolute pointer-events-none z-15" style={{bottom:18,right:10,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+          {/* Speech bubble */}
+          {mascotSpeech&&(
+            <div style={{
+              background:"rgba(0,0,0,0.88)",border:`2px solid ${currentMascot.color}`,
+              borderRadius:14,padding:"6px 10px",maxWidth:130,textAlign:"center",
+              fontSize:11,fontWeight:"bold",color:currentMascot.color,lineHeight:1.3,
+              boxShadow:`0 0 14px ${currentMascot.color}44`,
+              animation:"speechBubble 0.3s cubic-bezier(0.34,1.5,0.64,1)",
+              position:"relative"}}>
+              {mascotSpeech}
+              {/* Triangle pointer */}
+              <div style={{
+                position:"absolute",bottom:-9,left:"50%",transform:"translateX(-50%)",
+                width:0,height:0,borderLeft:"7px solid transparent",
+                borderRight:"7px solid transparent",
+                borderTop:`9px solid ${currentMascot.color}`}}/>
+            </div>
+          )}
+          <MascotEmoji mood={mascotMood} size={86}/>
+          <div style={{fontSize:9,color:currentMascot.color,fontWeight:"bold",opacity:0.75,letterSpacing:"0.05em"}}>
             {currentMascot.name.toUpperCase()}
           </div>
         </div>
@@ -2950,6 +3160,81 @@ export default function NexusTap(){
             <div style={{fontSize:"clamp(0.7rem,3vw,1rem)",color:streakBurst.color,opacity:0.8}}>
               {streakBurst.n}× combo!
             </div>
+          </div>
+        )}
+        {/* Score Tension Ramp — border glow escalates toward goal */}
+        {tensionLevel>=1&&(
+          <div className="absolute inset-0 pointer-events-none z-6" style={{
+            border:`${tensionLevel+1}px solid`,
+            borderColor:["","#fbbf2444","#f9780477","#ff980099","#ffd700cc"][tensionLevel],
+            boxShadow:tensionLevel>=3?`inset 0 0 60px #ffd70018`:"none",
+            animation:tensionLevel>=3?"feverPulse 0.35s ease-in-out infinite alternate":"none"}}/>
+        )}
+        {tensionLevel>=3&&(
+          <div className="absolute left-0 right-0 pointer-events-none z-27" style={{bottom:76,textAlign:"center"}}>
+            <span style={{
+              fontWeight:"black",
+              color:tensionLevel===4?"#ffd700":"#ff9800",
+              fontSize:tensionLevel===4?"clamp(1.2rem,6vw,1.6rem)":"clamp(0.9rem,4.5vw,1.15rem)",
+              textShadow:`0 0 28px ${tensionLevel===4?"#ffd700":"#ff9800"}`,
+              animation:"floatGlow 0.25s ease-in-out infinite",letterSpacing:"0.04em"
+            }}>
+              {tensionLevel===4?"⭐ ONE TAP AWAY! ⭐":"🔥 ALMOST THERE!"}
+            </span>
+          </div>
+        )}
+        {/* Bonus Round — golden glow + banner */}
+        {bonusRound&&(
+          <>
+            <div className="absolute inset-0 pointer-events-none z-6" style={{
+              border:"4px solid #ffd700",
+              boxShadow:"inset 0 0 70px #ffd70025,0 0 70px #ffd70025",
+              animation:"scorePulse 0.45s ease-in-out infinite alternate"}}/>
+            <div className="absolute left-0 right-0 flex justify-center pointer-events-none z-30" style={{top:88}}>
+              <div style={{
+                display:"inline-block",padding:"6px 20px",borderRadius:12,
+                background:"linear-gradient(135deg,#b8860b,#ffd700,#b8860b)",
+                fontWeight:"black",fontSize:"clamp(0.9rem,4.5vw,1.1rem)",color:"#000",
+                animation:"heartbeat 0.55s ease-in-out infinite",
+                boxShadow:"0 0 30px #ffd70099",letterSpacing:"0.06em"}}>
+                🌟 BONUS ROUND — ALL LEGENDARY! 🌟
+              </div>
+            </div>
+          </>
+        )}
+        {/* Mystery Box slot-reveal overlay */}
+        {mysteryReveal&&(
+          <div className="absolute left-1/2 pointer-events-none z-45" style={{
+            top:"25%",transform:"translateX(-50%)",
+            background:"rgba(0,0,0,0.92)",border:"3px solid #ffd700",
+            borderRadius:20,padding:"18px 28px",textAlign:"center",
+            boxShadow:"0 0 50px #ffd70055",minWidth:200}}>
+            <div style={{color:"#ffd700",fontWeight:"black",fontSize:"1rem",marginBottom:10,letterSpacing:"0.06em"}}>
+              🎁 MYSTERY BOX!
+            </div>
+            <div style={{display:"flex",gap:14,justifyContent:"center",marginBottom:12}}>
+              {[0,1,2].map(i=>(
+                <div key={i} style={{
+                  width:52,height:52,borderRadius:12,
+                  border:`2px solid ${mysteryReveal.phase>i?"#ffd700":"#ffffff22"}`,
+                  background:mysteryReveal.phase>i?"#ffd70022":"#ffffff08",
+                  display:"flex",alignItems:"center",justifyContent:"center",
+                  fontSize:28,
+                  animation:mysteryReveal.phase<=i?"slotSpin 0.15s linear infinite":"none",
+                  boxShadow:mysteryReveal.phase>i?`0 0 18px #ffd700`:"none",
+                  transition:"all 0.15s"}}>
+                  {mysteryReveal.phase>i
+                    ?MYSTERY_PRIZES[mysteryReveal.reels[i]].emoji
+                    :"❓"}
+                </div>
+              ))}
+            </div>
+            {mysteryReveal.phase===3&&(
+              <div style={{color:"#ffd700",fontWeight:"black",fontSize:"1.1rem",
+                animation:"victoryBurst 0.4s cubic-bezier(0.34,1.5,0.64,1)"}}>
+                {mysteryReveal.prize.label}
+              </div>
+            )}
           </div>
         )}
         {/* Screen edge world-color glow (intensifies with fever/lucky) */}
@@ -3039,11 +3324,15 @@ export default function NexusTap(){
             </div>
           ))}
         </div>
-        {/* ── BIG DANCING MASCOT ── */}
-        <div className="flex flex-col items-center gap-1" style={{animation:"victoryBurst 0.6s cubic-bezier(0.34,1.5,0.64,1)"}}>
-          <MascotEmoji mood="victory" dancing={true} size={isBossLevel?92:72}/>
-          <div className="font-black text-xs tracking-widest" style={{color:currentMascot.color,textShadow:`0 0 14px ${currentMascot.color}`}}>
-            {isBossLevel?"🎊 "+currentMascot.name.toUpperCase()+" IS HYPED! 🎊":currentMascot.name.toUpperCase()+" CELEBRATES!"}
+        {/* ── BIG DANCING MASCOT — victory celebration ── */}
+        <div className="flex flex-col items-center gap-2" style={{animation:"victoryBurst 0.6s cubic-bezier(0.34,1.5,0.64,1)"}}>
+          <MascotEmoji mood="victory" dancing={true} size={isBossLevel?118:96}/>
+          <div className="font-black tracking-widest" style={{
+            fontSize:"clamp(0.7rem,3.5vw,0.9rem)",
+            color:currentMascot.color,
+            textShadow:`0 0 18px ${currentMascot.color}`,
+            animation:"floatGlow 1.2s ease-in-out infinite"}}>
+            {isBossLevel?`🎊🎊 ${currentMascot.name.toUpperCase()} IS ABSOLUTELY HYPED! 🎊🎊`:`🎉 ${currentMascot.name.toUpperCase()} IS CHEERING FOR YOU! 🎉`}
           </div>
         </div>
         {/* Cinematic hero banner */}
@@ -3087,12 +3376,18 @@ export default function NexusTap(){
           <div className="flex-1 rounded-2xl py-3 flex flex-col items-center gap-0.5"
             style={{background:`${wld.color}12`,border:`1px solid ${wld.color}33`,backdropFilter:"blur(8px)"}}>
             <div className="text-lg">✨</div>
-            <div className="font-black text-sm" style={{color:wld.color}}>+{xpEarned} XP</div>
+            <div className="font-black text-sm" style={{
+              color:wld.color,
+              animation:payoutDone?"none":"heartbeat 0.35s ease-in-out infinite",
+              textShadow:payoutDone?"none":`0 0 12px ${wld.color}`}}>+{displayedXP} XP</div>
           </div>
           <div className="flex-1 rounded-2xl py-3 flex flex-col items-center gap-0.5"
             style={{background:"#fbbf2412",border:"1px solid #fbbf2433",backdropFilter:"blur(8px)"}}>
             <div className="text-lg">🪙</div>
-            <div className="font-black text-sm" style={{color:"#fbbf24"}}>+{coinsEarned}</div>
+            <div className="font-black text-sm" style={{
+              color:"#fbbf24",
+              animation:payoutDone?"none":"heartbeat 0.35s ease-in-out infinite",
+              textShadow:payoutDone?"none":"0 0 14px #fbbf24"}}>+{displayedCoins}</div>
           </div>
           <div className="flex-1 rounded-2xl py-3 flex flex-col items-center gap-0.5"
             style={{background:"#ffffff08",border:"1px solid #ffffff15",backdropFilter:"blur(8px)"}}>
@@ -3180,10 +3475,14 @@ export default function NexusTap(){
       <div className="flex flex-col items-center h-full overflow-y-auto px-5 py-6 gap-4 relative z-10">
         {/* Near-Miss special header */}
         {/* Sad mascot on game over */}
-        <div className="flex flex-col items-center" style={{animation:"waveIn 0.5s ease-out"}}>
-          <MascotEmoji mood="scared" size={64}/>
-          <div className="text-xs mt-1 font-bold" style={{color:currentMascot.color,opacity:0.7}}>
-            {nearMiss?"Almost there — I believe in you!":"Let's try again together!"}
+        <div className="flex flex-col items-center gap-2" style={{animation:"waveIn 0.5s ease-out"}}>
+          <MascotEmoji mood="scared" size={88}/>
+          <div className="font-bold text-center" style={{
+            fontSize:"0.85rem",color:currentMascot.color,
+            textShadow:`0 0 12px ${currentMascot.color}55`,maxWidth:200}}>
+            {nearMiss
+              ?"Nooo!! So close! I believe in you!! 💪"
+              :"Awww! Let's try again together! 🌈"}
           </div>
         </div>
         {nearMiss?(
@@ -3237,7 +3536,44 @@ export default function NexusTap(){
             </div>
           ))}
         </div>
-        <NeonButton onClick={()=>{setSelectedLevel(levelId);setCartItems([]);setScreen("shop");}}
+        {/* ── RESCUE GAMBLE ── */}
+        {nearMiss&&rescueSecondsLeft>0&&sv.coins>=50&&(
+          <div className="w-full rounded-2xl overflow-hidden" style={{
+            background:"linear-gradient(135deg,#7c2d12,#c2410c,#7c2d12)",
+            border:"3px solid #ff6030",
+            boxShadow:"0 0 40px #ff603055",
+            animation:"rescuePulse 0.6s ease-in-out infinite alternate"}}>
+            <div className="flex flex-col items-center gap-2 px-4 py-4">
+              <div style={{fontSize:42,animation:"mascotShake 0.4s ease-in-out infinite"}}>
+                {currentMascot.e.scared}
+              </div>
+              <div style={{color:"#ffd700",fontWeight:"black",fontSize:"1.3rem",letterSpacing:"0.05em",textShadow:"0 0 20px #ffd700"}}>
+                🚨 LAST CHANCE!
+              </div>
+              <div style={{color:"#ffc87a",fontSize:"0.85rem",textAlign:"center"}}>
+                Restart with <span style={{color:"#ffd700",fontWeight:"bold"}}>FULL LIVES + 400 BONUS</span>
+              </div>
+              <div style={{color:"#ff9800",fontWeight:"black",fontSize:"1.5rem",textShadow:"0 0 16px #ff9800"}}>
+                {rescueSecondsLeft}s
+              </div>
+              <NeonButton
+                onClick={()=>{
+                  saveRef.current.coins-=50;flushSave();
+                  setRescueSecondsLeft(0);rescuedRef.current=true;
+                  startGame(levelId,[]);
+                }}
+                className="w-full py-4 text-xl font-black"
+                style={{background:"linear-gradient(135deg,#fbbf24,#f59e0b)",color:"#000",
+                  boxShadow:"0 0 30px #fbbf2488",letterSpacing:"0.08em"}}>
+                RESCUE ME! (50🪙)
+              </NeonButton>
+              <div style={{color:"#ff9800",fontSize:"0.75rem",opacity:0.7}}>
+                You have {sv.coins}🪙
+              </div>
+            </div>
+          </div>
+        )}
+        <NeonButton onClick={()=>{setRescueSecondsLeft(0);setSelectedLevel(levelId);setCartItems([]);setScreen("shop");}}
           className="w-full py-4 text-lg font-black"
           style={{background:nearMiss?`linear-gradient(135deg,#b45309,#ff9800)`:
             `linear-gradient(135deg,${cfg.worldColor}99,${cfg.worldColor})`,
@@ -3440,6 +3776,13 @@ export default function NexusTap(){
         @keyframes heartbeat{0%,100%{transform:scale(1)}15%{transform:scale(1.18)}30%{transform:scale(1)}45%{transform:scale(1.1)}60%{transform:scale(1)}}
         @keyframes perfectPop{0%{transform:scale(0.6) rotate(-8deg);opacity:0}50%{transform:scale(1.15) rotate(3deg)}100%{transform:scale(1) rotate(0);opacity:1}}
         @keyframes notifSlide{0%{transform:translateX(-50%) translateY(-24px);opacity:0}15%{transform:translateX(-50%) translateY(0);opacity:1}80%{transform:translateX(-50%) translateY(0);opacity:1}100%{transform:translateX(-50%) translateY(-12px);opacity:0}}
+        @keyframes mascotIdle{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-7px) scale(1.05)}}
+        @keyframes mascotBounce{0%{transform:scale(1) translateY(0)}30%{transform:scale(0.85,1.2) translateY(0)}60%{transform:scale(1.15,0.88) translateY(-22px)}85%{transform:scale(0.95,1.06) translateY(0)}100%{transform:scale(1) translateY(0)}}
+        @keyframes mascotSad{0%,100%{transform:rotate(0) translateY(0)}25%{transform:rotate(-8deg) translateY(4px)}75%{transform:rotate(8deg) translateY(4px)}}
+        @keyframes mascotShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
+        @keyframes slotSpin{0%{transform:translateY(-8px)}50%{transform:translateY(8px)}100%{transform:translateY(-8px)}}
+        @keyframes speechBubble{0%{transform:scale(0.5) translateY(8px);opacity:0}60%{transform:scale(1.06) translateY(-2px)}100%{transform:scale(1) translateY(0);opacity:1}}
+        @keyframes rescuePulse{0%{box-shadow:0 0 30px #ff603044}100%{box-shadow:0 0 60px #ff6030aa,0 0 100px #ff603033}}
         @keyframes danceDragon{0%,100%{transform:scale(1) rotate(-8deg)}25%{transform:scale(1.25) rotate(14deg) translateY(-10px)}50%{transform:scale(1.1) rotate(-6deg) translateY(-5px)}75%{transform:scale(1.2) rotate(10deg) translateY(-8px)}}
         @keyframes danceFox{0%{transform:rotate(0) scale(1)}30%{transform:rotate(-180deg) scale(1.2) translateY(-8px)}60%{transform:rotate(-360deg) scale(1)}80%{transform:rotate(-360deg) scale(1.15) translateY(-6px)}100%{transform:rotate(-360deg) scale(1)}}
         @keyframes danceCat{0%,100%{transform:translateY(0) rotate(-10deg)}33%{transform:translateY(-20px) rotate(12deg)}66%{transform:translateY(-10px) rotate(-5deg)}}
