@@ -16,6 +16,42 @@ const WORLDS = [
   { id:10, name:"Rainbow Dragon",   emoji:"🌈", color:"#ffd700", bg:"#120800", grid:"rgba(255,215,0,0.08)",     accent:"#c8a000", atmos:"divine" },
 ];
 
+// ═══════════════════════════════════════════════════════════════
+// MASCOTS — 10 animal companions, each with unique dance
+// ═══════════════════════════════════════════════════════════════
+const MASCOTS = [
+  { id:"dragon",    name:"Ember",   color:"#ff6b35",
+    e:{idle:"🐉",happy:"🐉",excited:"🐉",fire:"🔥",fever:"⚡",sad:"💧",victory:"🎊",scared:"😱"},
+    dance:"danceDragon",  unlocked:true },
+  { id:"fox",       name:"Rusty",   color:"#e07030",
+    e:{idle:"🦊",happy:"🦊",excited:"🌟",fire:"🔥",fever:"✨",sad:"😢",victory:"🎉",scared:"😱"},
+    dance:"danceFox",     unlocked:true },
+  { id:"cat",       name:"Luna",    color:"#b094d4",
+    e:{idle:"😸",happy:"😸",excited:"😻",fire:"🔥",fever:"✨",sad:"😿",victory:"🎊",scared:"🙀"},
+    dance:"danceCat",     unlocked:true },
+  { id:"frog",      name:"Hoppy",   color:"#4ecb71",
+    e:{idle:"🐸",happy:"🐸",excited:"💚",fire:"🔥",fever:"✨",sad:"😢",victory:"🎉",scared:"😱"},
+    dance:"danceFrog",    unlocked:true },
+  { id:"lion",      name:"Roary",   color:"#fbbf24",
+    e:{idle:"🦁",happy:"🦁",excited:"👑",fire:"🔥",fever:"✨",sad:"😢",victory:"🎉",scared:"😱"},
+    dance:"danceLion",    unlocked:true },
+  { id:"panda",     name:"Bao",     color:"#94a3b8",
+    e:{idle:"🐼",happy:"🐼",excited:"⭐",fire:"🔥",fever:"✨",sad:"😢",victory:"🎉",scared:"😱"},
+    dance:"dancePanda",   unlocked:true },
+  { id:"penguin",   name:"Waddles", color:"#6ec0f5",
+    e:{idle:"🐧",happy:"🐧",excited:"❄️",fire:"🔥",fever:"✨",sad:"😢",victory:"🎊",scared:"😱"},
+    dance:"dancePenguin", unlocked:true },
+  { id:"octopus",   name:"Inky",    color:"#b06de8",
+    e:{idle:"🐙",happy:"🐙",excited:"💜",fire:"🔥",fever:"✨",sad:"😢",victory:"🎉",scared:"😱"},
+    dance:"danceOctopus", unlocked:true },
+  { id:"butterfly", name:"Flutter", color:"#e8c84e",
+    e:{idle:"🦋",happy:"🦋",excited:"🌸",fire:"🔥",fever:"✨",sad:"😢",victory:"🎉",scared:"😱"},
+    dance:"danceButterfly",unlocked:true },
+  { id:"unicorn",   name:"Sparky",  color:"#ffd700",
+    e:{idle:"🦄",happy:"🦄",excited:"🌈",fire:"🔥",fever:"✨",sad:"😢",victory:"🎊",scared:"😱"},
+    dance:"danceUnicorn", unlocked:true },
+];
+
 const LEVEL_NAMES = [
   // World 1 — Dragon's Lair
   "Cave Entrance","Warm Tunnel","Ember Glow","Scale Watch","Fireball Fun","Lava Bridge","Flame Trail","Dragon's Den","Fire Festival","Dragon Buddy",
@@ -64,8 +100,8 @@ function getLevelConfig(n) {
   const bombRate = n < 6  ? 0 : Math.min(0.26, n * 0.0024);
   const movingRate = n < 11 ? 0 : Math.min(0.60, (n - 10) * 0.0068);
   const ghostRate = n < 21 ? 0 : Math.min(0.26, (n - 20) * 0.0032);
-  const bossEnabled = n >= 25;
-  const bossRate = n >= 25 ? Math.min(0.07, (n - 25) * 0.001) : 0;
+  const bossEnabled = n >= 25 || n % 10 === 0;
+  const bossRate = n % 10 === 0 && n < 25 ? 0.055 : n >= 25 ? Math.min(0.07, (n-25)*0.001) : 0;
   const mod = MILESTONE_MODS[n] || null;
   return {
     id: n, world, worldName: w.name, worldColor: w.color, worldBg: w.bg, worldGrid: w.grid,
@@ -284,7 +320,7 @@ const DEFAULT_SAVE = {
   missionDate:null, missionProgress:{}, missionCompleted:false,
   levelStars:{}, unlockedLevel:1,
   seenWorldStories:[], seenMainStory:false, seenBossIntros:[],
-  seenTutorial:false, lastSpinDate:null,
+  seenTutorial:false, lastSpinDate:null, mascotId:"dragon",
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -1487,11 +1523,13 @@ export default function NexusTap(){
   const luckyRef    = useRef(null);   // null | "active" | "countdown"
   const luckyTimer  = useRef(null);
   const streakShRef = useRef(false);
-  const [tutStep,    setTutStep]    = useState(null); // null = not active
-  const [mascotMood, setMascotMood] = useState("idle");
-  const [spinState,  setSpinState]  = useState(null); // null | "spinning" | "done"
-  const [spinResult, setSpinResult] = useState(null);
-  const [spinDeg,    setSpinDeg]    = useState(0);
+  const [tutStep,       setTutStep]       = useState(null);
+  const [mascotMood,    setMascotMood]    = useState("idle");
+  const [mascotDancing, setMascotDancing] = useState(false);
+  const [spinState,     setSpinState]     = useState(null);
+  const [spinResult,    setSpinResult]    = useState(null);
+  const [spinDeg,       setSpinDeg]       = useState(0);
+  const [streakBurst,   setStreakBurst]   = useState(null); // null | {n, label, color}
 
   // Canvas & game refs
   const canvasRef    = useRef(null);
@@ -1728,6 +1766,7 @@ export default function NexusTap(){
       setLevelCompleteData({score,stars,newStars,xpEarned,coinsEarned,levelId:cfg.id,isLast:cfg.isLast,
         bestStreak:sv.bestStreak,sessionStats:{...gs.sessionStats,timeSurvived}});
       setScrollToLevel(cfg.id);
+      setMascotMood("victory");setMascotDancing(true);
       setScreen("levelcomplete");
     } else {
       const pct=score/cfg.scoreGoal;
@@ -1854,6 +1893,10 @@ export default function NexusTap(){
     else if(gs.streak>=10)setMascotMood("excited");
     else if(gs.streak>=5)setMascotMood("happy");
     else setMascotMood("idle");
+    // Streak milestone burst celebrations
+    {const MILESTONES=[{n:5,label:"🔥 ON FIRE!",color:"#fbbf24"},{n:10,label:"⚡ UNSTOPPABLE!",color:"#f97316"},{n:20,label:"💥 LEGENDARY!",color:"#ef4444"},{n:30,label:"🌈 GODLIKE!!!",color:"#ff00ff"},{n:50,label:"👑 TRANSCENDENT!",color:"#ffd700"}];
+    const ms=MILESTONES.find(m=>m.n===gs.streak);
+    if(ms){setStreakBurst(ms);setTimeout(()=>setStreakBurst(null),1200);}}
 
     // Musical pentatonic scale note (most addictive mechanic!) — rising melody as streak grows
     sfx("comboNote", gs.streak);
@@ -2108,6 +2151,23 @@ export default function NexusTap(){
   },[sfx,spawnTarget,endLevel]);// eslint-disable-line
 
   const sv=saveRef.current,lvl=getLvl(sv.xp);
+  const currentMascot=MASCOTS.find(m=>m.id===(sv.mascotId||"dragon"))||MASCOTS[0];
+
+  // Helper: render the mascot emoji with dance/idle animation
+  const MascotEmoji=({mood="idle",dancing=false,size=36,style:sx={}})=>{
+    const m=currentMascot;
+    const emoji=m.e[mood]||m.e.idle;
+    const anim=dancing?`${m.dance} 0.55s ease-in-out infinite`
+      :(mood==="excited"||mood==="fire"||mood==="fever")?`${m.dance} 1.1s ease-in-out infinite`
+      :"mascotIdle 2.2s ease-in-out infinite";
+    return(
+      <span style={{fontSize:size,lineHeight:1,display:"inline-block",
+        animation:anim,filter:`drop-shadow(0 0 ${Math.round(size/3)}px ${m.color})`,
+        ...sx}}>
+        {emoji}
+      </span>
+    );
+  };
 
   const streakColor=()=>{
     const s=hud.streak;
@@ -2357,6 +2417,14 @@ export default function NexusTap(){
             <div className="h-full rounded-full" style={{width:`${(sv.xp%XP_PER_LVL)/XP_PER_LVL*100}%`,background:theme.accent,boxShadow:`0 0 8px ${theme.accent}`}}/>
           </div>
           <span className="text-xs opacity-35" style={{color:theme.accent}}>{xpToNext(sv.xp)}xp</span>
+        </div>
+      </div>
+
+      {/* ── Mascot showcase on menu ── */}
+      <div className="flex flex-col items-center gap-1" style={{marginTop:-4,marginBottom:-4}}>
+        <MascotEmoji mood="idle" size={64}/>
+        <div className="text-xs font-bold tracking-widest" style={{color:currentMascot.color,opacity:0.8}}>
+          {currentMascot.name} — your companion!
         </div>
       </div>
 
@@ -2779,10 +2847,8 @@ export default function NexusTap(){
           <div className="flex flex-col items-center justify-center px-2 py-1.5 gap-1">
             <div className="flex gap-0.5">{Array.from({length:MAX_LIVES},(_,i)=><span key={i} style={{fontSize:13,opacity:i<hud.lives?1:0.18}}>{i<hud.lives?"❤️":"🖤"}</span>)}</div>
             {cfg&&<div className="text-xs font-bold px-1.5 py-0.5 rounded-full" style={{background:wc+"22",color:wc}}>{WORLDS[cfg.world-1].emoji} L{cfg.id}</div>}
-            {/* Mascot */}
-            <div style={{fontSize:18,lineHeight:1,filter:`drop-shadow(0 0 6px ${wc})`,animation:mascotMood==="fire"||mascotMood==="fever"?"heartbeat 0.6s ease-in-out infinite":"none"}}>
-              {mascotMood==="idle"?"😊":mascotMood==="happy"?"😄":mascotMood==="excited"?"🤩":mascotMood==="fire"?"🔥":mascotMood==="fever"?"🌟":mascotMood==="sad"?"😢":mascotMood==="scared"?"😱":"🎉"}
-            </div>
+            {/* Mascot HUD companion */}
+            <MascotEmoji mood={mascotMood} size={24}/>
           </div>
           <div className="flex-1 flex flex-col items-center justify-center py-2 px-1">
             <div className="text-xs opacity-35 tracking-widest uppercase" style={{color:wc}}>Streak</div>
@@ -2860,6 +2926,29 @@ export default function NexusTap(){
                 background:theme.accent+"22",border:`2px solid ${theme.accent}`,
                 animation:"comboAnnounce 0.35s cubic-bezier(0.34,1.5,0.64,1)"}}>
               {comboLabel}
+            </div>
+          </div>
+        )}
+        {/* Large mascot — bottom-left, reacts to gameplay */}
+        <div className="absolute pointer-events-none z-15" style={{bottom:22,left:14}}>
+          <MascotEmoji mood={mascotMood} size={52}/>
+          {/* Mascot name tag */}
+          <div className="text-center" style={{fontSize:8,color:currentMascot.color,opacity:0.65,fontWeight:"bold",letterSpacing:"0.06em",marginTop:2}}>
+            {currentMascot.name.toUpperCase()}
+          </div>
+        </div>
+        {/* Streak milestone burst */}
+        {streakBurst&&(
+          <div className="absolute left-1/2 pointer-events-none z-40"
+            style={{top:"30%",transform:"translateX(-50%)",animation:"streakBurstAnim 1.1s cubic-bezier(0.34,1.4,0.64,1) forwards",
+              textAlign:"center",whiteSpace:"nowrap"}}>
+            <div className="font-black" style={{fontSize:"clamp(1.6rem,8vw,2.8rem)",
+              color:streakBurst.color,textShadow:`0 0 40px ${streakBurst.color},0 0 80px ${streakBurst.color}55`,
+              letterSpacing:"0.04em"}}>
+              {streakBurst.label}
+            </div>
+            <div style={{fontSize:"clamp(0.7rem,3vw,1rem)",color:streakBurst.color,opacity:0.8}}>
+              {streakBurst.n}× combo!
             </div>
           </div>
         )}
@@ -2950,6 +3039,13 @@ export default function NexusTap(){
             </div>
           ))}
         </div>
+        {/* ── BIG DANCING MASCOT ── */}
+        <div className="flex flex-col items-center gap-1" style={{animation:"victoryBurst 0.6s cubic-bezier(0.34,1.5,0.64,1)"}}>
+          <MascotEmoji mood="victory" dancing={true} size={isBossLevel?92:72}/>
+          <div className="font-black text-xs tracking-widest" style={{color:currentMascot.color,textShadow:`0 0 14px ${currentMascot.color}`}}>
+            {isBossLevel?"🎊 "+currentMascot.name.toUpperCase()+" IS HYPED! 🎊":currentMascot.name.toUpperCase()+" CELEBRATES!"}
+          </div>
+        </div>
         {/* Cinematic hero banner */}
         <div className="w-full rounded-3xl relative overflow-hidden" style={{
           background:`linear-gradient(160deg,${wld.color}22 0%,${wld.bg} 60%)`,
@@ -3028,9 +3124,34 @@ export default function NexusTap(){
           </div>
         ):null;})()}
 
+        {/* Teaser for next level / next world */}
+        {!isLast&&(()=>{
+          const nextId=levelId+1;
+          const nextCfg=getLevelConfig(nextId);
+          const nextWld=WORLDS[nextCfg.world-1];
+          const isNewWorld=nextCfg.world!==cfg.world;
+          const isNextBoss=nextCfg.isBoss;
+          return(
+            <div className="w-full rounded-2xl px-4 py-3 flex items-center gap-3"
+              style={{background:`${nextWld.color}14`,border:`1px solid ${nextWld.color}40`,backdropFilter:"blur(8px)"}}>
+              <span style={{fontSize:28,animation:isNewWorld?"floatGlow 1.5s ease-in-out infinite":"none"}}>
+                {isNewWorld?nextWld.emoji:isNextBoss?"👑":"▶"}
+              </span>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-black" style={{color:nextWld.color}}>
+                  {isNewWorld?`🌍 NEW WORLD: ${nextWld.name.toUpperCase()}!`:isNextBoss?"👑 BOSS BATTLE INCOMING!":"NEXT STAGE"}
+                </div>
+                <div className="text-xs opacity-55 truncate" style={{color:nextWld.color}}>
+                  {isNewWorld?`Prepare for ${nextWld.name} — new enemies await!`:nextCfg.name}
+                </div>
+              </div>
+              <span className="text-base" style={{color:nextWld.color,opacity:0.6}}>→</span>
+            </div>
+          );
+        })()}
         {/* CTA buttons */}
         {!isLast&&(
-          <NeonButton onClick={()=>{setSelectedLevel(levelId+1);setCartItems([]);setScreen("shop");}}
+          <NeonButton onClick={()=>{setMascotDancing(false);setMascotMood("idle");setSelectedLevel(levelId+1);setCartItems([]);setScreen("shop");}}
             className="w-full py-4 text-lg font-black"
             style={{background:`linear-gradient(135deg,${wld.accent},${wld.color})`,
               boxShadow:`0 0 36px ${wld.color}55,0 4px 20px rgba(0,0,0,0.5)`,letterSpacing:"0.06em"}}>
@@ -3041,7 +3162,7 @@ export default function NexusTap(){
           style={{color:"#ffd700",textShadow:"0 0 40px #ffd700,0 0 80px #ffd70044",animation:"floatGlow 2s ease-in-out infinite"}}>
           🌈 YOU ARE THE QUEST MASTER! 🌈
         </div>}
-        <NeonButton onClick={()=>{setScrollToLevel(levelId);setScreen("levelmap");}}
+        <NeonButton onClick={()=>{setMascotDancing(false);setMascotMood("idle");setScrollToLevel(levelId);setScreen("levelmap");}}
           className="w-full py-3 text-sm" style={{background:"rgba(255,255,255,0.06)",border:`1px solid ${wld.color}33`,backdropFilter:"blur(8px)"}}>
           ← Adventure Map
         </NeonButton>
@@ -3058,11 +3179,17 @@ export default function NexusTap(){
     return(
       <div className="flex flex-col items-center h-full overflow-y-auto px-5 py-6 gap-4 relative z-10">
         {/* Near-Miss special header */}
+        {/* Sad mascot on game over */}
+        <div className="flex flex-col items-center" style={{animation:"waveIn 0.5s ease-out"}}>
+          <MascotEmoji mood="scared" size={64}/>
+          <div className="text-xs mt-1 font-bold" style={{color:currentMascot.color,opacity:0.7}}>
+            {nearMiss?"Almost there — I believe in you!":"Let's try again together!"}
+          </div>
+        </div>
         {nearMiss?(
           <div className="w-full text-center rounded-3xl px-4 py-4" style={{
             background:`linear-gradient(160deg,#ff980014,rgba(0,0,0,0.3))`,
             border:"1px solid #ff980055",backdropFilter:"blur(10px)",animation:"waveIn 0.5s ease-out"}}>
-            <div className="text-4xl mb-1" style={{animation:"floatGlow 1s ease-in-out infinite"}}>😮✨</div>
             <div className="font-black text-xl mb-1" style={{color:"#ff9800",textShadow:"0 0 20px #ff980077"}}>SO CLOSE!</div>
             <div className="text-sm opacity-80" style={{color:"#ffc87a"}}>
               Only <span className="font-black" style={{color:"#ffd700"}}>{shortfall?.toLocaleString()}</span> more points needed!
@@ -3071,7 +3198,6 @@ export default function NexusTap(){
           </div>
         ):(
           <div className="text-center">
-            <div className="text-4xl mb-1">😮🌟</div>
             <div className="text-sm uppercase tracking-widest opacity-50 mb-1" style={{color:cfg.worldColor}}>{WORLDS[cfg.world-1].emoji} {WORLDS[cfg.world-1].name}</div>
             <div className="text-xs uppercase tracking-widest font-bold opacity-60 mb-1" style={{color:"#ef4444"}}>— Almost there! Try again! —</div>
             <div className="text-xl font-black" style={{color:cfg.worldColor}}>{levelName}</div>
@@ -3248,6 +3374,35 @@ export default function NexusTap(){
           })}
         </div>
       </div>
+      {/* ── Mascot Chooser ── */}
+      <div>
+        <p className="text-xs font-bold opacity-40 mb-3 uppercase tracking-widest" style={{color:theme.accent}}>Choose your Mascot</p>
+        <div className="grid grid-cols-5 gap-2">
+          {MASCOTS.map(m=>{
+            const isActive=sv.mascotId===m.id;
+            return(
+              <button key={m.id}
+                onClick={()=>{sv.mascotId=m.id;debounceSave();/* force re-render */setScreen("settings");}}
+                style={{
+                  display:"flex",flexDirection:"column",alignItems:"center",gap:3,
+                  padding:"10px 4px 8px",borderRadius:14,border:`2px solid ${isActive?m.color:"#ffffff15"}`,
+                  background:isActive?`${m.color}22`:"#ffffff08",cursor:"pointer",
+                  boxShadow:isActive?`0 0 16px ${m.color}55`:"none",
+                  WebkitTapHighlightColor:"transparent",transition:"all 0.15s"}}>
+                <span style={{fontSize:26,lineHeight:1,
+                  filter:isActive?`drop-shadow(0 0 8px ${m.color})`:"none",
+                  animation:isActive?`${m.dance} 1s ease-in-out infinite`:"none"}}>
+                  {m.e.idle}
+                </span>
+                <span style={{fontSize:8,fontWeight:"bold",color:isActive?m.color:"#888",letterSpacing:"0.04em"}}>
+                  {m.name.toUpperCase()}
+                </span>
+                {isActive&&<span style={{fontSize:7,color:m.color}}>✓</span>}
+              </button>
+            );
+          })}
+        </div>
+      </div>
       <div className="border-t border-white border-opacity-10 pt-4">
         <NeonButton onClick={()=>{if(window.confirm("Reset ALL progress? Cannot be undone.")){saveRef.current={...DEFAULT_SAVE};flushSave();setTheme(THEMES[0]);setSoundOn(true);setScreen("menu");}}}
           className="w-full py-3 text-sm" style={{background:"#ef444418",border:"1px solid #ef444455",color:"#ef4444"}}>
@@ -3285,6 +3440,18 @@ export default function NexusTap(){
         @keyframes heartbeat{0%,100%{transform:scale(1)}15%{transform:scale(1.18)}30%{transform:scale(1)}45%{transform:scale(1.1)}60%{transform:scale(1)}}
         @keyframes perfectPop{0%{transform:scale(0.6) rotate(-8deg);opacity:0}50%{transform:scale(1.15) rotate(3deg)}100%{transform:scale(1) rotate(0);opacity:1}}
         @keyframes notifSlide{0%{transform:translateX(-50%) translateY(-24px);opacity:0}15%{transform:translateX(-50%) translateY(0);opacity:1}80%{transform:translateX(-50%) translateY(0);opacity:1}100%{transform:translateX(-50%) translateY(-12px);opacity:0}}
+        @keyframes danceDragon{0%,100%{transform:scale(1) rotate(-8deg)}25%{transform:scale(1.25) rotate(14deg) translateY(-10px)}50%{transform:scale(1.1) rotate(-6deg) translateY(-5px)}75%{transform:scale(1.2) rotate(10deg) translateY(-8px)}}
+        @keyframes danceFox{0%{transform:rotate(0) scale(1)}30%{transform:rotate(-180deg) scale(1.2) translateY(-8px)}60%{transform:rotate(-360deg) scale(1)}80%{transform:rotate(-360deg) scale(1.15) translateY(-6px)}100%{transform:rotate(-360deg) scale(1)}}
+        @keyframes danceCat{0%,100%{transform:translateY(0) rotate(-10deg)}33%{transform:translateY(-20px) rotate(12deg)}66%{transform:translateY(-10px) rotate(-5deg)}}
+        @keyframes danceFrog{0%,100%{transform:scaleY(1) scaleX(1) translateY(0)}30%{transform:scaleX(0.85) scaleY(1.15) translateY(-24px)}55%{transform:scaleX(0.9) scaleY(1.1) translateY(-18px)}75%{transform:scaleX(1.15) scaleY(0.88) translateY(2px)}}
+        @keyframes danceLion{0%,100%{transform:scale(1) rotate(0)}20%{transform:scale(1.22) rotate(-8deg)}40%{transform:scale(1.18) rotate(8deg)}60%{transform:scale(1.25) rotate(-6deg)}80%{transform:scale(1.2) rotate(6deg)}}
+        @keyframes dancePanda{0%,100%{transform:translateX(0) rotate(0)}25%{transform:translateX(-14px) rotate(-15deg)}75%{transform:translateX(14px) rotate(15deg)}}
+        @keyframes dancePenguin{0%,100%{transform:translateX(0) rotate(0) translateY(0)}30%{transform:translateX(-10px) rotate(-12deg) translateY(-4px)}70%{transform:translateX(10px) rotate(12deg) translateY(-4px)}}
+        @keyframes danceOctopus{0%{transform:rotate(0) scale(1)}15%{transform:rotate(-40deg) scale(1.15)}35%{transform:rotate(35deg) scale(0.9)}55%{transform:rotate(-25deg) scale(1.2)}75%{transform:rotate(30deg) scale(0.95)}100%{transform:rotate(0) scale(1)}}
+        @keyframes danceButterfly{0%,100%{transform:translateY(0) rotate(-12deg) scale(1)}25%{transform:translateY(-18px) rotate(14deg) scale(1.15)}50%{transform:translateY(-8px) rotate(-8deg) scale(0.92)}75%{transform:translateY(-14px) rotate(10deg) scale(1.1)}}
+        @keyframes danceUnicorn{0%,100%{transform:translateY(0) scaleX(1)}20%{transform:translateY(-14px) scaleX(0.92) rotate(-5deg)}40%{transform:translateY(-8px) scaleX(1.08) rotate(4deg)}60%{transform:translateY(-18px) scaleX(0.95) rotate(-4deg)}80%{transform:translateY(-6px) scaleX(1.05) rotate(3deg)}}
+        @keyframes streakBurstAnim{0%{transform:translateX(-50%) scale(0.4);opacity:0}20%{transform:translateX(-50%) scale(1.25);opacity:1}70%{transform:translateX(-50%) scale(1);opacity:1}90%{transform:translateX(-50%) scale(0.95);opacity:0.6}100%{transform:translateX(-50%) scale(0.8);opacity:0}}
+        @keyframes mascotIdle{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-5px) scale(1.04)}}
         *{-webkit-tap-highlight-color:transparent;box-sizing:border-box}
         ::-webkit-scrollbar{width:0}
         .shine-btn{position:relative;overflow:hidden}
