@@ -20,36 +20,159 @@ const WORLDS = [
 // MASCOTS — 10 animal companions, each with unique dance
 // ═══════════════════════════════════════════════════════════════
 const MASCOTS = [
-  { id:"dragon",    name:"Ember",   color:"#ff6b35",
-    e:{idle:"🐉",happy:"🐉",excited:"🐉",fire:"🔥",fever:"⚡",sad:"💧",victory:"🎊",scared:"😱"},
-    dance:"danceDragon",  unlocked:true },
-  { id:"fox",       name:"Rusty",   color:"#e07030",
-    e:{idle:"🦊",happy:"🦊",excited:"🌟",fire:"🔥",fever:"✨",sad:"😢",victory:"🎉",scared:"😱"},
-    dance:"danceFox",     unlocked:true },
-  { id:"cat",       name:"Luna",    color:"#b094d4",
-    e:{idle:"😸",happy:"😸",excited:"😻",fire:"🔥",fever:"✨",sad:"😿",victory:"🎊",scared:"🙀"},
-    dance:"danceCat",     unlocked:true },
-  { id:"frog",      name:"Hoppy",   color:"#4ecb71",
-    e:{idle:"🐸",happy:"🐸",excited:"💚",fire:"🔥",fever:"✨",sad:"😢",victory:"🎉",scared:"😱"},
-    dance:"danceFrog",    unlocked:true },
-  { id:"lion",      name:"Roary",   color:"#fbbf24",
-    e:{idle:"🦁",happy:"🦁",excited:"👑",fire:"🔥",fever:"✨",sad:"😢",victory:"🎉",scared:"😱"},
-    dance:"danceLion",    unlocked:true },
-  { id:"panda",     name:"Bao",     color:"#94a3b8",
-    e:{idle:"🐼",happy:"🐼",excited:"⭐",fire:"🔥",fever:"✨",sad:"😢",victory:"🎉",scared:"😱"},
-    dance:"dancePanda",   unlocked:true },
-  { id:"penguin",   name:"Waddles", color:"#6ec0f5",
-    e:{idle:"🐧",happy:"🐧",excited:"❄️",fire:"🔥",fever:"✨",sad:"😢",victory:"🎊",scared:"😱"},
-    dance:"dancePenguin", unlocked:true },
-  { id:"octopus",   name:"Inky",    color:"#b06de8",
-    e:{idle:"🐙",happy:"🐙",excited:"💜",fire:"🔥",fever:"✨",sad:"😢",victory:"🎉",scared:"😱"},
-    dance:"danceOctopus", unlocked:true },
-  { id:"butterfly", name:"Flutter", color:"#e8c84e",
-    e:{idle:"🦋",happy:"🦋",excited:"🌸",fire:"🔥",fever:"✨",sad:"😢",victory:"🎉",scared:"😱"},
-    dance:"danceButterfly",unlocked:true },
-  { id:"unicorn",   name:"Sparky",  color:"#ffd700",
-    e:{idle:"🦄",happy:"🦄",excited:"🌈",fire:"🔥",fever:"✨",sad:"😢",victory:"🎊",scared:"😱"},
-    dance:"danceUnicorn", unlocked:true },
+  // ── STARTER ──────────────────────────────────────────────────
+  { id:"dragon",    name:"Ember",   color:"#ff6b35", rarity:"starter",
+    e:{idle:"🐉",happy:"🐉",excited:"🔥",fire:"🔥",fever:"🌋",sad:"💧",victory:"🏆",scared:"😱"},
+    dance:"danceDragon", catchphrase:"I burn bright for YOU! 🔥",
+    speeches:{
+      idle:["Ready to BURN! 🔥","I got your back, hero! 🐉","Let's GO adventurer! ⚔️"],
+      happy:["DRAGON POWER!! 🔥","Nice one, adventurer! 🐉","Feel the HEAT! 🌋"],
+      streak:["FIRE STREAK!! 🔥🔥","DRAGON IS UNLEASHED!! 🐲","BURN IT ALL!! 🌋"],
+      fever:["DRAGON FEVER!! MAXIMUM FIRE!! 🔥🔥🔥","THE VOLCANO ERUPTS!! 🌋"],
+      close:["SO CLOSE! One more blast! 💥","FIRE EVERYTHING!! 🔥"],
+      miss:["Dragons NEVER give up! 💪","Shake it off! Breathe fire! ⚡"],
+      victory:["DRAGON WINS!! YESSS!! 🏆","MY HERO! I KNEW IT!! 🐉🔥"],
+      bonus:["FREE BONUS! BURN IT DOWN! 🌋","LEGENDARY FIRE EVERYWHERE! 🔥"],
+      mystery:["Ooh what's INSIDE?! 🎁🔥","A GIFT! Probably FIRE! 🐉"],
+    }},
+  { id:"fox",       name:"Rusty",   color:"#e07030", rarity:"starter",
+    e:{idle:"🦊",happy:"🦊",excited:"🌟",fire:"🔥",fever:"⚡",sad:"😢",victory:"🎉",scared:"😰"},
+    dance:"danceFox",    catchphrase:"Foxy and clever — that's us! 🦊",
+    speeches:{
+      idle:["Heyyy! Tap faster! 🦊","Let's be sneaky quick! 👀","You're SO good at this! 🌟"],
+      happy:["Foxy LIKES this! 🦊","Oh yes oh YES!! ✨","You clever thing! 🌟"],
+      streak:["SNEAKY STREAK!! 🦊⚡","FOX IS ON FIRE! 🔥","TOO FAST!! 💨"],
+      fever:["FOX FEVER!! UNSTOPPABLE!! ⚡⚡","QUICK AS LIGHTNING!! 🦊"],
+      close:["Sooo close, be clever! 🦊","Almost! Foxy believes! 🌟"],
+      miss:["No no no! You're smarter! 🦊","C'mon, be the fox! 💪"],
+      victory:["FOX WINS AGAIN! Of course! 🦊🎉","KNEW IT KNEW IT KNEW IT!! 🌟"],
+      bonus:["BONUS! Grab it all, quickly! 🦊","Sneaky bonus round! YES! ⚡"],
+      mystery:["A mystery?! Foxes LOVE mysteries! 🦊🎁","What is it WHAT IS IT?! 👀"],
+    }},
+  // ── COMMON ───────────────────────────────────────────────────
+  { id:"frog",      name:"Hoppy",   color:"#4ecb71", rarity:"common",
+    unlockCond:{type:"level",value:3}, unlockHint:"Complete Level 3",
+    e:{idle:"🐸",happy:"🐸",excited:"💚",fire:"🔥",fever:"🌿",sad:"😢",victory:"🎊",scared:"😱"},
+    dance:"danceFrog",   catchphrase:"HOP HOP HOORAY!! 🐸",
+    speeches:{
+      idle:["Ribbit! Let's HOP to it! 🐸","BOING! Ready? 🐸","Hoppy is HERE! 💚"],
+      happy:["HOP HOP YES!! 🐸","RIBBIT OF JOY!! 💚","BOING BOING BOING! 🐸"],
+      streak:["HOPPING STREAK!! 🐸🐸","FROG IS LEAPING!! 💨","CAN'T CATCH THIS FROG! 🐸"],
+      fever:["FROG FEVER!! HOP FOREVER!! 💚💚","LILY PAD TO VICTORY!! 🐸"],
+      close:["SO CLOSE! ONE MORE HOP! 🐸","BOING BOING BOING! Almost! 💚"],
+      miss:["Ribbit... fell in the pond. 😢","FROG GETS BACK UP! 🐸💪"],
+      victory:["FROG WINS!! RIBBIT RIBBIT!! 🎊","BEST HOP EVER!! 🐸🏆"],
+      bonus:["BONUS HOP!! ALL THE FLIES!! 🐸","FREE ROUND! HOP IT ALL! 💚"],
+      mystery:["Ooh what's in the pond?! 🐸🎁","RIBBIT RIBBIT what IS that?! 🎊"],
+    }},
+  { id:"cat",       name:"Luna",    color:"#b094d4", rarity:"common",
+    unlockCond:{type:"level",value:6}, unlockHint:"Complete Level 6",
+    e:{idle:"😸",happy:"😻",excited:"😻",fire:"🔥",fever:"✨",sad:"😿",victory:"👑",scared:"🙀"},
+    dance:"danceCat",    catchphrase:"Purr-fectly amazing! 😸",
+    speeches:{
+      idle:["Purrr... shall we? 😸","Meow means GO! 😸","Luna approves of this! 👑"],
+      happy:["Purrrfect! 😻","*purrs intensely* ✨","Luna is pleased! 😸"],
+      streak:["CLAWS OUT!! 😻⚡","PURR-FECT STREAK!! 🔥","LUNA IS HUNTING! 😻"],
+      fever:["LUNA FEVER! ALL IS MINE!! ✨✨","THE QUEEN IS UNSTOPPABLE! 👑"],
+      close:["Almost! Luna demands it! 👑","SO CLOSE! You can do it! 😻"],
+      miss:["*hisses* Again! 🙀","Luna is displeased... but tries! 😿"],
+      victory:["Luna reigns supreme! 👑","Of course we won. Luna chose us! 😸"],
+      bonus:["BONUS! Luna gets ALL the toys!! ✨","Mine mine mine MINE! 😻"],
+      mystery:["Ooh shiny! Luna WANTS!! 🎁✨","A box?! Luna LOVES boxes! 😸"],
+    }},
+  // ── RARE ─────────────────────────────────────────────────────
+  { id:"panda",     name:"Bao",     color:"#94a3b8", rarity:"rare",
+    unlockCond:{type:"level",value:10}, unlockHint:"Complete Level 10",
+    e:{idle:"🐼",happy:"🐼",excited:"⭐",fire:"🔥",fever:"🌟",sad:"😢",victory:"🎊",scared:"😱"},
+    dance:"dancePanda",  catchphrase:"Chilling hard, winning harder! 🐼",
+    speeches:{
+      idle:["*munch munch* Oh, we playing? 🐼","Bao is chill but READY! 🌿","Very zen. Very win. 🐼"],
+      happy:["Bao approves! 🐼⭐","*happy panda noises* 🌟","Oh yes, this is nice! 🐼"],
+      streak:["BAO IS FOCUSED!! ⭐⭐","PANDA STREAK! VERY YES! 🐼","ZEN MASTER STREAK!! 🌟"],
+      fever:["PANDA FEVER!! BAO IS ALIVE!! 🌟🌟","THIS IS NOT ZEN. THIS IS EPIC!! 🐼"],
+      close:["Almost! Bao stays calm... 🐼","Inner peace... then TAP! ⭐"],
+      miss:["Bao eats bamboo to recover. 🐼","*calmly tries again* 🌿"],
+      victory:["PANDAS WIN! Bao is SO happy! 🎊","Best day ever! 🐼⭐🌟"],
+      bonus:["BONUS!! Bamboo for everyone!! 🐼","FREE ROUND! Bao woke UP! 🌟"],
+      mystery:["Ooh is it bamboo?! 🐼🎁","BAO IS CURIOUS!! ⭐"],
+    }},
+  { id:"penguin",   name:"Waddles", color:"#6ec0f5", rarity:"rare",
+    unlockCond:{type:"level",value:15}, unlockHint:"Complete Level 15",
+    e:{idle:"🐧",happy:"🐧",excited:"❄️",fire:"🔥",fever:"⚡",sad:"😢",victory:"🎉",scared:"😱"},
+    dance:"dancePenguin",catchphrase:"Waddling to VICTORY!! 🐧",
+    speeches:{
+      idle:["Waddle waddle! Let's GO! 🐧","Penguins NEVER give up! ❄️","SLIP SLIDE WIN! 🐧"],
+      happy:["WADDLES IS HAPPY!! 🐧❄️","Sliding into success! ⚡","ICE COLD SKILLS! 🎉"],
+      streak:["PENGUIN STREAK!! WADDLESOME!! 🐧","SLIDING THROUGH!! ❄️❄️","COOL STREAK!! 🐧⚡"],
+      fever:["PENGUIN FEVER!! ICE ON FIRE!! ❄️🔥","WADDLING AT LIGHT SPEED!! 🐧"],
+      close:["ALMOST! Penguins don't slip here! 🐧","One more! ICE COLD FOCUS! ❄️"],
+      miss:["*slips on ice* That's okay!! 🐧","Penguins bounce back! ❄️💪"],
+      victory:["WADDLES WINS!! BEST DAY EVER!! 🎉🐧","PENGUIN PARADE!! ❄️🎊"],
+      bonus:["BONUS!! More fish! More slides! 🐧","FREE ROUND! SLIDE FOREVER! ❄️"],
+      mystery:["Is it a FISH?! Please be fish! 🐧🎁","*slides excitedly* WHAT IS IT?! ❄️"],
+    }},
+  { id:"lion",      name:"Roary",   color:"#fbbf24", rarity:"rare",
+    unlockCond:{type:"streak",value:30}, unlockHint:"Achieve a 30-streak",
+    e:{idle:"🦁",happy:"🦁",excited:"👑",fire:"🔥",fever:"⚡",sad:"😔",victory:"🏅",scared:"😱"},
+    dance:"danceLion",   catchphrase:"ROAR means YOU'RE AMAZING!! 🦁",
+    speeches:{
+      idle:["ROAR! I am Roary! 🦁","The lion watches... and cheers! 🌟","Lend me your STRENGTH! 🦁"],
+      happy:["ROARSOME! 🦁","THE LION IS PLEASED! 👑","MAGNIFICENT! 🔥"],
+      streak:["LION STREAK! ROOOAR! 🦁🔥","THE PRIDE CHEERS!! 👑","KING OF THE STREAK! 🦁"],
+      fever:["LION FEVER!! RULER OF ALL!! 👑🔥","THE MANE EVENT IS NOW!! 🦁"],
+      close:["ROAR! THE KING DEMANDS VICTORY! 🦁","ONE MORE! THE PRIDE BELIEVES! 👑"],
+      miss:["Even lions fall... and RISE! 🦁💪","ROAR LOUDER! AGAIN! 🔥"],
+      victory:["THE LION REIGNS!! ROOOAR!! 🦁🏅","PRIDE IS EVERYTHING! WE WON!! 👑"],
+      bonus:["BONUS! THE KING TAKES ALL! 🦁","FREE ROUND! LION RULES! 👑🔥"],
+      mystery:["The lion SNIFFS a gift! 🦁🎁","ROAR! What treasure is this?! 👑"],
+    }},
+  // ── EPIC ─────────────────────────────────────────────────────
+  { id:"octopus",   name:"Inky",    color:"#b06de8", rarity:"epic",
+    unlockCond:{type:"threestars",value:5}, unlockHint:"Get 3 stars on 5 levels",
+    e:{idle:"🐙",happy:"🐙",excited:"💜",fire:"🔥",fever:"🌀",sad:"😢",victory:"🎊",scared:"😱"},
+    dance:"danceOctopus",catchphrase:"Eight arms, infinite combos!! 🐙",
+    speeches:{
+      idle:["Eight arms, all here for you! 🐙","Inky watches EVERYTHING! 👀","Let's get INKY! 💜"],
+      happy:["INK-CREDIBLE!! 🐙💜","EIGHT ARMS OF SUCCESS!! ✨","TENTACLES OF TRIUMPH! 🎊"],
+      streak:["OCTOPUS STREAK!! EIGHT WAYS AWESOME! 🐙","INK EVERYWHERE!! 💜💜","ALL ARMS FIRING!! 🌀"],
+      fever:["INKY FEVER!! EIGHT ARMS CAN'T STOP!! 🌀🌀","INK THE WHOLE SCREEN!! 🐙💜"],
+      close:["SO CLOSE! Inky has 8 arms — use them! 🐙","ONE MORE! INK OF GLORY! 💜"],
+      miss:["*releases ink cloud* DISGUISE AND RETRY! 🐙","Inky squirts and tries again! 💜"],
+      victory:["INKY WINS!! EIGHT-ARMED CHAMPION!! 🎊🐙","INK-REDIBLY DONE!! 💜🏆"],
+      bonus:["BONUS!! Inky grabs ALL EIGHT!! 🐙","FREE ROUND! UNLIMITED INK! 🌀"],
+      mystery:["Eight arms reach for the gift! 🐙🎁","WHAT IS IT?! Inky MUST KNOW!! 💜"],
+    }},
+  { id:"butterfly", name:"Flutter", color:"#f9a8d4", rarity:"epic",
+    unlockCond:{type:"coins",value:1000}, unlockHint:"Earn 1,000 total coins",
+    e:{idle:"🦋",happy:"🦋",excited:"🌸",fire:"🔥",fever:"🌺",sad:"😢",victory:"🌟",scared:"😱"},
+    dance:"danceButterfly",catchphrase:"Every tap is beautiful! 🦋",
+    speeches:{
+      idle:["Flutter flutter! Let's fly! 🦋","Beautiful things happen here! 🌸","Wings spread, heart ready! 🦋"],
+      happy:["FLUTTER-MAZING!! 🦋🌸","Blooming with joy!! ✨","So beautiful! 🌺"],
+      streak:["FLUTTER STREAK!! SOARING!! 🦋🌸","WINGS OF FIRE!! 🔥","DANCING ON THE WIND!! 🌺"],
+      fever:["FLUTTER FEVER!! BLOSSOMING!! 🌺🌺","ALL PETALS FLYING!! 🦋✨"],
+      close:["Almost! Flutter believes! 🦋","One more wingbeat! 🌸"],
+      miss:["Even butterflies stumble... 😢","Flutter, flutter, try again! 🦋💪"],
+      victory:["FLUTTER WINS!! MOST BEAUTIFUL!! 🌟🦋","BLOOMED INTO VICTORY!! 🌸🎊"],
+      bonus:["BONUS!! Gardens of treasure!! 🦋","FREE ROUND! All the flowers! 🌺"],
+      mystery:["A gift as beautiful as me?! 🦋🎁","Flutter trembles with excitement! 🌸"],
+    }},
+  // ── LEGENDARY ────────────────────────────────────────────────
+  { id:"unicorn",   name:"Sparky",  color:"#ffd700", rarity:"legendary",
+    unlockCond:{type:"level",value:25}, unlockHint:"Complete Level 25",
+    e:{idle:"🦄",happy:"🦄",excited:"🌈",fire:"🔥",fever:"💫",sad:"😢",victory:"💫",scared:"😱"},
+    dance:"danceUnicorn",catchphrase:"Magic is REAL and YOU are it!! 🦄",
+    speeches:{
+      idle:["MAGIC IS REAL! Tap it! 🦄","Sparky is HERE for this!! 🌈","Rainbow power! READY! 🌈"],
+      happy:["SPARKLE SPARKLE!! 🌈🦄","MAGICAL!! SO MAGICAL!! 💫","Rainbow energy ACTIVATED! ✨"],
+      streak:["UNICORN STREAK!! RAINBOW POWER!! 🌈🌈","SPARKY IS UNSTOPPABLE!! 🦄","PURE MAGIC!! 💫💫"],
+      fever:["UNICORN FEVER!! MAXIMUM MAGIC!! 💫💫🌈","RAINBOW EXPLOSION!! 🦄✨🌈"],
+      close:["SO CLOSE!! Magic is nearly here!! 🦄","ONE LAST SPARK!! 🌈"],
+      miss:["Even unicorns stumble... SHINE ON! 🦄","Rainbow resilience! Again! 🌈💪"],
+      victory:["SPARKY WINS!! MOST MAGICAL VICTORY!! 💫🌈","BELIEVE IN MAGIC!! WE WON!! 🦄🏆"],
+      bonus:["BONUS!! RAINBOW OF TREASURE!! 🌈🦄","FREE ROUND!! SPARKY GRANTS WISHES!! 💫"],
+      mystery:["MAGICAL GIFT!! SPARKY VIBRATES!! 🦄🎁","IS IT RAINBOW TREASURE?! 🌈💫"],
+    }},
 ];
 
 // Mystery Box prizes — variable ratio (weights, not percentages)
@@ -331,6 +454,7 @@ const DEFAULT_SAVE = {
   levelStars:{}, unlockedLevel:1,
   seenWorldStories:[], seenMainStory:false, seenBossIntros:[],
   seenTutorial:false, lastSpinDate:null, mascotId:"dragon",
+  unlockedMascots:["dragon","fox"],
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -1580,6 +1704,7 @@ export default function NexusTap(){
   const [tutStep,       setTutStep]       = useState(null);
   const [mascotMood,    setMascotMood]    = useState("idle");
   const [mascotDancing, setMascotDancing] = useState(false);
+  const [mascotUnlockedData, setMascotUnlockedData] = useState(null); // newly unlocked mascot
   const [spinState,     setSpinState]     = useState(null);
   const [spinResult,    setSpinResult]    = useState(null);
   const [spinDeg,       setSpinDeg]       = useState(0);
@@ -1840,6 +1965,9 @@ export default function NexusTap(){
         bestStreak:sv.bestStreak,sessionStats:{...gs.sessionStats,timeSurvived}});
       setScrollToLevel(cfg.id);
       setMascotMood("victory");setMascotDancing(true);
+      // Check mascot unlocks AFTER save is flushed
+      const newMascots=checkMascotUnlocks();
+      if(newMascots.length>0)setMascotUnlockedData(newMascots[0]);
       setScreen("levelcomplete");
     } else {
       const pct=score/cfg.scoreGoal;
@@ -1914,7 +2042,7 @@ export default function NexusTap(){
       const fakeReel=()=>Math.floor(Math.random()*MYSTERY_PRIZES.length);
       const prizeIdx=MYSTERY_PRIZES.indexOf(prize);
       setMysteryReveal({phase:0,reels:[fakeReel(),fakeReel(),prizeIdx],prize,x:hit.x,y:hit.y});
-      showSpeech("Ooh ooh ooh!! 🎁");
+      showMascotSpeech("mystery");
       setTimeout(()=>setMysteryReveal(r=>r?{...r,phase:1}:null),420);
       setTimeout(()=>{setMysteryReveal(r=>r?{...r,phase:2}:null);sfx("coin");vibrate(15);},820);
       setTimeout(()=>{setMysteryReveal(r=>r?{...r,phase:3}:null);sfx("coin");vibrate(15);},1200);
@@ -1984,7 +2112,7 @@ export default function NexusTap(){
           gs.bonusRoundActive=true;setBonusRound(true);
           spawnPopup(hit.x,hit.y-65,"🌟 BONUS ROUND!","#ffd700",20);
           sfx("lucky");vibrate([25,15,25,15,55]);
-          showSpeech("FREE BONUS ROUND!! 🌈🌈");
+          showMascotSpeech("bonus");
           setTimeout(()=>{if(gsRef.current)gsRef.current.bonusRoundActive=false;setBonusRound(false);},9000);
         }}
         // Check modifier goal
@@ -2021,9 +2149,9 @@ export default function NexusTap(){
     // Mascot bounce on every hit
     mascotBouncePlay();
     // Streak milestone burst celebrations + speech
-    {const MILESTONES=[{n:5,label:"🔥 ON FIRE!",color:"#fbbf24",speech:"Let's GO!! 🔥🔥"},{n:10,label:"⚡ UNSTOPPABLE!",color:"#f97316",speech:"UNSTOPPABLE!! ⚡⚡"},{n:20,label:"💥 LEGENDARY!",color:"#ef4444",speech:"YOU'RE LEGENDARY!! 💥"},{n:30,label:"🌈 GODLIKE!!!",color:"#ff00ff",speech:"GODLIKE!! I'M SO PROUD!! 🌈"},{n:50,label:"👑 TRANSCENDENT!",color:"#ffd700",speech:"BEST PLAYER EVER!! 👑👑"}];
+    {const MILESTONES=[{n:5,label:"🔥 ON FIRE!",color:"#fbbf24"},{n:10,label:"⚡ UNSTOPPABLE!",color:"#f97316"},{n:20,label:"💥 LEGENDARY!",color:"#ef4444"},{n:30,label:"🌈 GODLIKE!!!",color:"#ff00ff"},{n:50,label:"👑 TRANSCENDENT!",color:"#ffd700"}];
     const ms=MILESTONES.find(m=>m.n===gs.streak);
-    if(ms){setStreakBurst(ms);setTimeout(()=>setStreakBurst(null),1200);showSpeech(ms.speech);}}
+    if(ms){setStreakBurst(ms);setTimeout(()=>setStreakBurst(null),1200);showMascotSpeech("streak");}}
 
     // Musical pentatonic scale note (most addictive mechanic!) — rising melody as streak grows
     sfx("comboNote", gs.streak);
@@ -2068,7 +2196,7 @@ export default function NexusTap(){
     if(gs.streak>=FEVER_STREAK&&!gs.feverActive){
       gs.feverActive=true;gs.feverTimeLeft=FEVER_DUR;setFeverBorder(true);sfx("feverStart");vibrate([35,20,35,20,65]);
       audioRef.current?.setBgMusicFever?.(true);
-      spawnPopup(hit.x,hit.y-45,"🌡 FEVER!","#fbbf24",21);unlock("fever_mode");setMascotMood("fever");showSpeech("FEVER!! WOOHOO!! 🌟🌟");
+      spawnPopup(hit.x,hit.y-45,"🌡 FEVER!","#fbbf24",21);unlock("fever_mode");setMascotMood("fever");showMascotSpeech("fever");
       gs.sessionStats.feverCount=(gs.sessionStats.feverCount||0)+1;
     }
     // Check level win conditions
@@ -2244,7 +2372,7 @@ export default function NexusTap(){
         } else{
           gs.lives--;sfx("miss");vibrate(42);lostLife=true;
           gs.streak=0;streakShRef.current=false;setStreakShieldActive(false);setMascotMood("sad");
-          showSpeech(gs.lives<=1?"Don't give up!! ONE LIFE LEFT! 💪":"Oops! Come on, you've got this! 💪");
+          showMascotSpeech("miss");
           setTimeout(()=>setMascotMood("idle"),1200);
           // no_miss modifier: instant fail
           if(cfg?.modifier?.type==="no_miss"){endLevel(false);return false;}
@@ -2283,13 +2411,49 @@ export default function NexusTap(){
   },[sfx,spawnTarget,endLevel]);// eslint-disable-line
 
   const sv=saveRef.current,lvl=getLvl(sv.xp);
-  const currentMascot=MASCOTS.find(m=>m.id===(sv.mascotId||"dragon"))||MASCOTS[0];
+  const unlockedMascots=sv.unlockedMascots||(sv.unlockedMascots=["dragon","fox"]);
+  const currentMascot=MASCOTS.find(m=>m.id===(sv.mascotId||"dragon")&&unlockedMascots.includes(m.id))||MASCOTS[0];
 
   // Show mascot speech bubble for 2.5s
   const showSpeech=useCallback((text)=>{
     clearTimeout(speechTimerRef.current);
     setMascotSpeech(text);
     speechTimerRef.current=setTimeout(()=>setMascotSpeech(null),2500);
+  },[]);
+
+  // Show mood-specific speech from the current mascot's personality pool
+  const showMascotSpeech=useCallback((moodKey)=>{
+    const pool=currentMascot.speeches?.[moodKey];
+    if(!pool?.length)return;
+    const text=pool[Math.floor(Math.random()*pool.length)];
+    clearTimeout(speechTimerRef.current);
+    setMascotSpeech(text);
+    speechTimerRef.current=setTimeout(()=>setMascotSpeech(null),2500);
+  },[currentMascot]);
+
+  // Check + apply mascot unlock conditions from current save state
+  const checkMascotUnlocks=useCallback(()=>{
+    const sv2=saveRef.current;
+    const unlocked=sv2.unlockedMascots||(sv2.unlockedMascots=["dragon","fox"]);
+    const newlyUnlocked=[];
+    for(const m of MASCOTS){
+      if(unlocked.includes(m.id)||!m.unlockCond)continue;
+      const{type,value}=m.unlockCond;
+      let met=false;
+      if(type==="level")met=(sv2.unlockedLevel||1)>value; // >value because unlockedLevel updates to next
+      else if(type==="streak")met=(sv2.bestStreak||0)>=value;
+      else if(type==="threestars"){
+        const cnt=Object.values(sv2.levelStars||{}).filter(s=>s>=3).length;
+        met=cnt>=value;
+      }
+      else if(type==="coins")met=(sv2.totalCoins||0)>=value;
+      if(met)newlyUnlocked.push(m);
+    }
+    if(newlyUnlocked.length>0){
+      sv2.unlockedMascots=[...unlocked,...newlyUnlocked.map(m=>m.id)];
+      return newlyUnlocked;
+    }
+    return[];
   },[]);
 
   // Brief mascot bounce on hit
@@ -2336,9 +2500,9 @@ export default function NexusTap(){
     if(newT!==tensionRef.current){
       tensionRef.current=newT;
       setTensionLevel(newT);
-      if(newT===2){sfx("comboNote",9);showSpeech("Almost there! GO! 🔥");}
-      if(newT===3){sfx("comboNote",11);try{navigator.vibrate?.([15,10,15]);}catch{}showSpeech("SO CLOSE!! TAP FASTER!! ⚡");}
-      if(newT===4){sfx("comboNote",12);try{navigator.vibrate?.([15,10,15,10,20]);}catch{}showSpeech("ONE MORE TAP!! ⭐⭐⭐");}
+      if(newT===2){sfx("comboNote",9);showMascotSpeech("close");}
+      if(newT===3){sfx("comboNote",11);try{navigator.vibrate?.([15,10,15]);}catch{}showMascotSpeech("close");}
+      if(newT===4){sfx("comboNote",12);try{navigator.vibrate?.([15,10,15,10,20]);}catch{}showMascotSpeech("close");}
     }
   },[hud.score,screen]);// eslint-disable-line
 
@@ -3310,7 +3474,7 @@ export default function NexusTap(){
     const cfg=getLevelConfig(levelId);
     const wld=WORLDS[cfg.world-1];
     const isBossLevel=cfg.isBoss;
-    return(
+    return(<>
       <div className="flex flex-col items-center h-full overflow-y-auto px-5 py-5 gap-3.5 relative z-10">
         {/* Coin shower — falling coins animation */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
@@ -3462,7 +3626,81 @@ export default function NexusTap(){
           ← Adventure Map
         </NeonButton>
       </div>
-    );
+      {/* ── MASCOT UNLOCK OVERLAY ── */}
+      {mascotUnlockedData&&(
+        <div className="absolute inset-0 flex flex-col items-center justify-center z-50 px-6"
+          style={{background:"rgba(0,0,0,0.88)",backdropFilter:"blur(12px)"}}>
+          {/* Confetti sparkles */}
+          <div className="absolute inset-0 pointer-events-none overflow-hidden">
+            {[...Array(18)].map((_,i)=>(
+              <div key={i} style={{
+                position:"absolute",
+                left:`${(i*37)%100}%`,
+                top:`${(i*53)%80}%`,
+                fontSize:14,
+                animation:`sparkleFloat ${1.5+i*0.18}s ease-in-out ${i*0.12}s infinite`,
+                opacity:0.7}}>
+                {["✨","🌟","⭐","💫","🎊","🎉"][i%6]}
+              </div>
+            ))}
+          </div>
+          <div className="flex flex-col items-center gap-4 relative z-10"
+            style={{animation:"victoryBurst 0.6s cubic-bezier(0.34,1.5,0.64,1)"}}>
+            {/* Rarity banner */}
+            {(()=>{
+              const rs={starter:"#60a5fa",common:"#4ecb71",rare:"#6ec0f5",epic:"#b06de8",legendary:"#ffd700"}[mascotUnlockedData.rarity]||"#60a5fa";
+              return(
+                <div style={{
+                  background:`linear-gradient(135deg,${rs}22,${rs}44)`,
+                  border:`2px solid ${rs}`,borderRadius:14,
+                  padding:"4px 18px",
+                  fontSize:11,fontWeight:"black",color:rs,letterSpacing:"0.1em",
+                  boxShadow:`0 0 24px ${rs}55`,
+                  animation:`floatGlow 1s ease-in-out infinite`}}>
+                  {({starter:"STARTER",common:"COMMON",rare:"RARE ✦",epic:"EPIC ✦✦",legendary:"LEGENDARY ✦✦✦"}[mascotUnlockedData.rarity]||"NEW")} MASCOT UNLOCKED!
+                </div>
+              );
+            })()}
+            <div style={{
+              fontSize:11,color:"#ffffff88",fontWeight:"bold",letterSpacing:"0.06em"}}>
+              🎉 NEW COMPANION! 🎉
+            </div>
+            {/* Big animated mascot */}
+            <div style={{
+              fontSize:100,lineHeight:1,
+              filter:`drop-shadow(0 0 30px ${mascotUnlockedData.color}) drop-shadow(0 0 60px ${mascotUnlockedData.color}55)`,
+              animation:`${mascotUnlockedData.dance} 0.7s ease-in-out infinite`}}>
+              {mascotUnlockedData.e.victory}
+            </div>
+            <div style={{fontWeight:"black",fontSize:"1.8rem",color:mascotUnlockedData.color,
+              textShadow:`0 0 30px ${mascotUnlockedData.color}`,letterSpacing:"0.06em"}}>
+              {mascotUnlockedData.name}
+            </div>
+            <div style={{
+              fontSize:13,color:"#ffffffaa",textAlign:"center",
+              fontStyle:"italic",maxWidth:240,lineHeight:1.4}}>
+              "{mascotUnlockedData.catchphrase}"
+            </div>
+            <div className="flex gap-3 w-full mt-2">
+              <NeonButton
+                onClick={()=>{saveRef.current.mascotId=mascotUnlockedData.id;debounceSave();setMascotUnlockedData(null);}}
+                className="flex-1 py-3 font-black"
+                style={{background:`linear-gradient(135deg,${mascotUnlockedData.color}33,${mascotUnlockedData.color}55)`,
+                  border:`2px solid ${mascotUnlockedData.color}`,color:mascotUnlockedData.color,
+                  boxShadow:`0 0 24px ${mascotUnlockedData.color}44`,fontSize:13}}>
+                Choose {mascotUnlockedData.name}! 🌟
+              </NeonButton>
+              <NeonButton
+                onClick={()=>setMascotUnlockedData(null)}
+                className="flex-1 py-3 font-black text-sm"
+                style={{background:"#ffffff10",color:"#fff"}}>
+                Later
+              </NeonButton>
+            </div>
+          </div>
+        </div>
+      )}
+    </>);
   };
 
   // ── Game Over ──
@@ -3675,6 +3913,117 @@ export default function NexusTap(){
     );
   };
 
+  // ── Mascot Collection ──
+  const renderMascotCollection=()=>{
+    const sv2=saveRef.current;
+    const unlocked=sv2.unlockedMascots||["dragon","fox"];
+    const RARITY_STYLE={
+      starter:{border:"#60a5fa",bg:"#60a5fa",label:"STARTER"},
+      common: {border:"#4ecb71",bg:"#4ecb71",label:"COMMON"},
+      rare:   {border:"#6ec0f5",bg:"#6ec0f5",label:"RARE"},
+      epic:   {border:"#b06de8",bg:"#b06de8",label:"EPIC"},
+      legendary:{border:"#ffd700",bg:"#ffd700",label:"LEGENDARY"},
+    };
+    return(
+      <div className="flex flex-col h-full bg-transparent relative z-10">
+        {/* Header */}
+        <div className="flex items-center gap-3 px-4 pt-5 pb-3" style={{flexShrink:0}}>
+          <NeonButton onClick={()=>setScreen("settings")} className="px-3 py-2 text-sm" style={{background:"#ffffff10"}}>← Back</NeonButton>
+          <div>
+            <h2 className="text-xl font-black" style={{color:theme.accent}}>🐾 Mascot Collection</h2>
+            <p className="text-xs opacity-50" style={{color:"#fff"}}>{unlocked.length} / {MASCOTS.length} unlocked</p>
+          </div>
+        </div>
+        {/* Grid */}
+        <div className="overflow-y-auto flex-1 px-3 pb-6" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,alignContent:"start"}}>
+          {MASCOTS.map(m=>{
+            const isUnlocked=unlocked.includes(m.id);
+            const isActive=sv2.mascotId===m.id;
+            const rs=RARITY_STYLE[m.rarity]||RARITY_STYLE.common;
+            const newlyUnlocked=isUnlocked&&!isActive;
+            return(
+              <button key={m.id} disabled={!isUnlocked}
+                onClick={()=>{if(isUnlocked){sv2.mascotId=m.id;debounceSave();setScreen("mascotcollection");}}}
+                style={{
+                  position:"relative",display:"flex",flexDirection:"column",alignItems:"center",
+                  gap:6,padding:"18px 10px 14px",borderRadius:20,
+                  border:`2px solid ${isActive?rs.border:isUnlocked?"#ffffff22":"#ffffff10"}`,
+                  background:isActive?`${rs.bg}18`:isUnlocked?"#ffffff08":"#00000040",
+                  boxShadow:isActive?`0 0 24px ${rs.border}55`:"none",
+                  cursor:isUnlocked?"pointer":"default",
+                  WebkitTapHighlightColor:"transparent",transition:"all 0.18s",
+                  opacity:isUnlocked?1:0.55}}>
+                {/* Rarity top stripe */}
+                <div style={{
+                  position:"absolute",top:0,left:0,right:0,height:4,
+                  borderRadius:"18px 18px 0 0",
+                  background:isUnlocked?`linear-gradient(90deg,${rs.border},${rs.border}88,${rs.border})`:"#333"}}/>
+                {/* Rarity badge */}
+                <div style={{
+                  position:"absolute",top:8,right:8,
+                  background:isUnlocked?rs.bg:"#555",
+                  color:isUnlocked?"#000":"#888",
+                  fontSize:7,fontWeight:"black",padding:"2px 6px",borderRadius:6,
+                  letterSpacing:"0.06em"}}>
+                  {rs.label}
+                </div>
+                {/* ACTIVE badge */}
+                {isActive&&(
+                  <div style={{
+                    position:"absolute",top:8,left:8,
+                    background:"#ffd700",color:"#000",
+                    fontSize:7,fontWeight:"black",padding:"2px 6px",borderRadius:6,
+                    letterSpacing:"0.04em",boxShadow:"0 0 8px #ffd70066"}}>
+                    ✓ ACTIVE
+                  </div>
+                )}
+                {/* Mascot emoji */}
+                <div style={{position:"relative",marginTop:8}}>
+                  {isUnlocked?(
+                    <span style={{
+                      fontSize:52,lineHeight:1,display:"block",
+                      filter:`drop-shadow(0 0 ${isActive?16:6}px ${rs.border})`,
+                      animation:isActive?`${m.dance} 0.9s ease-in-out infinite`:"mascotIdle 2.8s ease-in-out infinite"}}>
+                      {m.e.idle}
+                    </span>
+                  ):(
+                    <div style={{
+                      width:52,height:52,borderRadius:"50%",background:"#222",
+                      display:"flex",alignItems:"center",justifyContent:"center",
+                      border:"2px solid #ffffff15",fontSize:26}}>
+                      🔒
+                    </div>
+                  )}
+                </div>
+                {/* Name */}
+                <div style={{
+                  fontWeight:"black",fontSize:13,letterSpacing:"0.04em",
+                  color:isActive?rs.border:isUnlocked?"#fff":"#555"}}>
+                  {m.name}
+                </div>
+                {/* Catchphrase or unlock hint */}
+                <div style={{
+                  fontSize:9,textAlign:"center",lineHeight:1.35,
+                  color:isUnlocked?"#ffffff66":"#ffffff33",maxWidth:110}}>
+                  {isUnlocked?m.catchphrase:`🔒 ${m.unlockHint||"Coming soon"}`}
+                </div>
+                {/* SELECT button for unlocked-but-not-active */}
+                {isUnlocked&&!isActive&&(
+                  <div style={{
+                    marginTop:4,padding:"4px 14px",borderRadius:10,
+                    background:`${rs.bg}22`,border:`1px solid ${rs.border}66`,
+                    fontSize:10,fontWeight:"bold",color:rs.border,letterSpacing:"0.05em"}}>
+                    SELECT
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   // ── Settings ──
   const renderSettings=()=>(
     <div className="flex flex-col h-full px-4 py-5 gap-5 overflow-y-auto relative z-10">
@@ -3712,32 +4061,28 @@ export default function NexusTap(){
       </div>
       {/* ── Mascot Chooser ── */}
       <div>
-        <p className="text-xs font-bold opacity-40 mb-3 uppercase tracking-widest" style={{color:theme.accent}}>Choose your Mascot</p>
-        <div className="grid grid-cols-5 gap-2">
-          {MASCOTS.map(m=>{
-            const isActive=sv.mascotId===m.id;
-            return(
-              <button key={m.id}
-                onClick={()=>{sv.mascotId=m.id;debounceSave();/* force re-render */setScreen("settings");}}
-                style={{
-                  display:"flex",flexDirection:"column",alignItems:"center",gap:3,
-                  padding:"10px 4px 8px",borderRadius:14,border:`2px solid ${isActive?m.color:"#ffffff15"}`,
-                  background:isActive?`${m.color}22`:"#ffffff08",cursor:"pointer",
-                  boxShadow:isActive?`0 0 16px ${m.color}55`:"none",
-                  WebkitTapHighlightColor:"transparent",transition:"all 0.15s"}}>
-                <span style={{fontSize:26,lineHeight:1,
-                  filter:isActive?`drop-shadow(0 0 8px ${m.color})`:"none",
-                  animation:isActive?`${m.dance} 1s ease-in-out infinite`:"none"}}>
-                  {m.e.idle}
-                </span>
-                <span style={{fontSize:8,fontWeight:"bold",color:isActive?m.color:"#888",letterSpacing:"0.04em"}}>
-                  {m.name.toUpperCase()}
-                </span>
-                {isActive&&<span style={{fontSize:7,color:m.color}}>✓</span>}
-              </button>
-            );
-          })}
-        </div>
+        <p className="text-xs font-bold opacity-40 mb-3 uppercase tracking-widest" style={{color:theme.accent}}>Your Companion</p>
+        {/* Active mascot preview */}
+        <NeonButton onClick={()=>setScreen("mascotcollection")}
+          className="w-full flex items-center gap-4 px-4 py-3 rounded-2xl"
+          style={{background:`${currentMascot.color}12`,border:`2px solid ${currentMascot.color}44`,
+            boxShadow:`0 0 20px ${currentMascot.color}22`}}>
+          <span style={{fontSize:46,lineHeight:1,
+            filter:`drop-shadow(0 0 12px ${currentMascot.color})`,
+            animation:`${currentMascot.dance} 0.9s ease-in-out infinite`}}>
+            {currentMascot.e.idle}
+          </span>
+          <div className="flex flex-col items-start flex-1">
+            <span className="font-black text-base" style={{color:currentMascot.color}}>{currentMascot.name}</span>
+            <span className="text-xs opacity-60" style={{color:"#fff"}}>
+              {({starter:"Starter",common:"Common",rare:"Rare ✦",epic:"Epic ✦✦",legendary:"Legendary ✦✦✦"}[currentMascot.rarity]||"")}
+            </span>
+            <span className="text-xs mt-1" style={{color:"#ffffff55",fontStyle:"italic"}}>"{currentMascot.catchphrase}"</span>
+          </div>
+          <div style={{color:`${currentMascot.color}88`,fontSize:12,fontWeight:"bold"}}>
+            {(sv.unlockedMascots||["dragon","fox"]).length}/{MASCOTS.length} collected →
+          </div>
+        </NeonButton>
       </div>
       <div className="border-t border-white border-opacity-10 pt-4">
         <NeonButton onClick={()=>{if(window.confirm("Reset ALL progress? Cannot be undone.")){saveRef.current={...DEFAULT_SAVE};flushSave();setTheme(THEMES[0]);setSoundOn(true);setScreen("menu");}}}
@@ -3776,6 +4121,7 @@ export default function NexusTap(){
         @keyframes heartbeat{0%,100%{transform:scale(1)}15%{transform:scale(1.18)}30%{transform:scale(1)}45%{transform:scale(1.1)}60%{transform:scale(1)}}
         @keyframes perfectPop{0%{transform:scale(0.6) rotate(-8deg);opacity:0}50%{transform:scale(1.15) rotate(3deg)}100%{transform:scale(1) rotate(0);opacity:1}}
         @keyframes notifSlide{0%{transform:translateX(-50%) translateY(-24px);opacity:0}15%{transform:translateX(-50%) translateY(0);opacity:1}80%{transform:translateX(-50%) translateY(0);opacity:1}100%{transform:translateX(-50%) translateY(-12px);opacity:0}}
+        @keyframes sparkleFloat{0%{transform:translateY(0) rotate(0deg);opacity:0.7}50%{transform:translateY(-18px) rotate(180deg);opacity:1}100%{transform:translateY(0) rotate(360deg);opacity:0.7}}
         @keyframes mascotIdle{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-7px) scale(1.05)}}
         @keyframes mascotBounce{0%{transform:scale(1) translateY(0)}30%{transform:scale(0.85,1.2) translateY(0)}60%{transform:scale(1.15,0.88) translateY(-22px)}85%{transform:scale(0.95,1.06) translateY(0)}100%{transform:scale(1) translateY(0)}}
         @keyframes mascotSad{0%,100%{transform:rotate(0) translateY(0)}25%{transform:rotate(-8deg) translateY(4px)}75%{transform:rotate(8deg) translateY(4px)}}
@@ -3828,7 +4174,8 @@ export default function NexusTap(){
       {screen==="missions"      &&renderMissions()}
       {screen==="achievements"  &&renderAchievements()}
       {screen==="leaderboard"   &&renderLeaderboard()}
-      {screen==="settings"      &&renderSettings()}
+      {screen==="settings"         &&renderSettings()}
+      {screen==="mascotcollection" &&renderMascotCollection()}
       {screen==="spinwheel"     &&renderSpinWheel()}
       {storyData&&renderWorldStory()}
       {tutStep!==null&&renderTutorial()}
