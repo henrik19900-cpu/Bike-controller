@@ -175,6 +175,39 @@ const MASCOTS = [
     }},
 ];
 
+// Per-mascot audio profile (base frequency + oscillator wave type)
+const MASCOT_AUDIO={
+  dragon:   {base:523,wave:"sawtooth"},  fox:      {base:659,wave:"square"},
+  cat:      {base:587,wave:"sine"},      frog:     {base:392,wave:"sine"},
+  lion:     {base:440,wave:"sawtooth"},  panda:    {base:392,wave:"sine"},
+  penguin:  {base:659,wave:"triangle"}, octopus:  {base:349,wave:"sine"},
+  butterfly:{base:587,wave:"sine"},      unicorn:  {base:698,wave:"sine"},
+};
+
+// Per-mascot vibration pattern on each tap
+const MASCOT_HAPTIC={
+  dragon:[15],      fox:[8,5,8],    cat:[6],      frog:[10,5,15],
+  lion:[20,10,20],  panda:[8],      penguin:[5,8,5], octopus:[4,4,4,4],
+  butterfly:[5],    unicorn:[8,4,8,4,12],
+};
+
+// Mascot accessories catalog
+const MASCOT_ACCESSORIES=[
+  {id:"hat",   emoji:"🎩",name:"Top Hat",    cost:200},
+  {id:"crown", emoji:"👑",name:"Crown",       cost:350},
+  {id:"glasses",emoji:"😎",name:"Sunglasses",  cost:250},
+  {id:"halo",  emoji:"✨",name:"Golden Halo",  cost:400},
+  {id:"bow",   emoji:"🎀",name:"Bow Tie",      cost:150},
+  {id:"star",  emoji:"⭐",name:"Star Badge",   cost:180},
+];
+
+// Week key for weekly challenge
+function getWeekKey(){const d=new Date();const jan=new Date(d.getFullYear(),0,1);const wk=Math.ceil(((d-jan)/86400000+jan.getDay()+1)/7);return`${d.getFullYear()}-W${wk}`;}
+
+// Daily challenge level (deterministic by date)
+function getDailyChallengeLevel(){const d=new Date();const seed=d.getFullYear()*10000+(d.getMonth()+1)*100+d.getDate();const rng=seededRng(seed);return Math.floor(rng()*18)+5;}
+function getWeeklyChallengeLevel(){const d=new Date();const jan=new Date(d.getFullYear(),0,1);const wk=Math.ceil(((d-jan)/86400000+jan.getDay()+1)/7);const rng=seededRng(d.getFullYear()*100+wk);return Math.floor(rng()*20)+20;}
+
 // Mystery Box prizes — variable ratio (weights, not percentages)
 const MYSTERY_PRIZES=[
   {label:"+500 pts",  emoji:"⭐", type:"points", value:500,  weight:30},
@@ -510,6 +543,19 @@ function createAudio() {
       if(streak>=10)t(n*2,"sine",0.045,vol*0.25,0.04);     // octave
       if(streak>=20)t(n*3,"sine",0.03,vol*0.15,0.06);      // 12th
     },
+    // Per-mascot combo note — same ratios as comboNote but custom base+wave
+    mascotNote: (streak,base,wave)=>{
+      const ratios=[1,1.122,1.26,1.498,1.682,2,2.245,2.52,2.996,3.364,4,4.49];
+      const n=base*ratios[Math.min(Math.max(0,streak-1),ratios.length-1)];
+      const vol=0.13+Math.min(0.09,streak*0.004);
+      t(n,wave||"sine",0.09,vol);
+      if(streak>=5)t(n*1.498,"sine",0.065,vol*0.4,0.02);
+      if(streak>=10)t(n*2,"sine",0.045,vol*0.25,0.04);
+      if(streak>=20)t(n*3,"sine",0.03,vol*0.15,0.06);
+    },
+    chainBonus: ()=>{chord([784,1047,1319],"square",0.1,0.22,0.04);t(1568,"sine",0.08,0.18,0.14);},
+    flawless:   ()=>{chord([523,659,784,1047,1319,1568],"sine",0.24,0.3,0.07);t(2093,"sine",0.2,0.28,0.6);},
+    hotStreak:  ()=>{chord([440,554,659,880],"sawtooth",0.12,0.2,0.055);},
     treasure:   ()=>{chord([523,659,784,1047,1319,1568],"sine",0.22,0.26,0.06);t(2093,"sine",0.12,0.2,0.38);},
     jackpot:    ()=>{
       [523,659,784,1047,1319,1568,2093].forEach((f,i)=>t(f,"sine",0.18,0.28,i*0.055));
@@ -1533,43 +1579,38 @@ function drawBg(ctx,w,h,accent,gridColor,ts,fever,worldId=0){
   ctx.globalAlpha=1;
 }
 
-function drawBgParticles(ctx,parts,accent,fever,worldId=0){
+function drawBgParticles(ctx,parts,accent,fever,worldId=0,speedMult=1){
   const cw=ctx.canvas.width,ch=ctx.canvas.height;
+  const sm=speedMult*(fever?1.8:1); // fever already boosted alpha below
   parts.forEach(p=>{
     const wid=p.worldId||worldId;
     // World-specific movement
     if(wid===1){
-      // Embers: drift upward with slight sway
-      p.x+=p.vx+Math.sin(p.phase+(performance.now()*0.001))*0.3;
-      p.y+=p.vy; // vy is negative (upward)
+      p.x+=(p.vx+Math.sin(p.phase+(performance.now()*0.001))*0.3)*sm;
+      p.y+=p.vy*sm;
       if(p.y<-10){p.y=ch+10;p.x=Math.random()*cw;}
       if(p.x<0)p.x=cw;if(p.x>cw)p.x=0;
     } else if(wid===2){
-      // Leaves: drift diagonally, gentle sway
-      p.x+=p.vx+Math.sin(p.phase+(performance.now()*0.0008))*0.4;
-      p.y+=Math.abs(p.vy)*0.8; // always fall
-      p.angle=(p.angle||0)+0.02;
+      p.x+=(p.vx+Math.sin(p.phase+(performance.now()*0.0008))*0.4)*sm;
+      p.y+=Math.abs(p.vy)*0.8*sm;
+      p.angle=(p.angle||0)+0.02*sm;
       if(p.y>ch+10){p.y=-10;p.x=Math.random()*cw;}
       if(p.x<0)p.x=cw;if(p.x>cw)p.x=0;
     } else if(wid===5||wid===9){
-      // Snowflakes: fall straight down with slight drift
-      p.x+=Math.sin(p.phase+(performance.now()*0.0006))*0.5;
-      p.y+=Math.abs(p.vy)*0.6+0.3;
+      p.x+=Math.sin(p.phase+(performance.now()*0.0006))*0.5*sm;
+      p.y+=(Math.abs(p.vy)*0.6+0.3)*sm;
       if(p.y>ch+10){p.y=-10;p.x=Math.random()*cw;}
       if(p.x<0)p.x=cw;if(p.x>cw)p.x=0;
     } else if(wid===8){
-      // Bubbles: rise straight up
-      p.x+=Math.sin(p.phase+(performance.now()*0.001))*0.4;
-      p.y-=Math.abs(p.vy)*0.5+0.2;
+      p.x+=Math.sin(p.phase+(performance.now()*0.001))*0.4*sm;
+      p.y-=(Math.abs(p.vy)*0.5+0.2)*sm;
       if(p.y<-10){p.y=ch+10;p.x=Math.random()*cw;}
     } else if(wid===7){
-      // Wisps: slow meandering
-      p.x+=Math.sin(p.phase+(performance.now()*0.0007))*0.8;
-      p.y+=Math.cos(p.phase+(performance.now()*0.0005))*0.5;
+      p.x+=Math.sin(p.phase+(performance.now()*0.0007))*0.8*sm;
+      p.y+=Math.cos(p.phase+(performance.now()*0.0005))*0.5*sm;
       if(p.x<0)p.x=cw;if(p.x>cw)p.x=0;if(p.y<0)p.y=ch;if(p.y>ch)p.y=0;
     } else {
-      // Default: gentle float
-      p.x+=p.vx; p.y+=p.vy;
+      p.x+=p.vx*sm; p.y+=p.vy*sm;
       if(p.x<0)p.x=cw;if(p.x>cw)p.x=0;if(p.y<0)p.y=ch;if(p.y>ch)p.y=0;
     }
 
