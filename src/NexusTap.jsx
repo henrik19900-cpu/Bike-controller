@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from "react";
+import { flushSync } from "react-dom";
+import gsap from "gsap";
 
 // ═══════════════════════════════════════════════════════════════
 // WORLD & LEVEL DEFINITIONS
@@ -21,157 +23,157 @@ const WORLDS = [
 // ═══════════════════════════════════════════════════════════════
 const MASCOTS = [
   // ── STARTER ──────────────────────────────────────────────────
-  { id:"dragon",    name:"Ember",   color:"#ff6b35", rarity:"starter",
-    e:{idle:"🐉",happy:"🐉",excited:"🔥",fire:"🔥",fever:"🌋",sad:"💧",victory:"🏆",scared:"😱"},
-    dance:"danceDragon", catchphrase:"I burn bright for YOU! 🔥",
+  { id:"dragon",    name:"Pip",     color:"#ff8c5a", rarity:"starter",
+    e:{idle:"🐲",happy:"🐲",excited:"✨",fire:"🌟",fever:"💛",sad:"🥹",victory:"🥳",scared:"🫣"},
+    dance:"danceDragon", catchphrase:"Small dragon, BIG heart! 🐲💕",
     speeches:{
-      idle:["Ready to BURN! 🔥","I got your back, hero! 🐉","Let's GO adventurer! ⚔️"],
-      happy:["DRAGON POWER!! 🔥","Nice one, adventurer! 🐉","Feel the HEAT! 🌋"],
-      streak:["FIRE STREAK!! 🔥🔥","DRAGON IS UNLEASHED!! 🐲","BURN IT ALL!! 🌋"],
-      fever:["DRAGON FEVER!! MAXIMUM FIRE!! 🔥🔥🔥","THE VOLCANO ERUPTS!! 🌋"],
-      close:["SO CLOSE! One more blast! 💥","FIRE EVERYTHING!! 🔥"],
-      miss:["Dragons NEVER give up! 💪","Shake it off! Breathe fire! ⚡"],
-      victory:["DRAGON WINS!! YESSS!! 🏆","MY HERO! I KNEW IT!! 🐉🔥"],
-      bonus:["FREE BONUS! BURN IT DOWN! 🌋","LEGENDARY FIRE EVERYWHERE! 🔥"],
-      mystery:["Ooh what's INSIDE?! 🎁🔥","A GIFT! Probably FIRE! 🐉"],
+      idle:["Pip is ready! 🐲","You've got this, I believe in you! 💕","Let's do this together! 🌟"],
+      happy:["Yay yay yay!! 🐲✨","Pip is SO happy right now! 💛","You're incredible! 🥳"],
+      streak:["Streak streak!! 🌟🌟","Pip can't believe how good you are!! 🐲","We're AMAZING together!! ✨"],
+      fever:["FEVER TIME!! Pip is glowing!! 💛💛","Best adventure EVER!! 🐲✨"],
+      close:["Almost! Don't give up! 🐲","You can do it, I know it! 💕"],
+      miss:["It's okay, try again! 🐲💕","Pip still believes in you! 🌟"],
+      victory:["WE DID IT!! 🥳","Pip is SO proud of you!! 🐲💕"],
+      bonus:["Oh wow FREE bonus!! 🐲✨","Pip is bouncing with joy!! 💛"],
+      mystery:["Ooh what could it be?! 🐲🎁","A surprise! Pip loves surprises!! ✨"],
     }},
   { id:"fox",       name:"Rusty",   color:"#e07030", rarity:"starter",
-    e:{idle:"🦊",happy:"🦊",excited:"🌟",fire:"🔥",fever:"⚡",sad:"😢",victory:"🎉",scared:"😰"},
+    e:{idle:"🦊",happy:"🦊",excited:"🌟",fire:"✨",fever:"🌸",sad:"🥺",victory:"🎉",scared:"🫣"},
     dance:"danceFox",    catchphrase:"Foxy and clever — that's us! 🦊",
     speeches:{
-      idle:["Heyyy! Tap faster! 🦊","Let's be sneaky quick! 👀","You're SO good at this! 🌟"],
-      happy:["Foxy LIKES this! 🦊","Oh yes oh YES!! ✨","You clever thing! 🌟"],
-      streak:["SNEAKY STREAK!! 🦊⚡","FOX IS ON FIRE! 🔥","TOO FAST!! 💨"],
-      fever:["FOX FEVER!! UNSTOPPABLE!! ⚡⚡","QUICK AS LIGHTNING!! 🦊"],
-      close:["Sooo close, be clever! 🦊","Almost! Foxy believes! 🌟"],
-      miss:["No no no! You're smarter! 🦊","C'mon, be the fox! 💪"],
-      victory:["FOX WINS AGAIN! Of course! 🦊🎉","KNEW IT KNEW IT KNEW IT!! 🌟"],
-      bonus:["BONUS! Grab it all, quickly! 🦊","Sneaky bonus round! YES! ⚡"],
-      mystery:["A mystery?! Foxes LOVE mysteries! 🦊🎁","What is it WHAT IS IT?! 👀"],
+      idle:["Heyyy! Ready to play? 🦊","You're so good at this! 🌟","Let's go on an adventure! 🦊"],
+      happy:["Foxy loves this!! 🦊","Oh yes oh yes!! ✨","You clever, wonderful person! 🌟"],
+      streak:["Sneaky streak!! 🦊🌟","Rusty can't keep up with you!! 💨","So fast and smart!! 🌸"],
+      fever:["Fox fever!! Woohoo!! 🌸🌸","You're unstoppable!! 🦊"],
+      close:["Sooo close! You've got it! 🦊","Almost there! Rusty believes! 🌟"],
+      miss:["Aw, you'll get it next time! 🦊","Rusty has faith in you! 💕"],
+      victory:["Fox and friend WIN!! 🦊🎉","Best team ever!! 🌟"],
+      bonus:["Oh oh oh, bonus time!! 🦊","Free round! Rusty is dancing!! 🌸"],
+      mystery:["Ooh a mystery! How exciting!! 🦊🎁","What could it be?! 👀"],
     }},
   // ── COMMON ───────────────────────────────────────────────────
   { id:"frog",      name:"Hoppy",   color:"#4ecb71", rarity:"common",
     unlockCond:{type:"level",value:3}, unlockHint:"Complete Level 3",
-    e:{idle:"🐸",happy:"🐸",excited:"💚",fire:"🔥",fever:"🌿",sad:"😢",victory:"🎊",scared:"😱"},
-    dance:"danceFrog",   catchphrase:"HOP HOP HOORAY!! 🐸",
+    e:{idle:"🐸",happy:"🐸",excited:"💚",fire:"🌿",fever:"🌼",sad:"🥺",victory:"🎊",scared:"🫣"},
+    dance:"danceFrog",   catchphrase:"Every hop counts! 🐸💚",
     speeches:{
-      idle:["Ribbit! Let's HOP to it! 🐸","BOING! Ready? 🐸","Hoppy is HERE! 💚"],
-      happy:["HOP HOP YES!! 🐸","RIBBIT OF JOY!! 💚","BOING BOING BOING! 🐸"],
-      streak:["HOPPING STREAK!! 🐸🐸","FROG IS LEAPING!! 💨","CAN'T CATCH THIS FROG! 🐸"],
-      fever:["FROG FEVER!! HOP FOREVER!! 💚💚","LILY PAD TO VICTORY!! 🐸"],
-      close:["SO CLOSE! ONE MORE HOP! 🐸","BOING BOING BOING! Almost! 💚"],
-      miss:["Ribbit... fell in the pond. 😢","FROG GETS BACK UP! 🐸💪"],
-      victory:["FROG WINS!! RIBBIT RIBBIT!! 🎊","BEST HOP EVER!! 🐸🏆"],
-      bonus:["BONUS HOP!! ALL THE FLIES!! 🐸","FREE ROUND! HOP IT ALL! 💚"],
-      mystery:["Ooh what's in the pond?! 🐸🎁","RIBBIT RIBBIT what IS that?! 🎊"],
+      idle:["Ribbit! Let's go! 🐸","Hoppy is SO excited! 💚","Boing boing! Ready! 🐸"],
+      happy:["Hop hop hooray!! 🐸","Ribbit of joy!! 💚","Best day ever! 🌿"],
+      streak:["Hopping streak!! 🐸💚","Frog power activated!! 🌼","Can't stop won't stop! 🐸"],
+      fever:["Frog fever!! Hop hop hop!! 💚💚","Lily pad to the stars!! 🐸"],
+      close:["So close! One more hop! 🐸","Almost! Hoppy believes! 💚"],
+      miss:["Oopsie! Ribbit... 🥺","Frogs always bounce back! 🐸💕"],
+      victory:["Frog wins!! Ribbit ribbit!! 🎊","Best hop ever!! 🐸💚"],
+      bonus:["Bonus flies!! So many flies!! 🐸","Free round! Hip hip hooray! 💚"],
+      mystery:["Ooh what's in the lily pad?! 🐸🎁","Hoppy is so curious!! 🌿"],
     }},
   { id:"cat",       name:"Luna",    color:"#b094d4", rarity:"common",
     unlockCond:{type:"level",value:6}, unlockHint:"Complete Level 6",
-    e:{idle:"😸",happy:"😻",excited:"😻",fire:"🔥",fever:"✨",sad:"😿",victory:"👑",scared:"🙀"},
-    dance:"danceCat",    catchphrase:"Purr-fectly amazing! 😸",
+    e:{idle:"😸",happy:"😻",excited:"😻",fire:"💜",fever:"✨",sad:"😿",victory:"👑",scared:"🙈"},
+    dance:"danceCat",    catchphrase:"Purr-fectly amazing, just like you! 😸",
     speeches:{
-      idle:["Purrr... shall we? 😸","Meow means GO! 😸","Luna approves of this! 👑"],
-      happy:["Purrrfect! 😻","*purrs intensely* ✨","Luna is pleased! 😸"],
-      streak:["CLAWS OUT!! 😻⚡","PURR-FECT STREAK!! 🔥","LUNA IS HUNTING! 😻"],
-      fever:["LUNA FEVER! ALL IS MINE!! ✨✨","THE QUEEN IS UNSTOPPABLE! 👑"],
-      close:["Almost! Luna demands it! 👑","SO CLOSE! You can do it! 😻"],
-      miss:["*hisses* Again! 🙀","Luna is displeased... but tries! 😿"],
-      victory:["Luna reigns supreme! 👑","Of course we won. Luna chose us! 😸"],
-      bonus:["BONUS! Luna gets ALL the toys!! ✨","Mine mine mine MINE! 😻"],
-      mystery:["Ooh shiny! Luna WANTS!! 🎁✨","A box?! Luna LOVES boxes! 😸"],
+      idle:["Purrr... shall we? 😸","Meow! Luna is here! 😸","Luna thinks you're wonderful! 💜"],
+      happy:["Purrfect!! 😻","*purrs the happiest purr* ✨","Luna is so pleased! 😸"],
+      streak:["Purr-fect streak!! 😻💜","Luna is impressed!! ✨","This is magnificent! 😻"],
+      fever:["Luna fever! All sparkly!! ✨✨","The queen is delighted!! 👑"],
+      close:["Almost! Luna knows you can! 👑","So close! One more! 😻"],
+      miss:["Hmph... Luna still believes! 😿","Try again, little adventurer! 💜"],
+      victory:["Luna purrs with pride!! 👑","We won! Luna chose wisely! 😸"],
+      bonus:["BONUS! Luna gets ALL the toys!! ✨","Mine mine mine! 😻💜"],
+      mystery:["Ooh shiny thing!! Luna WANTS!! 🎁✨","A box?! Luna adores boxes! 😸"],
     }},
   // ── RARE ─────────────────────────────────────────────────────
   { id:"panda",     name:"Bao",     color:"#94a3b8", rarity:"rare",
     unlockCond:{type:"level",value:10}, unlockHint:"Complete Level 10",
-    e:{idle:"🐼",happy:"🐼",excited:"⭐",fire:"🔥",fever:"🌟",sad:"😢",victory:"🎊",scared:"😱"},
-    dance:"dancePanda",  catchphrase:"Chilling hard, winning harder! 🐼",
+    e:{idle:"🐼",happy:"🐼",excited:"⭐",fire:"🌿",fever:"🌟",sad:"🥺",victory:"🎊",scared:"🙈"},
+    dance:"dancePanda",  catchphrase:"Chill vibes, big wins! 🐼🍃",
     speeches:{
-      idle:["*munch munch* Oh, we playing? 🐼","Bao is chill but READY! 🌿","Very zen. Very win. 🐼"],
-      happy:["Bao approves! 🐼⭐","*happy panda noises* 🌟","Oh yes, this is nice! 🐼"],
-      streak:["BAO IS FOCUSED!! ⭐⭐","PANDA STREAK! VERY YES! 🐼","ZEN MASTER STREAK!! 🌟"],
-      fever:["PANDA FEVER!! BAO IS ALIVE!! 🌟🌟","THIS IS NOT ZEN. THIS IS EPIC!! 🐼"],
-      close:["Almost! Bao stays calm... 🐼","Inner peace... then TAP! ⭐"],
-      miss:["Bao eats bamboo to recover. 🐼","*calmly tries again* 🌿"],
-      victory:["PANDAS WIN! Bao is SO happy! 🎊","Best day ever! 🐼⭐🌟"],
-      bonus:["BONUS!! Bamboo for everyone!! 🐼","FREE ROUND! Bao woke UP! 🌟"],
-      mystery:["Ooh is it bamboo?! 🐼🎁","BAO IS CURIOUS!! ⭐"],
+      idle:["*munch munch* Oh, we playing? 🐼","Bao is calm and ready! 🌿","Very zen, very win. 🐼"],
+      happy:["Bao approves! 🐼⭐","*happy panda noises* 🌟","Oh, this is so nice! 🐼"],
+      streak:["Bao is on a roll!! ⭐⭐","Panda power! So gentle, so strong! 🐼","Zen master mode!! 🌟"],
+      fever:["Panda fever!! Bao is glowing!! 🌟🌟","This is unexpectedly wonderful!! 🐼"],
+      close:["Almost! Bao stays calm... 🐼","Breathe and tap! ⭐"],
+      miss:["That's okay! Bao has bamboo! 🥺","*gently tries again* 🌿"],
+      victory:["Pandas win! Bao is so happy! 🎊","Best day! 🐼⭐🌟"],
+      bonus:["Bonus!! Bamboo rain!! 🐼","Free round! Bao is delighted! 🌟"],
+      mystery:["Ooh, is it bamboo?! 🐼🎁","Bao is curious and excited! ⭐"],
     }},
   { id:"penguin",   name:"Waddles", color:"#6ec0f5", rarity:"rare",
     unlockCond:{type:"level",value:15}, unlockHint:"Complete Level 15",
-    e:{idle:"🐧",happy:"🐧",excited:"❄️",fire:"🔥",fever:"⚡",sad:"😢",victory:"🎉",scared:"😱"},
-    dance:"dancePenguin",catchphrase:"Waddling to VICTORY!! 🐧",
+    e:{idle:"🐧",happy:"🐧",excited:"❄️",fire:"💙",fever:"🌊",sad:"🥺",victory:"🎉",scared:"🙈"},
+    dance:"dancePenguin",catchphrase:"Waddling to victory together! 🐧❄️",
     speeches:{
-      idle:["Waddle waddle! Let's GO! 🐧","Penguins NEVER give up! ❄️","SLIP SLIDE WIN! 🐧"],
-      happy:["WADDLES IS HAPPY!! 🐧❄️","Sliding into success! ⚡","ICE COLD SKILLS! 🎉"],
-      streak:["PENGUIN STREAK!! WADDLESOME!! 🐧","SLIDING THROUGH!! ❄️❄️","COOL STREAK!! 🐧⚡"],
-      fever:["PENGUIN FEVER!! ICE ON FIRE!! ❄️🔥","WADDLING AT LIGHT SPEED!! 🐧"],
-      close:["ALMOST! Penguins don't slip here! 🐧","One more! ICE COLD FOCUS! ❄️"],
-      miss:["*slips on ice* That's okay!! 🐧","Penguins bounce back! ❄️💪"],
-      victory:["WADDLES WINS!! BEST DAY EVER!! 🎉🐧","PENGUIN PARADE!! ❄️🎊"],
-      bonus:["BONUS!! More fish! More slides! 🐧","FREE ROUND! SLIDE FOREVER! ❄️"],
-      mystery:["Is it a FISH?! Please be fish! 🐧🎁","*slides excitedly* WHAT IS IT?! ❄️"],
+      idle:["Waddle waddle! Let's go! 🐧","Penguins never give up! ❄️","Slip, slide, smile! 🐧"],
+      happy:["Waddles is SO happy!! 🐧❄️","Sliding into success! 💙","Best friends win! 🎉"],
+      streak:["Penguin streak! Waddletastic!! 🐧","Sliding on through!! ❄️❄️","Cool cool cool streak! 🐧💙"],
+      fever:["Penguin fever!! So cozy but so fast!! 🌊🌊","Waddling at light speed!! 🐧"],
+      close:["Almost! Penguins stick together! 🐧","One more slide! ❄️"],
+      miss:["*cute slip* That's okay!! 🥺","Penguins bounce right back! ❄️💕"],
+      victory:["Waddles wins!! Best day ever!! 🎉🐧","Penguin parade time!! ❄️🎊"],
+      bonus:["Bonus!! More fish!! More fun!! 🐧","Free round! Waddles is spinning! ❄️"],
+      mystery:["Is it a fish?! Please! 🐧🎁","*slides over excitedly* What is it?! ❄️"],
     }},
-  { id:"lion",      name:"Roary",   color:"#fbbf24", rarity:"rare",
+  { id:"lion",      name:"Simba",   color:"#fbbf24", rarity:"rare",
     unlockCond:{type:"streak",value:30}, unlockHint:"Achieve a 30-streak",
-    e:{idle:"🦁",happy:"🦁",excited:"👑",fire:"🔥",fever:"⚡",sad:"😔",victory:"🏅",scared:"😱"},
-    dance:"danceLion",   catchphrase:"ROAR means YOU'RE AMAZING!! 🦁",
+    e:{idle:"🦁",happy:"🦁",excited:"🌟",fire:"🌻",fever:"💫",sad:"🥺",victory:"🏅",scared:"🙈"},
+    dance:"danceLion",   catchphrase:"Brave little lion, brave big heart! 🦁💛",
     speeches:{
-      idle:["ROAR! I am Roary! 🦁","The lion watches... and cheers! 🌟","Lend me your STRENGTH! 🦁"],
-      happy:["ROARSOME! 🦁","THE LION IS PLEASED! 👑","MAGNIFICENT! 🔥"],
-      streak:["LION STREAK! ROOOAR! 🦁🔥","THE PRIDE CHEERS!! 👑","KING OF THE STREAK! 🦁"],
-      fever:["LION FEVER!! RULER OF ALL!! 👑🔥","THE MANE EVENT IS NOW!! 🦁"],
-      close:["ROAR! THE KING DEMANDS VICTORY! 🦁","ONE MORE! THE PRIDE BELIEVES! 👑"],
-      miss:["Even lions fall... and RISE! 🦁💪","ROAR LOUDER! AGAIN! 🔥"],
-      victory:["THE LION REIGNS!! ROOOAR!! 🦁🏅","PRIDE IS EVERYTHING! WE WON!! 👑"],
-      bonus:["BONUS! THE KING TAKES ALL! 🦁","FREE ROUND! LION RULES! 👑🔥"],
-      mystery:["The lion SNIFFS a gift! 🦁🎁","ROAR! What treasure is this?! 👑"],
+      idle:["*tiny roar* Hi!! 🦁","Simba is your friend! 🌟","Ready to be brave together? 🦁"],
+      happy:["Roarsome!! 🦁💛","Simba does a little happy dance! 🌟","So wonderful! I love this! 🌻"],
+      streak:["Go go go!! 🦁🌟","Simba is cheering SO loud!! 💫","The pride is watching and they're PROUD!! 🦁"],
+      fever:["Lion fever!! Simba can't stop smiling!! 💫💫","Bravest lion ever!! 🦁"],
+      close:["Almost! Be brave! 🦁","One more! Simba believes in you! 🌟"],
+      miss:["Oopsie roar! Try again! 🥺","Even brave lions have oopsies! 🦁💕"],
+      victory:["Simba roars with joy!! 🦁🏅","We're the best team!! 🌟💛"],
+      bonus:["Bonus!! Simba does zoomies!! 🦁","Free round! So exciting!! 🌻"],
+      mystery:["Simba sniffs a gift!! 🦁🎁","What could it be?! Simba wants to know!! 🌟"],
     }},
   // ── EPIC ─────────────────────────────────────────────────────
   { id:"octopus",   name:"Inky",    color:"#b06de8", rarity:"epic",
     unlockCond:{type:"threestars",value:5}, unlockHint:"Get 3 stars on 5 levels",
-    e:{idle:"🐙",happy:"🐙",excited:"💜",fire:"🔥",fever:"🌀",sad:"😢",victory:"🎊",scared:"😱"},
-    dance:"danceOctopus",catchphrase:"Eight arms, infinite combos!! 🐙",
+    e:{idle:"🐙",happy:"🐙",excited:"💜",fire:"🌈",fever:"🌀",sad:"🥺",victory:"🎊",scared:"🙈"},
+    dance:"danceOctopus",catchphrase:"Eight hugs for eight friends! 🐙💜",
     speeches:{
-      idle:["Eight arms, all here for you! 🐙","Inky watches EVERYTHING! 👀","Let's get INKY! 💜"],
-      happy:["INK-CREDIBLE!! 🐙💜","EIGHT ARMS OF SUCCESS!! ✨","TENTACLES OF TRIUMPH! 🎊"],
-      streak:["OCTOPUS STREAK!! EIGHT WAYS AWESOME! 🐙","INK EVERYWHERE!! 💜💜","ALL ARMS FIRING!! 🌀"],
-      fever:["INKY FEVER!! EIGHT ARMS CAN'T STOP!! 🌀🌀","INK THE WHOLE SCREEN!! 🐙💜"],
-      close:["SO CLOSE! Inky has 8 arms — use them! 🐙","ONE MORE! INK OF GLORY! 💜"],
-      miss:["*releases ink cloud* DISGUISE AND RETRY! 🐙","Inky squirts and tries again! 💜"],
-      victory:["INKY WINS!! EIGHT-ARMED CHAMPION!! 🎊🐙","INK-REDIBLY DONE!! 💜🏆"],
-      bonus:["BONUS!! Inky grabs ALL EIGHT!! 🐙","FREE ROUND! UNLIMITED INK! 🌀"],
-      mystery:["Eight arms reach for the gift! 🐙🎁","WHAT IS IT?! Inky MUST KNOW!! 💜"],
+      idle:["Eight arms, all for hugging! 🐙","Inky loves you very much! 💜","Let's make waves! 🌊"],
+      happy:["Ink-credible!! 🐙💜","Eight arms of happiness!! ✨","Tentacles of triumph! 🎊"],
+      streak:["Octopus streak!! Inky is wiggling!! 🐙","Ink everywhere — happy ink!! 💜💜","All eight arms cheering!! 🌀"],
+      fever:["Inky fever!! Whirling with joy!! 🌀🌀","Ink all the colours!! 🐙💜"],
+      close:["So close! Inky uses all eight to cheer! 🐙","One more! Inky loves you! 💜"],
+      miss:["*releases happy ink cloud* It's okay! 🥺","Inky gives you a gentle squeeze! 🐙💕"],
+      victory:["Inky wins!! Eight-armed champion of love!! 🎊🐙","Ink-redibly done!! 💜"],
+      bonus:["Bonus!! Inky grabs all with eight!! 🐙","Free round! Unlimited wiggling! 🌀"],
+      mystery:["Eight arms reach for the gift! 🐙🎁","What is it?! Inky MUST see!! 💜"],
     }},
   { id:"butterfly", name:"Flutter", color:"#f9a8d4", rarity:"epic",
     unlockCond:{type:"coins",value:1000}, unlockHint:"Earn 1,000 total coins",
-    e:{idle:"🦋",happy:"🦋",excited:"🌸",fire:"🔥",fever:"🌺",sad:"😢",victory:"🌟",scared:"😱"},
-    dance:"danceButterfly",catchphrase:"Every tap is beautiful! 🦋",
+    e:{idle:"🦋",happy:"🦋",excited:"🌸",fire:"🌺",fever:"🌼",sad:"🥺",victory:"🌟",scared:"🙈"},
+    dance:"danceButterfly",catchphrase:"Every tap is a tiny miracle! 🦋🌸",
     speeches:{
-      idle:["Flutter flutter! Let's fly! 🦋","Beautiful things happen here! 🌸","Wings spread, heart ready! 🦋"],
-      happy:["FLUTTER-MAZING!! 🦋🌸","Blooming with joy!! ✨","So beautiful! 🌺"],
-      streak:["FLUTTER STREAK!! SOARING!! 🦋🌸","WINGS OF FIRE!! 🔥","DANCING ON THE WIND!! 🌺"],
-      fever:["FLUTTER FEVER!! BLOSSOMING!! 🌺🌺","ALL PETALS FLYING!! 🦋✨"],
-      close:["Almost! Flutter believes! 🦋","One more wingbeat! 🌸"],
-      miss:["Even butterflies stumble... 😢","Flutter, flutter, try again! 🦋💪"],
-      victory:["FLUTTER WINS!! MOST BEAUTIFUL!! 🌟🦋","BLOOMED INTO VICTORY!! 🌸🎊"],
-      bonus:["BONUS!! Gardens of treasure!! 🦋","FREE ROUND! All the flowers! 🌺"],
-      mystery:["A gift as beautiful as me?! 🦋🎁","Flutter trembles with excitement! 🌸"],
+      idle:["Flutter flutter! Let's fly! 🦋","Beautiful things happen here! 🌸","Wings open, heart ready! 🦋"],
+      happy:["Flutter-mazing!! 🦋🌸","Blooming with joy!! ✨","So beautiful it makes me wiggle! 🌺"],
+      streak:["Flutter streak!! Soaring!! 🦋🌸","Wings of wonder!! 🌼","Dancing on the gentlest wind!! 🌺"],
+      fever:["Flutter fever!! Blossoming!! 🌼🌼","All petals everywhere!! 🦋✨"],
+      close:["Almost! Flutter believes in you! 🦋","One more graceful wingbeat! 🌸"],
+      miss:["Even butterflies have wobbly days! 🥺","Flutter flutter, try again! 🦋💕"],
+      victory:["Flutter wins!! Most beautiful day!! 🌟🦋","Bloomed into victory!! 🌸🎊"],
+      bonus:["Bonus!! Gardens of sparkle!! 🦋","Free round! All the flowers are for you! 🌺"],
+      mystery:["A gift wrapped in petals?! 🦋🎁","Flutter trembles with excitement! 🌸"],
     }},
   // ── LEGENDARY ────────────────────────────────────────────────
   { id:"unicorn",   name:"Sparky",  color:"#ffd700", rarity:"legendary",
     unlockCond:{type:"level",value:25}, unlockHint:"Complete Level 25",
-    e:{idle:"🦄",happy:"🦄",excited:"🌈",fire:"🔥",fever:"💫",sad:"😢",victory:"💫",scared:"😱"},
-    dance:"danceUnicorn",catchphrase:"Magic is REAL and YOU are it!! 🦄",
+    e:{idle:"🦄",happy:"🦄",excited:"🌈",fire:"💖",fever:"💫",sad:"🥺",victory:"💫",scared:"🙈"},
+    dance:"danceUnicorn",catchphrase:"You ARE the magic! 🦄✨",
     speeches:{
-      idle:["MAGIC IS REAL! Tap it! 🦄","Sparky is HERE for this!! 🌈","Rainbow power! READY! 🌈"],
-      happy:["SPARKLE SPARKLE!! 🌈🦄","MAGICAL!! SO MAGICAL!! 💫","Rainbow energy ACTIVATED! ✨"],
-      streak:["UNICORN STREAK!! RAINBOW POWER!! 🌈🌈","SPARKY IS UNSTOPPABLE!! 🦄","PURE MAGIC!! 💫💫"],
-      fever:["UNICORN FEVER!! MAXIMUM MAGIC!! 💫💫🌈","RAINBOW EXPLOSION!! 🦄✨🌈"],
-      close:["SO CLOSE!! Magic is nearly here!! 🦄","ONE LAST SPARK!! 🌈"],
-      miss:["Even unicorns stumble... SHINE ON! 🦄","Rainbow resilience! Again! 🌈💪"],
-      victory:["SPARKY WINS!! MOST MAGICAL VICTORY!! 💫🌈","BELIEVE IN MAGIC!! WE WON!! 🦄🏆"],
-      bonus:["BONUS!! RAINBOW OF TREASURE!! 🌈🦄","FREE ROUND!! SPARKY GRANTS WISHES!! 💫"],
-      mystery:["MAGICAL GIFT!! SPARKY VIBRATES!! 🦄🎁","IS IT RAINBOW TREASURE?! 🌈💫"],
+      idle:["Magic is real, and so are you! 🦄","Sparky sprinkles love everywhere! 🌈","Rainbow hugs! READY! 🌈"],
+      happy:["Sparkle sparkle!! 🌈🦄","Magical!! So wonderfully magical!! 💫","Rainbow heart activated! ✨"],
+      streak:["Unicorn streak!! Rainbow power!! 🌈🌈","Sparky is doing a happy gallop!! 🦄","Pure magic is happening!! 💫💫"],
+      fever:["Unicorn fever!! Maximum sparkle!! 💫💫🌈","Rainbow of love exploding!! 🦄✨🌈"],
+      close:["So close!! The magic is almost here!! 🦄","One last spark of belief!! 🌈"],
+      miss:["Even unicorns have cloudy days! 🥺","Shine on! Sparky believes! 🦄💕"],
+      victory:["Sparky wins!! Most magical day!! 💫🌈","Believe in magic — we made it!! 🦄"],
+      bonus:["Bonus!! Rainbow treasure shower!! 🌈🦄","Free round!! Sparky grants ALL wishes!! 💫"],
+      mystery:["A magical gift!! Sparky vibrates with joy!! 🦄🎁","Is it rainbow treasure?! 🌈💫"],
     }},
 ];
 
@@ -525,11 +527,42 @@ const DEFAULT_SAVE = {
 // ═══════════════════════════════════════════════════════════════
 function createAudio() {
   let ctx = null;
-  const C = () => { if(!ctx) ctx=new(window.AudioContext||window.webkitAudioContext)(); return ctx; };
+  // Master chain nodes — initialized on first audio context creation
+  let comp = null, revConv = null, revWet = null;
+  const C = () => {
+    if(!ctx) {
+      ctx = new(window.AudioContext||window.webkitAudioContext)();
+      // Dynamics compressor — adds punch, prevents clipping, makes hits feel physical
+      comp = ctx.createDynamicsCompressor();
+      comp.threshold.value = -18; comp.knee.value = 12;
+      comp.ratio.value = 4; comp.attack.value = 0.003; comp.release.value = 0.28;
+      comp.connect(ctx.destination);
+      // Programmatic reverb impulse — adds room/space to big moments
+      const len = Math.floor(ctx.sampleRate * 1.1);
+      const ir = ctx.createBuffer(2, len, ctx.sampleRate);
+      for(let ch=0;ch<2;ch++){const d=ir.getChannelData(ch);for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2.5);}
+      revConv = ctx.createConvolver(); revConv.buffer = ir;
+      revWet = ctx.createGain(); revWet.gain.value = 0.22;
+      revConv.connect(revWet); revWet.connect(comp);
+    }
+    return ctx;
+  };
+  // Dry sound — routes through compressor only
   const t = (freq,type,dur,vol=0.26,delay=0)=>{
     try{
       const c=C(),o=c.createOscillator(),g=c.createGain();
-      o.connect(g);g.connect(c.destination);
+      o.connect(g);g.connect(comp);
+      o.type=type;o.frequency.setValueAtTime(freq,c.currentTime+delay);
+      g.gain.setValueAtTime(vol,c.currentTime+delay);
+      g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+delay+dur);
+      o.start(c.currentTime+delay);o.stop(c.currentTime+delay+dur+0.05);
+    }catch{}
+  };
+  // Reverb sound — dry + wet send for big moments (boss kill, legendary, jackpot)
+  const tR = (freq,type,dur,vol=0.26,delay=0)=>{
+    try{
+      const c=C(),o=c.createOscillator(),g=c.createGain(),rv=c.createGain();
+      o.connect(g);g.connect(comp);g.connect(rv);rv.gain.value=0.5;rv.connect(revConv);
       o.type=type;o.frequency.setValueAtTime(freq,c.currentTime+delay);
       g.gain.setValueAtTime(vol,c.currentTime+delay);
       g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+delay+dur);
@@ -537,30 +570,31 @@ function createAudio() {
     }catch{}
   };
   const chord=(freqs,type,dur,vol,dt=0.06)=>freqs.forEach((f,i)=>t(f,type,dur,vol,i*dt));
+  const chordR=(freqs,type,dur,vol,dt=0.06)=>freqs.forEach((f,i)=>tR(f,type,dur,vol,i*dt));
   return{
     tap:        ()=>{t(540,"sine",0.09,0.22);t(810,"sine",0.07,0.1,0.04);},
     miss:       ()=>{t(160,"sawtooth",0.38,0.22);},
     uncommon:   ()=>{t(600,"sine",0.12,0.24);t(900,"sine",0.08,0.16,0.07);},
     rare:       ()=>{chord([660,880,1100],"sine",0.18,0.26,0.07);},
     epic:       ()=>{chord([440,554,659,880,1108],"sine",0.22,0.26,0.065);},
-    legendary:  ()=>{chord([330,440,550,660,880,1100,1320],"sine",0.28,0.28,0.055);},
+    legendary:  ()=>{chordR([330,440,550,660,880,1100,1320],"sine",0.28,0.28,0.055);},
     boss:       ()=>{t(100,"sawtooth",0.5,0.32);t(140,"square",0.3,0.18,0.1);},
     bossHit:    ()=>{t(200,"sawtooth",0.2,0.28);t(260,"sine",0.12,0.18,0.06);},
-    bossKill:   ()=>{chord([262,330,392,523,659],"sine",0.35,0.3,0.08);},
+    bossKill:   ()=>{chordR([262,330,392,523,659],"sine",0.35,0.3,0.08);},
     bombSpawn:  ()=>{t(110,"sawtooth",0.4,0.28);t(75,"sawtooth",0.22,0.18,0.14);},
     bombHit:    ()=>{t(90,"sawtooth",0.55,0.36);t(55,"sawtooth",0.28,0.26,0.2);},
     powerUp:    ()=>{chord([440,554,659,880],"sine",0.14,0.22,0.055);},
-    feverStart: ()=>{chord([440,554,659,880,1108],"square",0.12,0.18,0.05);},
+    feverStart: ()=>{chordR([440,554,659,880,1108],"square",0.12,0.18,0.05);},
     feverEnd:   ()=>{chord([880,659,554,440],"sine",0.14,0.18,0.07);},
     levelUp:    ()=>{chord([523,659,784,1047,1319],"sine",0.18,0.28,0.08);},
-    levelComplete:()=>{chord([523,659,784,1047],"sine",0.22,0.3,0.09);},
+    levelComplete:()=>{chordR([523,659,784,1047],"sine",0.22,0.3,0.09);},
     perfect:    ()=>{chord([880,1108,1320],"sine",0.14,0.26,0.06);},
     countdown:  ()=>{t(440,"sine",0.15,0.28);},
     go:         ()=>{chord([523,659,784],"sine",0.2,0.3,0.05);},
     gameOver:   ()=>{chord([440,370,294,220],"sawtooth",0.25,0.18,0.1);},
     coin:       ()=>{t(1200,"sine",0.08,0.16);t(1500,"sine",0.05,0.12,0.07);},
-    starEarn:   ()=>{t(880,"sine",0.15,0.25);t(1108,"sine",0.1,0.2,0.12);},
-    unlock:     ()=>{chord([440,554,659,784],"sine",0.2,0.22,0.07);},
+    starEarn:   ()=>{tR(880,"sine",0.15,0.25);tR(1108,"sine",0.1,0.2,0.12);},
+    unlock:     ()=>{chordR([440,554,659,784],"sine",0.2,0.22,0.07);},
     waveUp:     ()=>{chord([330,415,523,659],"square",0.2,0.2,0.07);},
     // Musical pentatonic scale — each streak note rises chromatically
     // C major pentatonic: C5 D5 E5 G5 A5 C6 D6 E6 G6 A6 C7
@@ -584,18 +618,18 @@ function createAudio() {
       if(streak>=20)t(n*3,"sine",0.03,vol*0.15,0.06);
     },
     chainBonus: ()=>{chord([784,1047,1319],"square",0.1,0.22,0.04);t(1568,"sine",0.08,0.18,0.14);},
-    flawless:   ()=>{chord([523,659,784,1047,1319,1568],"sine",0.24,0.3,0.07);t(2093,"sine",0.2,0.28,0.6);},
+    flawless:   ()=>{chordR([523,659,784,1047,1319,1568],"sine",0.24,0.3,0.07);tR(2093,"sine",0.2,0.28,0.6);},
     hotStreak:  ()=>{chord([440,554,659,880],"sawtooth",0.12,0.2,0.055);},
-    treasure:   ()=>{chord([523,659,784,1047,1319,1568],"sine",0.22,0.26,0.06);t(2093,"sine",0.12,0.2,0.38);},
+    treasure:   ()=>{chordR([523,659,784,1047,1319,1568],"sine",0.22,0.26,0.06);tR(2093,"sine",0.12,0.2,0.38);},
     jackpot:    ()=>{
-      [523,659,784,1047,1319,1568,2093].forEach((f,i)=>t(f,"sine",0.18,0.28,i*0.055));
-      setTimeout(()=>chord([1047,1319,1568,2093],"sine",0.18,0.24,0.04),500);
+      [523,659,784,1047,1319,1568,2093].forEach((f,i)=>tR(f,"sine",0.18,0.28,i*0.055));
+      setTimeout(()=>chordR([1047,1319,1568,2093],"sine",0.18,0.24,0.04),500);
     },
     shieldBreak:()=>{t(660,"sine",0.12,0.22);t(440,"sawtooth",0.18,0.16,0.08);},
-    lucky:      ()=>{chord([784,1047,1319,1568],"sine",0.14,0.24,0.06);},
+    lucky:      ()=>{chordR([784,1047,1319,1568],"sine",0.14,0.24,0.06);},
     bossPhase:  ()=>{t(110,"sawtooth",0.4,0.36);t(160,"square",0.3,0.24,0.08);chord([440,330],"sawtooth",0.22,0.18,0.18);},
-    prestige:   ()=>{[523,659,784,1047,1319,1568,2093,2349].forEach((f,i)=>t(f,"sine",0.22,0.32,i*0.07));},
-    infinityWin:()=>{chord([523,659,784,1047,1319],"sine",0.2,0.28,0.06);setTimeout(()=>chord([1047,1319,1568,2093],"sine",0.18,0.24,0.05),550);},
+    prestige:   ()=>{[523,659,784,1047,1319,1568,2093,2349].forEach((f,i)=>tR(f,"sine",0.22,0.32,i*0.07));},
+    infinityWin:()=>{chordR([523,659,784,1047,1319],"sine",0.2,0.28,0.06);setTimeout(()=>chordR([1047,1319,1568,2093],"sine",0.18,0.24,0.05),550);},
     nearMiss:   ()=>{chord([262,330,392,523],"sine",0.2,0.2,0.1);},
     // ── Background music ──
     startBgMusic:(wid)=>{
@@ -618,7 +652,7 @@ function createAudio() {
         if(!on)return;
         try{
           const c=C(),o=c.createOscillator(),g=c.createGain();
-          o.connect(g);g.connect(c.destination);
+          o.connect(g);g.connect(comp);
           o.type="triangle";o.frequency.setValueAtTime(mel[note%mel.length],c.currentTime);
           g.gain.setValueAtTime(bgVol,c.currentTime);
           g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+tmpo*0.0008);
@@ -636,6 +670,7 @@ function createAudio() {
   };
 }
 let bgMusicCtl=null;
+let _bgBlast=null; // {x,y,at:performance.now()} — set on boss kill for bg particle explosion
 
 // ═══════════════════════════════════════════════════════════════
 // HELPERS
@@ -1171,6 +1206,21 @@ function drawTarget(ctx, t, ts) {
   const now=Date.now();
   const timeLeft=Math.max(0,1-(now-t.spawnedAt)/t.lifetime);
   const agePn=performance.now()-t.born;
+  // Anticipation ring: show telegraph pulse before target fully appears
+  const anticipateMs=t.anticipateMs||0;
+  if(anticipateMs>0&&agePn<anticipateMs){
+    const pct=agePn/anticipateMs;
+    ctx.save();
+    ctx.globalAlpha=0.25+pct*0.55;
+    ctx.strokeStyle=t.color||"#ffffff";ctx.shadowColor=t.glow||t.color||"#ffffff";ctx.shadowBlur=18;
+    ctx.lineWidth=3*(1-pct*0.6);
+    ctx.beginPath();ctx.arc(t.x,t.y,t.radius*(2.2-pct*0.9),0,Math.PI*2);ctx.stroke();
+    ctx.globalAlpha=(0.18+pct*0.3)*(0.4+0.6*Math.abs(Math.sin(ts/60)));
+    ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.arc(t.x,t.y,t.radius*(1.5-pct*0.4),0,Math.PI*2);ctx.stroke();
+    ctx.restore();
+    return; // don't draw full target during anticipation
+  }
   const spawnScale=agePn<200?Math.min(1.08,agePn/200*1.08):1;
   let ghostAlpha=1;
   if(t.ghost) ghostAlpha=0.3+0.7*(0.5+0.5*Math.sin(ts/200));
@@ -1640,7 +1690,17 @@ function drawBg(ctx,w,h,accent,gridColor,ts,fever,worldId=0){
 function drawBgParticles(ctx,parts,accent,fever,worldId=0,speedMult=1){
   const cw=ctx.canvas.width,ch=ctx.canvas.height;
   const sm=speedMult*(fever?1.8:1); // fever already boosted alpha below
+  // Boss kill blast: repel bg particles from explosion point for ~700ms
+  const blastAge=_bgBlast?(performance.now()-_bgBlast.at):99999;
+  const blastActive=blastAge<700;
+  if(blastActive&&blastAge>700)_bgBlast=null;
   parts.forEach(p=>{
+    if(blastActive){
+      const force=Math.max(0,1-blastAge/700)*14;
+      const dx=p.x-_bgBlast.x,dy=p.y-_bgBlast.y;
+      const dist=Math.max(Math.hypot(dx,dy),1);
+      p.x+=(dx/dist)*force;p.y+=(dy/dist)*force;
+    }
     const wid=p.worldId||worldId;
     // World-specific movement
     if(wid===1){
@@ -1848,6 +1908,23 @@ export default function NexusTap(){
 
   // Audio
   useEffect(()=>{audioRef.current=createAudio();},[]);
+
+  // View Transition helper — smooth animated screen changes
+  const go = useCallback((s)=>{
+    if(typeof document.startViewTransition==="function"){
+      document.startViewTransition(()=>{flushSync(()=>setScreen(s));});
+    }else{
+      setScreen(s);
+    }
+  },[]);
+
+  // GSAP screen entrance — bounces/fades new screen content when screen changes
+  useLayoutEffect(()=>{
+    if(screen==="playing")return; // no entrance for game canvas
+    const el=document.querySelector(".screen-root");
+    if(!el)return;
+    gsap.fromTo(el,{opacity:0,y:16},{opacity:1,y:0,duration:0.28,ease:"power2.out",clearProps:"all"});
+  },[screen]);
   const sfx=useCallback((n,...args)=>{if(soundOn&&audioRef.current?.[n])audioRef.current[n](...args);},[soundOn]);
 
   // Save
@@ -2024,9 +2101,13 @@ export default function NexusTap(){
     let lifetime=cfg.targetLifetime;
     if(activePwrRef.current.some(p=>p.type==="SLOW"&&p.endsAt>Date.now()))lifetime*=1.6;
     if(activePwrRef.current.some(p=>p.type==="FREEZE"&&p.endsAt>Date.now())){vx=0;vy=0;}
+    // Normal targets telegraph their position 260ms before becoming active
+    const anticipateMs=type==="normal"?260:0;
     targetsRef.current.push({
       id:Math.random().toString(36).slice(2),type,rarity:type==="normal"?rarity:null,
-      x:pos.x,y:pos.y,radius:baseR,color,glow,lifetime,spawnedAt:Date.now(),born:performance.now(),
+      x:pos.x,y:pos.y,radius:baseR,color,glow,lifetime,
+      spawnedAt:Date.now()+anticipateMs, // lifetime starts after anticipation
+      born:performance.now(),anticipateMs,
       moving,ghost,vx,vy,pwrType,hitsLeft,maxHits,trail:moving?[]:null,
       worldId:cfg.world, worldColor:cfg.worldColor,
     });
@@ -2080,7 +2161,7 @@ export default function NexusTap(){
       // Check mascot unlocks AFTER save is flushed
       const newMascots=checkMascotUnlocks();
       if(newMascots.length>0)setMascotUnlockedData(newMascots[0]);
-      setScreen("levelcomplete");
+      go("levelcomplete");
     } else {
       const pct=score/cfg.scoreGoal;
       const isNearMiss=pct>=0.82&&pct<1;
@@ -2093,7 +2174,7 @@ export default function NexusTap(){
       setGameOverData({score,levelId:cfg.id,levelName:cfg.name,scoreGoal:cfg.scoreGoal,
         sessionStats:{...gs.sessionStats,timeSurvived},
         nearMiss:isNearMiss,shortfall:Math.max(0,cfg.scoreGoal-score)});
-      setScreen("gameover");
+      go("gameover");
     }
     gsRef.current=null;targetsRef.current=[];particlesRef.current=[];activePwrRef.current=[];
     setActivePwrDisp([]);setFeverBorder(false);setComboLabel("");setPaused(false);pausedRef.current=false;
@@ -2225,6 +2306,7 @@ export default function NexusTap(){
         setScreenShake(true);setTimeout(()=>setScreenShake(false),600);
         const pts=800*Math.min(10,1+Math.floor(gs.streak/5))*(gs.feverActive?2:1);
         gs.score+=pts;gs.sessionStats.bossKills=(gs.sessionStats.bossKills||0)+1;
+        _bgBlast={x:hit.x,y:hit.y,at:performance.now()}; // explode bg particles
         spawnPopup(hit.x,hit.y-28,`🏆 BOSS! +${pts}`,"#ffd700",24);
         unlock("boss_kill");
         // BONUS ROUND — free spins equivalent (non-boss levels only)
@@ -2879,7 +2961,7 @@ export default function NexusTap(){
               saveRef.current.seenTutorial=true;debounceSave();
               setTutStep(null);
               if(!saveRef.current.seenMainStory){
-                setStoryData({type:"main",panelIndex:0,onDone:()=>setScreen("levelmap")});
+                setStoryData({type:"main",panelIndex:0,onDone:()=>go("levelmap")});
               } else {setScreen("levelmap");}
             } else {
               setTutStep((tutStep||0)+1);
@@ -2890,7 +2972,7 @@ export default function NexusTap(){
             {step.cta}
           </NeonButton>
           <button onClick={()=>{
-            saveRef.current.seenTutorial=true;debounceSave();setTutStep(null);setScreen("levelmap");
+            saveRef.current.seenTutorial=true;debounceSave();setTutStep(null);go("levelmap");
           }} style={{color:"#ffffff30",background:"none",border:"none",cursor:"pointer",fontSize:"0.75rem"}}>
             Skip tutorial
           </button>
@@ -2946,7 +3028,7 @@ export default function NexusTap(){
       {(sv.unlockedLevel||1)<=3&&(
         <div className="w-full rounded-2xl px-4 py-3 flex items-center gap-3 cursor-pointer"
           style={{background:`${theme.accent}0c`,border:`1px solid ${theme.accent}30`}}
-          onClick={()=>setStoryData({type:"main",panelIndex:0,onDone:()=>setScreen("levelmap")})}>
+          onClick={()=>setStoryData({type:"main",panelIndex:0,onDone:()=>go("levelmap")})}>
           <span style={{fontSize:28}}>🌈</span>
           <div>
             <div className="text-xs font-bold mb-0.5" style={{color:theme.accent}}>🗺️ Your Quest</div>
@@ -2987,7 +3069,7 @@ export default function NexusTap(){
         if(!saveRef.current.seenTutorial){
           setTutStep(0);
         } else if(!saveRef.current.seenMainStory){
-          setStoryData({type:"main",panelIndex:0,onDone:()=>setScreen("levelmap")});
+          setStoryData({type:"main",panelIndex:0,onDone:()=>go("levelmap")});
         } else {
           setScreen("levelmap");
         }
@@ -2999,7 +3081,7 @@ export default function NexusTap(){
 
       {/* Daily Spin */}
       {(()=>{const alreadySpun=sv.lastSpinDate===getTodayKey();return(
-        <NeonButton onClick={()=>!alreadySpun&&setScreen("spinwheel")} className="w-full py-3 text-base"
+        <NeonButton onClick={()=>!alreadySpun&&go("spinwheel")} className="w-full py-3 text-base"
           style={{background:alreadySpun?"#ffffff08":`${theme.accent}22`,border:`1px solid ${alreadySpun?"#ffffff15":theme.accent+"66"}`,
             color:alreadySpun?"#ffffff30":theme.accent,opacity:alreadySpun?0.5:1}}>
           🎡 {alreadySpun?"Daily Spin (come back tomorrow)":"Daily Spin — FREE prize!"}
@@ -3008,7 +3090,7 @@ export default function NexusTap(){
 
       {/* Infinity Mode — unlocked after level 100 */}
       {(sv.unlockedLevel||1)>100&&(
-        <NeonButton onClick={()=>setScreen("infinity")}
+        <NeonButton onClick={()=>go("infinity")}
           className="w-full py-3 text-base font-black"
           style={{background:"linear-gradient(135deg,#a78bfa22,#6d28d955)",border:"2px solid #a78bfa66",
             color:"#a78bfa",boxShadow:"0 0 24px #a78bfa33",letterSpacing:"0.06em"}}>
@@ -3020,7 +3102,7 @@ export default function NexusTap(){
         const alreadyDone=sv.gauntletDate===getTodayKey();
         if((sv.unlockedLevel||1)<11)return null;
         return(
-          <NeonButton onClick={()=>{if(!alreadyDone)setScreen("gauntlet");}}
+          <NeonButton onClick={()=>{if(!alreadyDone)go("gauntlet");}}
             className="w-full py-3 text-sm font-black"
             style={{background:alreadyDone?"#ffffff08":"#ff6b3522",border:`1px solid ${alreadyDone?"#ffffff15":"#ff6b3566"}`,
               color:alreadyDone?"#ffffff30":"#ff6b35",opacity:alreadyDone?0.5:1}}>
@@ -3076,7 +3158,7 @@ export default function NexusTap(){
         style={{background:"radial-gradient(ellipse at top,#0d0025 0%,#000510 60%)"}}>
         <style>{`@keyframes wheelSpin{to{transform:rotate(var(--wheel-end))}} @keyframes prizeReveal{0%{transform:scale(0.4);opacity:0}70%{transform:scale(1.18)}100%{transform:scale(1);opacity:1}}`}</style>
         <div className="flex items-center gap-3 self-start">
-          <NeonButton onClick={()=>{setSpinState(null);setSpinResult(null);setScreen("menu");}} className="px-3 py-2 text-sm" style={{background:"#ffffff10"}}>← Back</NeonButton>
+          <NeonButton onClick={()=>{setSpinState(null);setSpinResult(null);go("menu");}} className="px-3 py-2 text-sm" style={{background:"#ffffff10"}}>← Back</NeonButton>
           <h2 className="text-xl font-black" style={{color:theme.accent}}>🎡 Daily Spin</h2>
         </div>
         {/* Wheel */}
@@ -3117,7 +3199,7 @@ export default function NexusTap(){
               textShadow:`0 0 20px ${spinResult.color}`}}>
               YOU WON: {spinResult.label.toUpperCase()}!
             </div>
-            <NeonButton onClick={()=>{setSpinState(null);setSpinResult(null);setScreen("menu");}} className="px-8 py-3 text-base"
+            <NeonButton onClick={()=>{setSpinState(null);setSpinResult(null);go("menu");}} className="px-8 py-3 text-base"
               style={{background:`linear-gradient(135deg,${theme.secondary||theme.accent},${theme.accent})`}}>
               🎉 Awesome! Collect
             </NeonButton>
@@ -3151,7 +3233,7 @@ export default function NexusTap(){
       <div className="flex flex-col h-full relative z-10">
         {/* Header */}
         <div className="flex items-center gap-3 px-4 py-3 z-10" style={{background:"rgba(0,0,0,0.6)",backdropFilter:"blur(6px)",borderBottom:`1px solid ${theme.accent}22`}}>
-          <NeonButton onClick={()=>setScreen("menu")} className="px-3 py-2 text-sm" style={{background:"#ffffff10"}}>← Back</NeonButton>
+          <NeonButton onClick={()=>go("menu")} className="px-3 py-2 text-sm" style={{background:"#ffffff10"}}>← Back</NeonButton>
           <h2 className="text-xl font-black" style={{color:theme.accent}}>🗺️ Adventure Map</h2>
           <span className="ml-auto text-sm font-bold" style={{color:"#fbbf24"}}>🪙 {sv.coins||0}</span>
         </div>
@@ -3224,11 +3306,11 @@ export default function NexusTap(){
                         style={{left:x,top:y,transform:"translate(-50%,-50%)",width:90,cursor:locked?"default":"pointer"}}
                         onClick={()=>{if(!locked){
                           if(stars>0&&lv.id<(sv.unlockedLevel||1)){setReplayModal(lv.id);}
-                          else{setSelectedLevel(lv.id);setScreen("shop");}
+                          else{setSelectedLevel(lv.id);go("shop");}
                         }}}
                         onTouchEnd={e=>{e.preventDefault();if(!locked){
                           if(stars>0&&lv.id<(sv.unlockedLevel||1)){setReplayModal(lv.id);}
-                          else{setSelectedLevel(lv.id);setScreen("shop");}
+                          else{setSelectedLevel(lv.id);go("shop");}
                         }}}
                       >
                         {/* Node circle */}
@@ -3285,7 +3367,7 @@ export default function NexusTap(){
                 </div>
                 {prevBest>0&&<div className="text-xs mt-1 opacity-60" style={{color:rlv.worldColor}}>Best: {prevBest.toLocaleString()} pts</div>}
               </div>
-              <NeonButton onClick={()=>{setReplayModal(null);setSelectedLevel(replayModal);setScreen("shop");}}
+              <NeonButton onClick={()=>{setReplayModal(null);setSelectedLevel(replayModal);go("shop");}}
                 className="w-full py-4 font-black"
                 style={{background:`linear-gradient(135deg,${rlv.worldColor}33,${rlv.worldColor}55)`,border:`2px solid ${rlv.worldColor}`,color:rlv.worldColor}}>
                 🎮 Play Again
@@ -3310,7 +3392,7 @@ export default function NexusTap(){
       <div className="flex flex-col h-full px-4 py-5 gap-4 overflow-y-auto relative z-10">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <NeonButton onClick={()=>setScreen("levelmap")} className="px-3 py-2 text-sm" style={{background:"#ffffff10"}}>← Map</NeonButton>
+            <NeonButton onClick={()=>go("levelmap")} className="px-3 py-2 text-sm" style={{background:"#ffffff10"}}>← Map</NeonButton>
             <div>
               <div className="font-black text-base" style={{color:cfg.worldColor}}>Level {cfg.id}</div>
               <div className="text-xs opacity-60" style={{color:cfg.worldColor}}>{cfg.name}</div>
@@ -3678,7 +3760,7 @@ export default function NexusTap(){
             <div className="text-4xl font-black mb-6" style={{color:wc}}>PAUSED</div>
             <NeonButton onClick={togglePause} className="w-48 py-4 text-lg mb-3"
               style={{background:`linear-gradient(135deg,${theme.secondary},${wc})`,boxShadow:`0 0 24px ${wc}55`}}>▶ RESUME</NeonButton>
-            <NeonButton onClick={()=>{if(rafRef.current){cancelAnimationFrame(rafRef.current);rafRef.current=null;}gsRef.current=null;targetsRef.current=[];particlesRef.current=[];activePwrRef.current=[];setActivePwrDisp([]);setFeverBorder(false);setPaused(false);pausedRef.current=false;setScreen("levelmap");}}
+            <NeonButton onClick={()=>{if(rafRef.current){cancelAnimationFrame(rafRef.current);rafRef.current=null;}gsRef.current=null;targetsRef.current=[];particlesRef.current=[];activePwrRef.current=[];setActivePwrDisp([]);setFeverBorder(false);setPaused(false);pausedRef.current=false;go("levelmap");}}
               className="w-48 py-3" style={{background:"#ffffff10",border:`1px solid ${wc}44`}}>✕ QUIT</NeonButton>
           </div>
         )}
@@ -3829,7 +3911,7 @@ export default function NexusTap(){
         })()}
         {/* CTA buttons */}
         {!isLast&&(
-          <NeonButton onClick={()=>{setMascotDancing(false);setMascotMood("idle");setSelectedLevel(levelId+1);setCartItems([]);setScreen("shop");}}
+          <NeonButton onClick={()=>{setMascotDancing(false);setMascotMood("idle");setSelectedLevel(levelId+1);setCartItems([]);go("shop");}}
             className="w-full py-4 text-lg font-black"
             style={{background:`linear-gradient(135deg,${wld.accent},${wld.color})`,
               boxShadow:`0 0 36px ${wld.color}55,0 4px 20px rgba(0,0,0,0.5)`,letterSpacing:"0.06em"}}>
@@ -3848,7 +3930,7 @@ export default function NexusTap(){
               flushSave();sfx("prestige");vibrate([30,15,30,15,60,15,100]);
               setPrestigeAnim(true);setTimeout(()=>setPrestigeAnim(false),2000);
               setNotif(`👑 PRESTIGE ${sv.prestigeLevel}! +${sv.prestigeLevel*5}% score bonus forever!`);
-              setMascotDancing(false);setMascotMood("idle");setScreen("levelmap");
+              setMascotDancing(false);setMascotMood("idle");go("levelmap");
             }
           }} className="w-full py-4 text-base font-black"
             style={{background:"linear-gradient(135deg,#ffd70033,#ffd70066)",border:"2px solid #ffd700",
@@ -3865,7 +3947,7 @@ export default function NexusTap(){
           style={{background:"rgba(255,255,255,0.06)",border:`1px solid ${wld.color}44`,backdropFilter:"blur(8px)"}}>
           📤 Share Score
         </NeonButton>
-        <NeonButton onClick={()=>{setMascotDancing(false);setMascotMood("idle");setScrollToLevel(levelId);setScreen("levelmap");}}
+        <NeonButton onClick={()=>{setMascotDancing(false);setMascotMood("idle");setScrollToLevel(levelId);go("levelmap");}}
           className="w-full py-3 text-sm" style={{background:"rgba(255,255,255,0.06)",border:`1px solid ${wld.color}33`,backdropFilter:"blur(8px)"}}>
           ← Adventure Map
         </NeonButton>
@@ -4055,7 +4137,7 @@ export default function NexusTap(){
             </div>
           </div>
         )}
-        <NeonButton onClick={()=>{setRescueSecondsLeft(0);setSelectedLevel(levelId);setCartItems([]);setScreen("shop");}}
+        <NeonButton onClick={()=>{setRescueSecondsLeft(0);setSelectedLevel(levelId);setCartItems([]);go("shop");}}
           className="w-full py-4 text-lg font-black"
           style={{background:nearMiss?`linear-gradient(135deg,#b45309,#ff9800)`:
             `linear-gradient(135deg,${cfg.worldColor}99,${cfg.worldColor})`,
@@ -4064,7 +4146,7 @@ export default function NexusTap(){
             letterSpacing:"0.06em",fontSize:nearMiss?"1.2rem":"1rem"}}>
           {nearMiss?"🔥 SO CLOSE — TRY AGAIN!":"🌟 TRY AGAIN!"}
         </NeonButton>
-        <NeonButton onClick={()=>setScreen("levelmap")} className="w-full py-3 text-sm"
+        <NeonButton onClick={()=>go("levelmap")} className="w-full py-3 text-sm"
           style={{background:"rgba(255,255,255,0.06)",border:`1px solid ${cfg.worldColor}33`,backdropFilter:"blur(8px)"}}>
           ← Adventure Map
         </NeonButton>
@@ -4078,7 +4160,7 @@ export default function NexusTap(){
     return(
       <div className="flex flex-col h-full px-4 py-5 gap-4 overflow-y-auto relative z-10">
         <div className="flex items-center gap-3">
-          <NeonButton onClick={()=>setScreen("menu")} className="px-3 py-2 text-sm" style={{background:"#ffffff10"}}>← Back</NeonButton>
+          <NeonButton onClick={()=>go("menu")} className="px-3 py-2 text-sm" style={{background:"#ffffff10"}}>← Back</NeonButton>
           <h2 className="text-xl font-black" style={{color:theme.accent}}>Daily Missions</h2>
           {sv.missionCompleted&&<span className="text-xs px-2 py-1 rounded-full font-bold" style={{background:"#34d39922",color:"#34d399"}}>DONE ✓</span>}
         </div>
@@ -4106,7 +4188,7 @@ export default function NexusTap(){
   const renderAchievements=()=>(
     <div className="flex flex-col h-full px-4 py-5 gap-4 overflow-y-auto relative z-10">
       <div className="flex items-center gap-3">
-        <NeonButton onClick={()=>setScreen("menu")} className="px-3 py-2 text-sm" style={{background:"#ffffff10"}}>← Back</NeonButton>
+        <NeonButton onClick={()=>go("menu")} className="px-3 py-2 text-sm" style={{background:"#ffffff10"}}>← Back</NeonButton>
         <h2 className="text-xl font-black" style={{color:theme.accent}}>Medals</h2>
         <span className="text-xs opacity-40" style={{color:theme.accent}}>{sv.unlockedAchievements.length}/{ACHIEVEMENTS.length}</span>
       </div>
@@ -4135,7 +4217,7 @@ export default function NexusTap(){
     return(
       <div className="flex flex-col h-full px-4 py-5 gap-4 overflow-y-auto relative z-10">
         <div className="flex items-center gap-3">
-          <NeonButton onClick={()=>setScreen("menu")} className="px-3 py-2 text-sm" style={{background:"#ffffff10"}}>← Back</NeonButton>
+          <NeonButton onClick={()=>go("menu")} className="px-3 py-2 text-sm" style={{background:"#ffffff10"}}>← Back</NeonButton>
           <h2 className="text-xl font-black" style={{color:theme.accent}}>Best Scores</h2>
           {(sv.prestigeLevel||0)>0&&<span style={{fontSize:12,color:"#ffd700",background:"#ffd70022",border:"1px solid #ffd70066",borderRadius:8,padding:"2px 8px",fontWeight:"black"}}>
             👑×{sv.prestigeLevel} +{(sv.prestigeLevel||0)*5}%
@@ -4190,7 +4272,7 @@ export default function NexusTap(){
       <div className="flex flex-col h-full bg-transparent relative z-10">
         {/* Header */}
         <div className="flex items-center gap-3 px-4 pt-5 pb-3" style={{flexShrink:0}}>
-          <NeonButton onClick={()=>setScreen("settings")} className="px-3 py-2 text-sm" style={{background:"#ffffff10"}}>← Back</NeonButton>
+          <NeonButton onClick={()=>go("settings")} className="px-3 py-2 text-sm" style={{background:"#ffffff10"}}>← Back</NeonButton>
           <div>
             <h2 className="text-xl font-black" style={{color:theme.accent}}>🐾 Mascot Collection</h2>
             <p className="text-xs opacity-50" style={{color:"#fff"}}>{unlocked.length} / {MASCOTS.length} unlocked</p>
@@ -4205,7 +4287,7 @@ export default function NexusTap(){
             const newlyUnlocked=isUnlocked&&!isActive;
             return(
               <button key={m.id} disabled={!isUnlocked}
-                onClick={()=>{if(isUnlocked){sv2.mascotId=m.id;debounceSave();setScreen("mascotcollection");}}}
+                onClick={()=>{if(isUnlocked){sv2.mascotId=m.id;debounceSave();go("mascotcollection");}}}
                 style={{
                   position:"relative",display:"flex",flexDirection:"column",alignItems:"center",
                   gap:6,padding:"18px 10px 14px",borderRadius:20,
@@ -4311,7 +4393,7 @@ export default function NexusTap(){
     return(
     <div className="flex flex-col h-full px-4 py-5 gap-5 overflow-y-auto relative z-10">
       <div className="flex items-center gap-3">
-        <NeonButton onClick={()=>setScreen("menu")} className="px-3 py-2 text-sm" style={{background:"#ffffff10"}}>← Back</NeonButton>
+        <NeonButton onClick={()=>go("menu")} className="px-3 py-2 text-sm" style={{background:"#ffffff10"}}>← Back</NeonButton>
         <h2 className="text-xl font-black" style={{color:theme.accent}}>Settings</h2>
       </div>
       {/* Sound on/off */}
@@ -4407,7 +4489,7 @@ export default function NexusTap(){
       <div>
         <p className="text-xs font-bold opacity-40 mb-3 uppercase tracking-widest" style={{color:theme.accent}}>Your Companion</p>
         {/* Active mascot preview */}
-        <NeonButton onClick={()=>setScreen("mascotcollection")}
+        <NeonButton onClick={()=>go("mascotcollection")}
           className="w-full flex items-center gap-4 px-4 py-3 rounded-2xl"
           style={{background:`${currentMascot.color}12`,border:`2px solid ${currentMascot.color}44`,
             boxShadow:`0 0 20px ${currentMascot.color}22`}}>
@@ -4429,7 +4511,7 @@ export default function NexusTap(){
         </NeonButton>
       </div>
       <div className="border-t border-white border-opacity-10 pt-4">
-        <NeonButton onClick={()=>{if(window.confirm("Reset ALL progress? Cannot be undone.")){saveRef.current={...DEFAULT_SAVE};flushSave();setTheme(THEMES[0]);setSoundOn(true);setScreen("menu");}}}
+        <NeonButton onClick={()=>{if(window.confirm("Reset ALL progress? Cannot be undone.")){saveRef.current={...DEFAULT_SAVE};flushSave();setTheme(THEMES[0]);setSoundOn(true);go("menu");}}}
           className="w-full py-3 text-sm" style={{background:"#ef444418",border:"1px solid #ef444455",color:"#ef4444"}}>
           Reset All Progress
         </NeonButton>
@@ -4444,7 +4526,7 @@ export default function NexusTap(){
     const cfg=getInfinityLevelConfig(infRound);
     return(
       <div className="flex flex-col h-full px-5 py-6 gap-5 relative z-10 items-center justify-center">
-        <NeonButton onClick={()=>setScreen("menu")} className="absolute top-4 left-4 px-3 py-2 text-sm" style={{background:"#ffffff10"}}>← Back</NeonButton>
+        <NeonButton onClick={()=>go("menu")} className="absolute top-4 left-4 px-3 py-2 text-sm" style={{background:"#ffffff10"}}>← Back</NeonButton>
         <div className="text-center">
           <div className="text-5xl mb-2" style={{animation:"floatGlow 2s ease-in-out infinite",filter:"drop-shadow(0 0 20px #a78bfa)"}}>∞</div>
           <h2 className="font-black text-3xl" style={{color:"#a78bfa",textShadow:"0 0 30px #a78bfaaa",fontFamily:"'Rajdhani',sans-serif",letterSpacing:"0.1em"}}>INFINITY MODE</h2>
@@ -4488,7 +4570,7 @@ export default function NexusTap(){
     return(
       <div className="flex flex-col h-full px-5 py-5 gap-4 relative z-10 overflow-y-auto">
         <div className="flex items-center gap-3">
-          <NeonButton onClick={()=>setScreen("menu")} className="px-3 py-2 text-sm" style={{background:"#ffffff10"}}>← Back</NeonButton>
+          <NeonButton onClick={()=>go("menu")} className="px-3 py-2 text-sm" style={{background:"#ffffff10"}}>← Back</NeonButton>
           <div>
             <h2 className="text-xl font-black" style={{color:"#ff6b35"}}>⚔️ Daily Gauntlet</h2>
             <p className="text-xs opacity-50" style={{color:"#ff6b35"}}>Defeat all 10 world bosses in a row!</p>
@@ -4592,6 +4674,10 @@ export default function NexusTap(){
         @keyframes bossRagePulse{0%,100%{box-shadow:0 0 0 0 #ff000044}50%{box-shadow:0 0 0 12px #ff000022}}
         @keyframes prestigePop{0%{transform:scale(0.3) rotate(-20deg);opacity:0}50%{transform:scale(1.3) rotate(5deg)}75%{transform:scale(0.95) rotate(-2deg)}100%{transform:scale(1) rotate(0);opacity:1}}
         @keyframes infinityPulse{0%,100%{text-shadow:0 0 20px #a78bfa,0 0 40px #a78bfa55}50%{text-shadow:0 0 40px #a78bfa,0 0 80px #a78bfaaa}}
+        @keyframes vtScreenIn{0%{opacity:0;transform:translateY(14px)}100%{opacity:1;transform:translateY(0)}}
+        @keyframes vtScreenOut{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-10px)}}
+        ::view-transition-old(root){animation:vtScreenOut 0.18s ease-in both}
+        ::view-transition-new(root){animation:vtScreenIn 0.22s ease-out both}
         *{-webkit-tap-highlight-color:transparent;box-sizing:border-box}
         ::-webkit-scrollbar{width:0}
         .shine-btn{position:relative;overflow:hidden}
@@ -4616,6 +4702,7 @@ export default function NexusTap(){
         </div>
       )}
 
+      <div className="screen-root" style={{position:"absolute",inset:0}}>
       {screen==="menu"          &&renderMenu()}
       {screen==="levelmap"      &&renderLevelMap()}
       {screen==="shop"          &&renderShop()}
@@ -4630,6 +4717,7 @@ export default function NexusTap(){
       {screen==="spinwheel"     &&renderSpinWheel()}
       {screen==="infinity"      &&renderInfinity()}
       {screen==="gauntlet"      &&renderGauntlet()}
+      </div>
       {storyData&&renderWorldStory()}
       {tutStep!==null&&renderTutorial()}
     </div>
