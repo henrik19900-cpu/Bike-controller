@@ -283,6 +283,24 @@ function getLevelConfig(n) {
 
 const ALL_LEVELS = Array.from({ length: 100 }, (_, i) => getLevelConfig(i + 1));
 
+function getInfinityLevelConfig(round) {
+  const n = 100 + round; // equivalent difficulty level
+  const worldId = ((round - 1) % 10) + 1;
+  const w = WORLDS[worldId - 1];
+  const scoreGoal = Math.floor(8000 + round * 600 + round * round * 1.2);
+  const spawnInterval = Math.max(280, 520 - round * 3.5);
+  const targetLifetime = Math.max(650, 1400 - round * 7);
+  const bombRate = Math.min(0.32, 0.18 + round * 0.003);
+  const movingRate = Math.min(0.70, 0.40 + round * 0.006);
+  const ghostRate = Math.min(0.30, 0.15 + round * 0.003);
+  return {
+    id:`inf${round}`, world:worldId, worldName:w.name, worldColor:w.color, worldBg:w.bg, worldGrid:w.grid,
+    name:`∞ Round ${round}`, scoreGoal, lives:2, spawnInterval, targetLifetime,
+    bombRate, movingRate, ghostRate, bossEnabled:false, bossRate:0,
+    modifier:null, rarityBonus:0.18, isBoss:false, isLast:false, isInfinity:true,
+  };
+}
+
 // ═══════════════════════════════════════════════════════════════
 // GAME CONSTANTS
 // ═══════════════════════════════════════════════════════════════
@@ -488,6 +506,18 @@ const DEFAULT_SAVE = {
   seenWorldStories:[], seenMainStory:false, seenBossIntros:[],
   seenTutorial:false, lastSpinDate:null, mascotId:"dragon",
   unlockedMascots:["dragon","fox"],
+  // New feature fields
+  prestigeLevel:0,       // 0-5 prestiges, each adds +5% score mult
+  mascotXP:{},           // { mascotId: totalXP }
+  musicVol:80,           // 0-100
+  sfxVol:80,             // 0-100
+  hapticEnabled:true,    // vibration on/off
+  speedMode:1.0,         // 0.7=easy, 1.0=normal, 1.3=hard, 1.6=expert
+  colorblindMode:false,  // rarity symbols instead of color-only
+  infinityBest:0,        // best score in infinity mode
+  infinityScores:[],     // top 10 infinity scores
+  gauntletDate:null,     // date string of last gauntlet attempt
+  gauntletBest:0,        // bosses defeated in best gauntlet run
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -563,6 +593,9 @@ function createAudio() {
     },
     shieldBreak:()=>{t(660,"sine",0.12,0.22);t(440,"sawtooth",0.18,0.16,0.08);},
     lucky:      ()=>{chord([784,1047,1319,1568],"sine",0.14,0.24,0.06);},
+    bossPhase:  ()=>{t(110,"sawtooth",0.4,0.36);t(160,"square",0.3,0.24,0.08);chord([440,330],"sawtooth",0.22,0.18,0.18);},
+    prestige:   ()=>{[523,659,784,1047,1319,1568,2093,2349].forEach((f,i)=>t(f,"sine",0.22,0.32,i*0.07));},
+    infinityWin:()=>{chord([523,659,784,1047,1319],"sine",0.2,0.28,0.06);setTimeout(()=>chord([1047,1319,1568,2093],"sine",0.18,0.24,0.05),550);},
     nearMiss:   ()=>{chord([262,330,392,523],"sine",0.2,0.2,0.1);},
     // ── Background music ──
     startBgMusic:(wid)=>{
@@ -587,15 +620,16 @@ function createAudio() {
           const c=C(),o=c.createOscillator(),g=c.createGain();
           o.connect(g);g.connect(c.destination);
           o.type="triangle";o.frequency.setValueAtTime(mel[note%mel.length],c.currentTime);
-          g.gain.setValueAtTime(0.032,c.currentTime);
+          g.gain.setValueAtTime(bgVol,c.currentTime);
           g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+tmpo*0.0008);
           o.start(c.currentTime);o.stop(c.currentTime+tmpo*0.0009);
         }catch{}
         note++;
         tmr=setTimeout(tick,tmpo);
       };
+      let bgVol=0.032;
       tick();
-      bgMusicCtl={stop:()=>{on=false;if(tmr)clearTimeout(tmr);},setFever:(f)=>{tmpo=f?280:460;}};
+      bgMusicCtl={stop:()=>{on=false;if(tmr)clearTimeout(tmr);},setFever:(f)=>{tmpo=f?280:460;},setVol:(v)=>{bgVol=v;}};
     },
     stopBgMusic:()=>{bgMusicCtl&&bgMusicCtl.stop();bgMusicCtl=null;},
     setBgMusicFever:(f)=>{bgMusicCtl&&bgMusicCtl.setFever(f);},
@@ -622,7 +656,10 @@ function seededRng(seed){let s=seed;return()=>{s=(s*1664525+1013904223)&0xffffff
 function getDailyMissions(){const d=new Date();const seed=d.getFullYear()*10000+(d.getMonth()+1)*100+d.getDate();const rng=seededRng(seed);return[...MISSION_TEMPLATES].sort(()=>rng()-0.5).slice(0,3);}
 function getTodayKey(){const d=new Date();return`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;}
 function loadSave(){try{const r=localStorage.getItem("nexustap_v5");if(r)return{...DEFAULT_SAVE,...JSON.parse(r)};}catch{}return{...DEFAULT_SAVE};}
-function vibrate(p){try{if(navigator.vibrate)navigator.vibrate(p);}catch{}}
+// Module-level flags synced from save on game start
+let _hapticOn = true;
+let _colorblindOn = false;
+function vibrate(p){try{if(_hapticOn&&navigator.vibrate)navigator.vibrate(p);}catch{}}
 
 // ═══════════════════════════════════════════════════════════════
 // CANVAS DRAWING — ENHANCED ANIMATED SHAPES
@@ -938,11 +975,21 @@ function drawPowerup(ctx, r, pwrType, ts) {
 const BOSS_EMOJIS=["🐉","🌿","✨","🔮","❄️","⛏️","👻","🌊","⛰️","🌈"];
 
 // ── Boss target ──
-function drawBoss(ctx, r, hitsLeft, maxHits, ts, worldId=1) {
+function drawBoss(ctx, r, hitsLeft, maxHits, ts, worldId=1, rage=false) {
   const phase=(maxHits-hitsLeft)/maxHits;
   const colors=["#ff6030","#f472b6","#ef4444"];
-  const c=colors[Math.min(Math.floor(phase*3),2)];
-  const glow=colors[Math.min(Math.floor(phase*3),2)];
+  const c=rage?"#ff0000":colors[Math.min(Math.floor(phase*3),2)];
+  const glow=rage?"#ff0000":colors[Math.min(Math.floor(phase*3),2)];
+  // Rage pulsing outer ring
+  if(rage){
+    const rageAlpha=0.4+0.6*Math.abs(Math.sin(ts*0.012));
+    ctx.save();
+    ctx.strokeStyle=`rgba(255,0,0,${rageAlpha})`;ctx.lineWidth=4;
+    ctx.shadowColor="#ff0000";ctx.shadowBlur=30;
+    ctx.beginPath();ctx.arc(0,0,r*2.1,0,Math.PI*2);ctx.stroke();
+    ctx.beginPath();ctx.arc(0,0,r*1.5,0,Math.PI*2);ctx.stroke();
+    ctx.restore();
+  }
   const spin=ts*0.001;
   const pulse=0.5+0.5*Math.sin(ts*0.006);
   ctx.save();
@@ -1157,7 +1204,7 @@ function drawTarget(ctx, t, ts) {
 
   if     (t.type==="bomb")     drawBomb(ctx,t.radius,t.color,t.glow,ts);
   else if(t.type==="powerup")  drawPowerup(ctx,t.radius,t.pwrType,ts);
-  else if(t.type==="boss")     drawBoss(ctx,t.radius,t.hitsLeft,t.maxHits,ts,t.worldId||1);
+  else if(t.type==="boss")     drawBoss(ctx,t.radius,t.hitsLeft,t.maxHits,ts,t.worldId||1,t.rage||false);
   else if(t.type==="treasure") drawTreasure(ctx,t.radius,ts);
   else if(t.type==="mystery")  drawMystery(ctx,t.radius,ts);
   else{
@@ -1167,6 +1214,17 @@ function drawTarget(ctx, t, ts) {
     else if(nm==="rare")      drawRare(ctx,t.radius,t.color,t.glow,ts,timeLeft);
     else if(nm==="epic")      drawEpic(ctx,t.radius,t.color,t.glow,ts,timeLeft);
     else if(nm==="legendary") drawLegendary(ctx,t.radius,t.color,t.glow,ts,timeLeft);
+  }
+  // Colorblind rarity symbols
+  if(_colorblindOn&&t.type==="normal"&&t.rarity){
+    const symbols={common:"●",uncommon:"■",rare:"◆",epic:"★",legendary:"♛"};
+    const sym=symbols[t.rarity.name]||"●";
+    ctx.save();
+    ctx.font=`bold ${Math.max(10,t.radius*0.65)}px sans-serif`;
+    ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.fillStyle="#ffffff";ctx.shadowColor="#000";ctx.shadowBlur=4;
+    ctx.fillText(sym,0,0);
+    ctx.restore();
   }
   // Timer ring
   if(t.type!=="bomb"&&t.type!=="boss"){
@@ -1765,6 +1823,13 @@ export default function NexusTap(){
   const speechTimerRef                      = useRef(null);
   const [mascotBounce,   setMascotBounce]  = useState(false);
   const bounceTimerRef                      = useRef(null);
+  // New features
+  const [streakDecaying, setStreakDecaying] = useState(false);
+  const decayTimerRef                       = useRef(null);
+  const [replayModal,    setReplayModal]    = useState(null); // null | levelId
+  const [infinityRound,  setInfinityRound]  = useState(1);
+  const [gauntletState,  setGauntletState]  = useState(null); // null | {bossIndex, lives, score}
+  const [prestigeAnim,   setPrestigeAnim]   = useState(false);
 
   // Canvas & game refs
   const canvasRef    = useRef(null);
@@ -2001,9 +2066,15 @@ export default function NexusTap(){
       if(stars===3&&cfg.isBoss)unlock("five_star");
       if(cfg.id>=10)unlock("level_10");if(cfg.id>=25)unlock("level_25");if(cfg.id>=50)unlock("level_50");if(cfg.id>=100)unlock("level_100");
       if(stars>=1)unlock("three_stars");
+      // Infinity best update
+      if(cfg.isInfinity){
+        if(score>(sv.infinityBest||0))sv.infinityBest=score;
+        sv.infinityScores=[score,...(sv.infinityScores||[])].slice(0,10).sort((a,b)=>b-a);
+      }
       flushSave();
+      const canPrestige=cfg.id===100&&(sv.prestigeLevel||0)<5;
       setLevelCompleteData({score,stars,newStars,xpEarned,coinsEarned,levelId:cfg.id,isLast:cfg.isLast,
-        bestStreak:sv.bestStreak,sessionStats:{...gs.sessionStats,timeSurvived}});
+        bestStreak:sv.bestStreak,sessionStats:{...gs.sessionStats,timeSurvived},canPrestige});
       setScrollToLevel(cfg.id);
       setMascotMood("victory");setMascotDancing(true);
       // Check mascot unlocks AFTER save is flushed
@@ -2133,6 +2204,15 @@ export default function NexusTap(){
     // BOSS
     if(hit.type==="boss"){
       hit.hitsLeft--;sfx("bossHit");vibrate(22);spawnParticles(hit.x,hit.y,hit.color,10,"spark");
+      // Rage mode on last hit
+      if(hit.hitsLeft===1&&!hit.rage){
+        hit.rage=true;hit.moving=true;hit.vx=(Math.random()-0.5)*4;hit.vy=(Math.random()-0.5)*4;
+        sfx("bossPhase");vibrate([30,15,30,15,60]);
+        spawnPopup(hit.x,hit.y-50,"⚠️ RAGE MODE!","#ff0000",20);
+        setScreenShake(true);setTimeout(()=>setScreenShake(false),500);
+        // Speed up spawning
+        if(levelCfgRef.current)levelCfgRef.current._rageSpawn=true;
+      }
       if(hit.hitsLeft<=0){
         targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
         sfx("jackpot");vibrate([35,20,35,20,60,20,80]);
@@ -2166,15 +2246,25 @@ export default function NexusTap(){
     // NORMAL — squish then remove
     hit.dying=performance.now();
     gs.streak++;
+    gs.lastTapTime=Date.now();
+    setStreakDecaying(false);
     const combo=Math.min(10,1+Math.floor(gs.streak/5));
     const isDouble=activePwrRef.current.some(p=>p.type==="DOUBLE"&&p.endsAt>Date.now());
     const feverMult=gs.feverActive?2:1;
     const timeLeft=1-(Date.now()-hit.spawnedAt)/hit.lifetime;
     const isPerfect=hitDist<hit.radius*0.38&&timeLeft>0.36&&timeLeft<0.67;
-    const pts=Math.round(hit.rarity.mult*combo*feverMult*(isDouble?2:1)*(isPerfect?1.5:1));
+    // Prestige score multiplier (+5% per prestige level, max 5 prestiges = +25%)
+    const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+    const pts=Math.round(hit.rarity.mult*combo*feverMult*(isDouble?2:1)*(isPerfect?1.5:1)*prestigeMult);
     gs.score+=pts;
-    saveRef.current.coins=(saveRef.current.coins||0)+Math.max(1,Math.floor(pts*0.09));
-    saveRef.current.totalCoins=(saveRef.current.totalCoins||0)+Math.max(1,Math.floor(pts*0.09));
+    // Mascot XP (level 5 = +5% coin bonus)
+    const mascotIdNow=saveRef.current.mascotId||"dragon";
+    const mXP=saveRef.current.mascotXP||(saveRef.current.mascotXP={});
+    mXP[mascotIdNow]=(mXP[mascotIdNow]||0)+Math.max(1,Math.floor(pts*0.01));
+    const mLvlNow=Math.min(20,Math.floor((mXP[mascotIdNow]||0)/500));
+    const coinMult=mLvlNow>=5?1.05:1;
+    saveRef.current.coins=(saveRef.current.coins||0)+Math.max(1,Math.floor(pts*0.09*coinMult));
+    saveRef.current.totalCoins=(saveRef.current.totalCoins||0)+Math.max(1,Math.floor(pts*0.09*coinMult));
     gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;
     if(hit.rarity.name!=="common")gs.sessionStats.rareHits++;
     if(gs.streak>gs.sessionStats.bestCombo)gs.sessionStats.bestCombo=gs.streak;
@@ -2276,9 +2366,18 @@ export default function NexusTap(){
   },[sfx]);
 
   // Start game
-  const startGame=useCallback((levelId,shopCart=[])=>{
-    const cfg=getLevelConfig(levelId);
+  const startGame=useCallback((levelId,shopCart=[],infCfg=null)=>{
+    const baseCfg=infCfg||getLevelConfig(levelId);
+    // Apply speed mode multiplier
+    const speedMult=saveRef.current.speedMode||1.0;
+    const cfg={...baseCfg,
+      spawnInterval:Math.round(baseCfg.spawnInterval/speedMult),
+      targetLifetime:Math.round(baseCfg.targetLifetime/speedMult),
+    };
     levelCfgRef.current=cfg;
+    // Sync module-level flags
+    _hapticOn=saveRef.current.hapticEnabled!==false;
+    _colorblindOn=!!saveRef.current.colorblindMode;
     initMissions();
     initBgParts(cfg.world);
     targetsRef.current=[];particlesRef.current=[];activePwrRef.current=[];ripplesRef.current=[];
@@ -2295,12 +2394,21 @@ export default function NexusTap(){
 
     const isRescue=rescuedRef.current;rescuedRef.current=false;
     tensionRef.current=0;setTensionLevel(0);setBonusRound(false);setMysteryReveal(null);
+    setStreakDecaying(false);if(decayTimerRef.current){clearInterval(decayTimerRef.current);decayTimerRef.current=null;}
+    // Mascot level bonuses
+    const mascotId=saveRef.current.mascotId||"dragon";
+    const mascotXP=saveRef.current.mascotXP||{};
+    const mLevel=Math.min(20,Math.floor((mascotXP[mascotId]||0)/500));
+    const hasStreakShield=mLevel>=10;
+    const headStartBonus=(mLevel>=15?100:0)+(headStart?300:0);
     gsRef.current={
-      score:isRescue?400:headStart?300:0,
+      score:isRescue?400:headStartBonus>0?headStartBonus:0,
       lives:isRescue?MAX_LIVES:Math.min(MAX_LIVES,cfg.lives+(extraLife?1:0)),
       streak:0, feverActive:false, feverTimeLeft:0, startTime:Date.now(),
+      lastTapTime:Date.now(),
       sessionStats:{tapsTotal:0,rareHits:0,bestCombo:0,score:0,feverCount:0,powerupCollected:0,bossKills:0,perfectTaps:0},
     };
+    if(hasStreakShield&&!isRescue){streakShRef.current=true;setStreakShieldActive(true);}
     if(shieldStart)activePwrRef.current=[{type:"SHIELD",endsAt:Date.now()+25000}];
     if(powerPack){const pt=["SLOW","DOUBLE","SHIELD","FREEZE"];const ty=pt[Math.floor(Math.random()*pt.length)];if(!activePwrRef.current.find(p=>p.type===ty))activePwrRef.current.push({type:ty,endsAt:Date.now()+12000});}
     setActivePwrDisp([...activePwrRef.current]);
@@ -2334,7 +2442,7 @@ export default function NexusTap(){
 
   // Menu canvas loop
   useEffect(()=>{
-    if(screen!=="menu"&&screen!=="levelmap"&&screen!=="shop"&&screen!=="levelcomplete"&&screen!=="gameover"&&screen!=="spinwheel"&&screen!=="missions"&&screen!=="achievements"&&screen!=="leaderboard"&&screen!=="settings")return;
+    if(screen!=="menu"&&screen!=="levelmap"&&screen!=="shop"&&screen!=="levelcomplete"&&screen!=="gameover"&&screen!=="spinwheel"&&screen!=="missions"&&screen!=="achievements"&&screen!=="leaderboard"&&screen!=="settings"&&screen!=="infinity"&&screen!=="gauntlet"&&screen!=="mascotcollection")return;
     let raf;
     const loop=(ts)=>{
       const canvas=canvasRef.current;if(!canvas)return;
@@ -2437,9 +2545,17 @@ export default function NexusTap(){
     // Fever
     if(gs.feverActive){gs.feverTimeLeft-=dt;if(gs.feverTimeLeft<=0){gs.feverActive=false;setFeverBorder(false);sfx("feverEnd");audioRef.current?.setBgMusicFever?.(false);setMascotMood("idle");}}
 
-    // Spawn
+    // Spawn — rage boss speeds up spawn
+    const rageSpawn=cfg._rageSpawn&&targetsRef.current.some(t=>t.rage);
     spawnTimer.current+=dt;
-    if(spawnTimer.current>=cfg.spawnInterval){spawnTimer.current=0;spawnTarget();}
+    if(spawnTimer.current>=(rageSpawn?cfg.spawnInterval*0.5:cfg.spawnInterval)){spawnTimer.current=0;spawnTarget();}
+
+    // Combo decay — reduce streak after 2.5s of inactivity
+    if(gs.streak>0&&gs.lastTapTime&&(Date.now()-gs.lastTapTime)>2500){
+      gs.streak=Math.max(0,gs.streak-1);
+      gs.lastTapTime=Date.now()-2500; // keep decaying at 1/2.5s rate
+      setStreakDecaying(gs.streak>0);
+    }
 
     // HUD update 20fps
     if(ts-hudRef.current>50){
@@ -2890,6 +3006,28 @@ export default function NexusTap(){
         </NeonButton>
       );})()}
 
+      {/* Infinity Mode — unlocked after level 100 */}
+      {(sv.unlockedLevel||1)>100&&(
+        <NeonButton onClick={()=>setScreen("infinity")}
+          className="w-full py-3 text-base font-black"
+          style={{background:"linear-gradient(135deg,#a78bfa22,#6d28d955)",border:"2px solid #a78bfa66",
+            color:"#a78bfa",boxShadow:"0 0 24px #a78bfa33",letterSpacing:"0.06em"}}>
+          ∞ INFINITY MODE {sv.infinityBest>0?`• Best: ${sv.infinityBest.toLocaleString()}`:""}
+        </NeonButton>
+      )}
+      {/* Daily Boss Gauntlet */}
+      {(()=>{
+        const alreadyDone=sv.gauntletDate===getTodayKey();
+        if((sv.unlockedLevel||1)<11)return null;
+        return(
+          <NeonButton onClick={()=>{if(!alreadyDone)setScreen("gauntlet");}}
+            className="w-full py-3 text-sm font-black"
+            style={{background:alreadyDone?"#ffffff08":"#ff6b3522",border:`1px solid ${alreadyDone?"#ffffff15":"#ff6b3566"}`,
+              color:alreadyDone?"#ffffff30":"#ff6b35",opacity:alreadyDone?0.5:1}}>
+            ⚔️ {alreadyDone?"Daily Gauntlet (done today)":`Daily Boss Gauntlet! ${sv.gauntletBest>0?`• Record: ${sv.gauntletBest} bosses`:""}`}
+          </NeonButton>
+        );
+      })()}
       {/* Quick links */}
       <div className="grid grid-cols-2 gap-3 w-full">
         {[{label:"🎯 Daily Quests",sc:"missions"},{label:"🏆 High Scores",sc:"leaderboard"},{label:"🏅 Trophies",sc:"achievements"},{label:"⚙️ Settings",sc:"settings"}].map(b=>(
@@ -3084,8 +3222,14 @@ export default function NexusTap(){
                       <div key={lv.id}
                         className="absolute flex flex-col items-center"
                         style={{left:x,top:y,transform:"translate(-50%,-50%)",width:90,cursor:locked?"default":"pointer"}}
-                        onClick={()=>{if(!locked){setSelectedLevel(lv.id);setScreen("shop");}}}
-                        onTouchEnd={e=>{e.preventDefault();if(!locked){setSelectedLevel(lv.id);setScreen("shop");}}}
+                        onClick={()=>{if(!locked){
+                          if(stars>0&&lv.id<(sv.unlockedLevel||1)){setReplayModal(lv.id);}
+                          else{setSelectedLevel(lv.id);setScreen("shop");}
+                        }}}
+                        onTouchEnd={e=>{e.preventDefault();if(!locked){
+                          if(stars>0&&lv.id<(sv.unlockedLevel||1)){setReplayModal(lv.id);}
+                          else{setSelectedLevel(lv.id);setScreen("shop");}
+                        }}}
                       >
                         {/* Node circle */}
                         <div className="flex items-center justify-center rounded-full font-black transition-all"
@@ -3124,6 +3268,36 @@ export default function NexusTap(){
           })}
           <div style={{height:60}}/>
         </div>
+      {/* Replay modal — absolute overlay inside the levelmap container */}
+      {replayModal&&(()=>{
+        const rlv=getLevelConfig(replayModal);
+        const rstars=sv.levelStars[replayModal]||0;
+        const prevBest=sv.levelScores?.[replayModal]||sv.scores?.[0]||0;
+        return(
+          <div className="absolute inset-0 flex items-center justify-center z-50 px-6"
+            style={{background:"rgba(0,0,0,0.88)",backdropFilter:"blur(12px)"}}>
+            <div className="w-full max-w-sm rounded-3xl p-6 flex flex-col gap-4"
+              style={{background:`${rlv.worldColor}14`,border:`2px solid ${rlv.worldColor}55`}}>
+              <div className="text-center">
+                <div className="font-black text-lg" style={{color:rlv.worldColor}}>Level {rlv.id}: {rlv.name}</div>
+                <div className="flex justify-center gap-1 mt-1">
+                  {[1,2,3].map(s=><span key={s} style={{fontSize:18,opacity:rstars>=s?1:0.2,color:"#fbbf24"}}>★</span>)}
+                </div>
+                {prevBest>0&&<div className="text-xs mt-1 opacity-60" style={{color:rlv.worldColor}}>Best: {prevBest.toLocaleString()} pts</div>}
+              </div>
+              <NeonButton onClick={()=>{setReplayModal(null);setSelectedLevel(replayModal);setScreen("shop");}}
+                className="w-full py-4 font-black"
+                style={{background:`linear-gradient(135deg,${rlv.worldColor}33,${rlv.worldColor}55)`,border:`2px solid ${rlv.worldColor}`,color:rlv.worldColor}}>
+                🎮 Play Again
+              </NeonButton>
+              <NeonButton onClick={()=>setReplayModal(null)}
+                className="w-full py-3 text-sm" style={{background:"#ffffff08",border:"1px solid #ffffff15"}}>
+                Cancel
+              </NeonButton>
+            </div>
+          </div>
+        );
+      })()}
       </div>
     );
   };
@@ -3251,8 +3425,12 @@ export default function NexusTap(){
           <div className="flex-1 flex flex-col items-center justify-center py-2 px-1">
             <div className="text-xs opacity-35 tracking-widest uppercase" style={{color:wc}}>Streak</div>
             <div className="text-xl font-black tabular-nums"
-              style={{color:streakColor(),textShadow:hud.streak>=5?`0 0 14px ${streakColor()}`:"none"}}>
-              {hud.streak}×
+              style={{
+                color:streakDecaying&&hud.streak>0?"#ef4444":streakColor(),
+                textShadow:hud.streak>=5?`0 0 14px ${streakDecaying?"#ef4444":streakColor()}`:"none",
+                animation:streakDecaying&&hud.streak>0?"heartbeat 0.6s ease-in-out infinite":"none",
+              }}>
+              {hud.streak}×{streakDecaying&&hud.streak>0?"⚠️":""}
             </div>
           </div>
           <button onTouchStart={e=>{e.stopPropagation();togglePause();}} onClick={e=>{e.stopPropagation();togglePause();}}
@@ -3662,6 +3840,31 @@ export default function NexusTap(){
           style={{color:"#ffd700",textShadow:"0 0 40px #ffd700,0 0 80px #ffd70044",animation:"floatGlow 2s ease-in-out infinite"}}>
           🌈 YOU ARE THE QUEST MASTER! 🌈
         </div>}
+        {/* PRESTIGE button — available after completing level 100 (max 5 times) */}
+        {levelCompleteData?.canPrestige&&(
+          <NeonButton onClick={()=>{
+            if(window.confirm(`PRESTIGE! Reset levels 1-100 and earn +5% permanent score bonus? (Prestige ${(sv.prestigeLevel||0)+1}/5)`)){
+              sv.prestigeLevel=(sv.prestigeLevel||0)+1;sv.unlockedLevel=1;
+              flushSave();sfx("prestige");vibrate([30,15,30,15,60,15,100]);
+              setPrestigeAnim(true);setTimeout(()=>setPrestigeAnim(false),2000);
+              setNotif(`👑 PRESTIGE ${sv.prestigeLevel}! +${sv.prestigeLevel*5}% score bonus forever!`);
+              setMascotDancing(false);setMascotMood("idle");setScreen("levelmap");
+            }
+          }} className="w-full py-4 text-base font-black"
+            style={{background:"linear-gradient(135deg,#ffd70033,#ffd70066)",border:"2px solid #ffd700",
+              boxShadow:"0 0 40px #ffd70066",color:"#ffd700",letterSpacing:"0.07em"}}>
+            👑 PRESTIGE! ({(sv.prestigeLevel||0)+1}/5) — +5% Score Forever
+          </NeonButton>
+        )}
+        {/* Score sharing */}
+        <NeonButton onClick={()=>{
+          const txt=`🎮 I scored ${score.toLocaleString()} on Level ${levelId} "${cfg.name}" in NexusTap! Can you beat me? 🐉`;
+          if(navigator.share){navigator.share({title:"NexusTap",text:txt}).catch(()=>{});}
+          else if(navigator.clipboard){navigator.clipboard.writeText(txt);setNotif("📋 Score copied!");}
+        }} className="w-full py-3 text-sm"
+          style={{background:"rgba(255,255,255,0.06)",border:`1px solid ${wld.color}44`,backdropFilter:"blur(8px)"}}>
+          📤 Share Score
+        </NeonButton>
         <NeonButton onClick={()=>{setMascotDancing(false);setMascotMood("idle");setScrollToLevel(levelId);setScreen("levelmap");}}
           className="w-full py-3 text-sm" style={{background:"rgba(255,255,255,0.06)",border:`1px solid ${wld.color}33`,backdropFilter:"blur(8px)"}}>
           ← Adventure Map
@@ -3927,11 +4130,16 @@ export default function NexusTap(){
   // ── Leaderboard ──
   const renderLeaderboard=()=>{
     const all=[...sv.scores].sort((a,b)=>b-a).slice(0,10);
+    const infAll=[...(sv.infinityScores||[])].sort((a,b)=>b-a).slice(0,5);
+    const hasInfinity=(sv.unlockedLevel||1)>100||(sv.infinityScores||[]).length>0;
     return(
       <div className="flex flex-col h-full px-4 py-5 gap-4 overflow-y-auto relative z-10">
         <div className="flex items-center gap-3">
           <NeonButton onClick={()=>setScreen("menu")} className="px-3 py-2 text-sm" style={{background:"#ffffff10"}}>← Back</NeonButton>
           <h2 className="text-xl font-black" style={{color:theme.accent}}>Best Scores</h2>
+          {(sv.prestigeLevel||0)>0&&<span style={{fontSize:12,color:"#ffd700",background:"#ffd70022",border:"1px solid #ffd70066",borderRadius:8,padding:"2px 8px",fontWeight:"black"}}>
+            👑×{sv.prestigeLevel} +{(sv.prestigeLevel||0)*5}%
+          </span>}
         </div>
         {all.length===0
           ?<p className="text-center opacity-40 mt-8" style={{color:theme.accent}}>No scores yet!</p>
@@ -3945,9 +4153,22 @@ export default function NexusTap(){
             </div>
           ))
         }
+        {hasInfinity&&<>
+          <div className="text-xs font-bold opacity-40 uppercase tracking-widest mt-2" style={{color:"#a78bfa"}}>∞ Infinity Mode</div>
+          {infAll.length===0
+            ?<p className="text-center opacity-40 text-sm" style={{color:"#a78bfa"}}>No infinity runs yet</p>
+            :infAll.map((s,i)=>(
+              <div key={i} className="flex items-center justify-between px-4 py-3 rounded-2xl"
+                style={{background:i===0?"#a78bfa18":"#ffffff05",border:`1px solid ${i===0?"#a78bfa44":"#ffffff0d"}`}}>
+                <span className="font-black" style={{color:"#a78bfa",minWidth:32}}>{i===0?"∞🥇":`∞#${i+1}`}</span>
+                <span className="font-bold tabular-nums" style={{color:"#a78bfa"}}>{s.toLocaleString()}</span>
+              </div>
+            ))
+          }
+        </>}
         <div className="mt-2 p-4 rounded-2xl text-center" style={{background:"#ffffff06",border:`1px solid ${theme.accent}22`}}>
           <div className="text-xs opacity-40 mb-1" style={{color:theme.accent}}>Level Progress</div>
-          <div className="text-2xl font-black" style={{color:theme.accent}}>{sv.unlockedLevel||1}<span className="text-sm opacity-50">/100</span></div>
+          <div className="text-2xl font-black" style={{color:theme.accent}}>{Math.min(100,sv.unlockedLevel||1)}<span className="text-sm opacity-50">/100</span></div>
           <div className="text-xs opacity-40 mt-1" style={{color:theme.accent}}>levels unlocked</div>
         </div>
       </div>
@@ -4048,6 +4269,25 @@ export default function NexusTap(){
                   color:isUnlocked?"#ffffff66":"#ffffff33",maxWidth:110}}>
                   {isUnlocked?m.catchphrase:`🔒 ${m.unlockHint||"Coming soon"}`}
                 </div>
+                {/* Mascot XP bar */}
+                {isUnlocked&&(()=>{
+                  const mxp=(sv2.mascotXP||{})[m.id]||0;
+                  const mlvl=Math.min(20,Math.floor(mxp/500));
+                  const pct=mlvl>=20?100:((mxp%500)/500)*100;
+                  return(
+                    <div style={{width:"100%",marginTop:2}}>
+                      <div style={{display:"flex",justifyContent:"space-between",fontSize:8,opacity:0.6,marginBottom:2,color:rs.border}}>
+                        <span>LV {mlvl}</span><span>{mlvl>=20?"MAX":Math.floor(pct)+"%"}</span>
+                      </div>
+                      <div style={{width:"100%",height:4,borderRadius:2,background:"#ffffff18"}}>
+                        <div style={{width:`${pct}%`,height:"100%",borderRadius:2,background:rs.border,boxShadow:`0 0 4px ${rs.border}`}}/>
+                      </div>
+                      {mlvl>=5&&<div style={{fontSize:7,marginTop:2,color:rs.border,opacity:0.8}}>
+                        {[mlvl>=5?"💰+5%coin":null,mlvl>=10?"🛡️shield":null,mlvl>=15?"⭐+100pts":null,mlvl>=20?"👑legendary":null].filter(Boolean).join(" ")}
+                      </div>}
+                    </div>
+                  );
+                })()}
                 {/* SELECT button for unlocked-but-not-active */}
                 {isUnlocked&&!isActive&&(
                   <div style={{
@@ -4066,12 +4306,15 @@ export default function NexusTap(){
   };
 
   // ── Settings ──
-  const renderSettings=()=>(
+  const renderSettings=()=>{
+    const SPEED_MODES=[{v:0.7,label:"Easy 🐢",desc:"Slower, longer"},{v:1.0,label:"Normal ⚖️",desc:"Standard"},{v:1.3,label:"Hard ⚡",desc:"Faster, shorter"},{v:1.6,label:"Expert 🔥",desc:"Maximum speed"}];
+    return(
     <div className="flex flex-col h-full px-4 py-5 gap-5 overflow-y-auto relative z-10">
       <div className="flex items-center gap-3">
         <NeonButton onClick={()=>setScreen("menu")} className="px-3 py-2 text-sm" style={{background:"#ffffff10"}}>← Back</NeonButton>
         <h2 className="text-xl font-black" style={{color:theme.accent}}>Settings</h2>
       </div>
+      {/* Sound on/off */}
       <div>
         <p className="text-xs font-bold opacity-40 mb-2 uppercase tracking-widest" style={{color:theme.accent}}>Sound</p>
         <NeonButton onClick={()=>{const n=!soundOn;setSoundOn(n);sv.soundEnabled=n;debounceSave();}}
@@ -4079,6 +4322,66 @@ export default function NexusTap(){
           style={{background:soundOn?`${theme.accent}22`:"#ffffff0a",border:`1px solid ${soundOn?theme.accent:"#ffffff22"}`,color:soundOn?theme.accent:"#888"}}>
           {soundOn?"🔊  Sound ON":"🔇  Sound OFF"}
         </NeonButton>
+      </div>
+      {/* Volume sliders */}
+      {soundOn&&<div>
+        <p className="text-xs font-bold opacity-40 mb-3 uppercase tracking-widest" style={{color:theme.accent}}>Volume</p>
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-3">
+            <span className="text-xs w-14" style={{color:theme.accent}}>🎵 Music</span>
+            <input type="range" min={0} max={100} value={sv.musicVol??80}
+              onChange={e=>{const v=parseInt(e.target.value);sv.musicVol=v;debounceSave();bgMusicCtl?.setVol?.(v*0.00032);}}
+              style={{flex:1,accentColor:theme.accent}}/>
+            <span className="text-xs w-8 text-right opacity-50" style={{color:theme.accent}}>{sv.musicVol??80}</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-xs w-14" style={{color:theme.accent}}>🔔 SFX</span>
+            <input type="range" min={0} max={100} value={sv.sfxVol??80}
+              onChange={e=>{const v=parseInt(e.target.value);sv.sfxVol=v;debounceSave();}}
+              style={{flex:1,accentColor:theme.accent}}/>
+            <span className="text-xs w-8 text-right opacity-50" style={{color:theme.accent}}>{sv.sfxVol??80}</span>
+          </div>
+        </div>
+      </div>}
+      {/* Haptic toggle */}
+      <div>
+        <p className="text-xs font-bold opacity-40 mb-2 uppercase tracking-widest" style={{color:theme.accent}}>Haptic Feedback</p>
+        <NeonButton onClick={()=>{const n=sv.hapticEnabled===false;sv.hapticEnabled=n;_hapticOn=n;debounceSave();}}
+          className="px-6 py-3"
+          style={{background:(sv.hapticEnabled!==false)?`${theme.accent}22`:"#ffffff0a",
+            border:`1px solid ${(sv.hapticEnabled!==false)?theme.accent:"#ffffff22"}`,
+            color:(sv.hapticEnabled!==false)?theme.accent:"#888"}}>
+          {(sv.hapticEnabled!==false)?"📳  Vibration ON":"📴  Vibration OFF"}
+        </NeonButton>
+      </div>
+      {/* Colorblind mode */}
+      <div>
+        <p className="text-xs font-bold opacity-40 mb-2 uppercase tracking-widest" style={{color:theme.accent}}>Accessibility</p>
+        <NeonButton onClick={()=>{const n=!sv.colorblindMode;sv.colorblindMode=n;_colorblindOn=n;debounceSave();}}
+          className="px-6 py-3"
+          style={{background:sv.colorblindMode?`${theme.accent}22`:"#ffffff0a",
+            border:`1px solid ${sv.colorblindMode?theme.accent:"#ffffff22"}`,
+            color:sv.colorblindMode?theme.accent:"#888"}}>
+          {sv.colorblindMode?"♛  Colorblind Symbols ON":"♛  Colorblind Symbols OFF"}
+        </NeonButton>
+      </div>
+      {/* Speed mode */}
+      <div>
+        <p className="text-xs font-bold opacity-40 mb-2 uppercase tracking-widest" style={{color:theme.accent}}>Game Speed</p>
+        <div className="flex flex-col gap-2">
+          {SPEED_MODES.map(sm=>(
+            <NeonButton key={sm.v} onClick={()=>{sv.speedMode=sm.v;debounceSave();}}
+              className="flex items-center justify-between px-4 py-3 rounded-2xl"
+              style={{background:(sv.speedMode||1)===sm.v?`${theme.accent}20`:"#ffffff06",
+                border:`1px solid ${(sv.speedMode||1)===sm.v?theme.accent:"#ffffff10"}`}}>
+              <div className="flex flex-col items-start">
+                <span style={{color:(sv.speedMode||1)===sm.v?theme.accent:"#aaa",fontWeight:"bold"}}>{sm.label}</span>
+                <span style={{fontSize:10,color:"#ffffff44"}}>{sm.desc}</span>
+              </div>
+              {(sv.speedMode||1)===sm.v&&<span style={{color:theme.accent}}>✓</span>}
+            </NeonButton>
+          ))}
+        </div>
       </div>
       <div>
         <p className="text-xs font-bold opacity-40 mb-2 uppercase tracking-widest" style={{color:theme.accent}}>Theme</p>
@@ -4132,7 +4435,111 @@ export default function NexusTap(){
         </NeonButton>
       </div>
     </div>
-  );
+  );};
+
+  // ── Infinity Mode Screen ──
+  const renderInfinity=()=>{
+    const infBest=sv.infinityBest||0;
+    const infRound=infinityRound;
+    const cfg=getInfinityLevelConfig(infRound);
+    return(
+      <div className="flex flex-col h-full px-5 py-6 gap-5 relative z-10 items-center justify-center">
+        <NeonButton onClick={()=>setScreen("menu")} className="absolute top-4 left-4 px-3 py-2 text-sm" style={{background:"#ffffff10"}}>← Back</NeonButton>
+        <div className="text-center">
+          <div className="text-5xl mb-2" style={{animation:"floatGlow 2s ease-in-out infinite",filter:"drop-shadow(0 0 20px #a78bfa)"}}>∞</div>
+          <h2 className="font-black text-3xl" style={{color:"#a78bfa",textShadow:"0 0 30px #a78bfaaa",fontFamily:"'Rajdhani',sans-serif",letterSpacing:"0.1em"}}>INFINITY MODE</h2>
+          <p className="text-sm opacity-60 mt-1" style={{color:"#a78bfa"}}>No end. No mercy. Pure reflex.</p>
+        </div>
+        {infBest>0&&(
+          <div className="px-6 py-3 rounded-2xl text-center" style={{background:"#a78bfa18",border:"1px solid #a78bfa44"}}>
+            <div className="text-xs opacity-50 mb-1" style={{color:"#a78bfa"}}>Personal Best</div>
+            <div className="text-2xl font-black" style={{color:"#a78bfa"}}>{infBest.toLocaleString()}</div>
+          </div>
+        )}
+        <div className="w-full rounded-2xl p-4" style={{background:"#ffffff08",border:"1px solid #a78bfa33"}}>
+          <div className="text-xs opacity-40 mb-2 uppercase tracking-widest" style={{color:"#a78bfa"}}>Starting Round</div>
+          <div className="flex gap-2 justify-center">
+            {[1,5,10,20].map(r=>(
+              <NeonButton key={r} onClick={()=>setInfinityRound(r)}
+                className="flex-1 py-3 text-sm font-black"
+                style={{background:infRound===r?"#a78bfa33":"#ffffff08",border:`1px solid ${infRound===r?"#a78bfa":"#ffffff15"}`,color:infRound===r?"#a78bfa":"#888"}}>
+                R{r}
+              </NeonButton>
+            ))}
+          </div>
+          <div className="text-xs text-center mt-2 opacity-40" style={{color:"#a78bfa"}}>Goal: {cfg.scoreGoal.toLocaleString()} pts · {cfg.lives} lives</div>
+        </div>
+        <NeonButton onClick={()=>{
+          const infCfg=getInfinityLevelConfig(infRound);
+          startGame(0,[],infCfg);
+        }} className="w-full py-5 text-xl font-black"
+          style={{background:"linear-gradient(135deg,#6d28d9,#a78bfa)",boxShadow:"0 0 40px #a78bfa66",letterSpacing:"0.1em"}}>
+          ∞ DIVE IN — Round {infRound}
+        </NeonButton>
+        <p className="text-xs text-center opacity-30" style={{color:"#a78bfa"}}>2× coin rewards · Levels cycle through all 10 worlds</p>
+      </div>
+    );
+  };
+
+  // ── Daily Boss Gauntlet Screen ──
+  const renderGauntlet=()=>{
+    const alreadyDone=sv.gauntletDate===getTodayKey();
+    const bossWorlds=WORLDS.slice(0,10);
+    return(
+      <div className="flex flex-col h-full px-5 py-5 gap-4 relative z-10 overflow-y-auto">
+        <div className="flex items-center gap-3">
+          <NeonButton onClick={()=>setScreen("menu")} className="px-3 py-2 text-sm" style={{background:"#ffffff10"}}>← Back</NeonButton>
+          <div>
+            <h2 className="text-xl font-black" style={{color:"#ff6b35"}}>⚔️ Daily Gauntlet</h2>
+            <p className="text-xs opacity-50" style={{color:"#ff6b35"}}>Defeat all 10 world bosses in a row!</p>
+          </div>
+        </div>
+        {alreadyDone&&(
+          <div className="rounded-2xl px-4 py-3 text-center" style={{background:"#ff6b3518",border:"1px solid #ff6b3544"}}>
+            <div style={{color:"#ff6b35",fontWeight:"bold",fontSize:14}}>✓ Completed today!</div>
+            <div className="text-xs opacity-60 mt-1" style={{color:"#ff6b35"}}>Come back tomorrow for another run.</div>
+            {(sv.gauntletBest||0)>0&&<div className="text-xs mt-1" style={{color:"#ff6b35"}}>Record: {sv.gauntletBest} bosses defeated</div>}
+          </div>
+        )}
+        <div className="rounded-2xl p-4" style={{background:"#ffffff08",border:"1px solid #ff6b3533"}}>
+          <div className="text-xs opacity-40 mb-3 uppercase tracking-widest" style={{color:"#ff6b35"}}>Boss Lineup</div>
+          <div className="grid grid-cols-5 gap-2">
+            {bossWorlds.map((w,i)=>(
+              <div key={w.id} className="flex flex-col items-center gap-1 p-2 rounded-xl"
+                style={{background:`${w.color}15`,border:`1px solid ${w.color}33`}}>
+                <span style={{fontSize:22}}>{w.emoji}</span>
+                <span style={{fontSize:8,color:w.color,opacity:0.8,textAlign:"center",lineHeight:1.2}}>{w.name.split(" ")[0]}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-2xl px-4 py-3" style={{background:"#ffd70018",border:"1px solid #ffd70044"}}>
+          <div className="text-sm font-bold" style={{color:"#ffd700"}}>🏆 Reward: 500🪙 + Boss Slayer achievement</div>
+          <div className="text-xs opacity-60 mt-1" style={{color:"#ffd700"}}>5 lives total — no recharge between bosses</div>
+        </div>
+        <NeonButton onClick={()=>{
+          if(alreadyDone)return;
+          // Start gauntlet as a special boss-only level (world 1 boss first)
+          setGauntletState({bossIndex:0,lives:5,score:0});
+          const gauntletCfg={
+            id:"gauntlet0",world:1,worldName:WORLDS[0].name,worldColor:WORLDS[0].color,
+            worldBg:WORLDS[0].bg,worldGrid:WORLDS[0].grid,
+            name:"Gauntlet: "+WORLDS[0].name,scoreGoal:1,lives:5,spawnInterval:2000,
+            targetLifetime:30000,bombRate:0,movingRate:0,ghostRate:0,
+            bossEnabled:true,bossRate:1.0,modifier:null,rarityBonus:0,
+            isBoss:true,isLast:false,isGauntlet:true,gauntletBossIndex:0,
+          };
+          startGame(10,[],gauntletCfg); // level 10 cfg as base but override with gauntletCfg
+        }} disabled={alreadyDone}
+          className="w-full py-5 text-xl font-black"
+          style={{background:alreadyDone?"#ffffff08":"linear-gradient(135deg,#b45309,#ff6b35)",
+            boxShadow:alreadyDone?"none":"0 0 36px #ff6b3555",
+            color:alreadyDone?"#ffffff30":"#fff",letterSpacing:"0.06em",opacity:alreadyDone?0.5:1}}>
+          {alreadyDone?"⚔️ See you tomorrow!":"⚔️ BEGIN GAUNTLET!"}
+        </NeonButton>
+      </div>
+    );
+  };
 
   // ═════════════════════════════════════════════════════════════
   // MAIN RENDER
@@ -4182,6 +4589,9 @@ export default function NexusTap(){
         @keyframes danceUnicorn{0%,100%{transform:translateY(0) scaleX(1)}20%{transform:translateY(-14px) scaleX(0.92) rotate(-5deg)}40%{transform:translateY(-8px) scaleX(1.08) rotate(4deg)}60%{transform:translateY(-18px) scaleX(0.95) rotate(-4deg)}80%{transform:translateY(-6px) scaleX(1.05) rotate(3deg)}}
         @keyframes streakBurstAnim{0%{transform:translateX(-50%) scale(0.4);opacity:0}20%{transform:translateX(-50%) scale(1.25);opacity:1}70%{transform:translateX(-50%) scale(1);opacity:1}90%{transform:translateX(-50%) scale(0.95);opacity:0.6}100%{transform:translateX(-50%) scale(0.8);opacity:0}}
         @keyframes mascotIdle{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-5px) scale(1.04)}}
+        @keyframes bossRagePulse{0%,100%{box-shadow:0 0 0 0 #ff000044}50%{box-shadow:0 0 0 12px #ff000022}}
+        @keyframes prestigePop{0%{transform:scale(0.3) rotate(-20deg);opacity:0}50%{transform:scale(1.3) rotate(5deg)}75%{transform:scale(0.95) rotate(-2deg)}100%{transform:scale(1) rotate(0);opacity:1}}
+        @keyframes infinityPulse{0%,100%{text-shadow:0 0 20px #a78bfa,0 0 40px #a78bfa55}50%{text-shadow:0 0 40px #a78bfa,0 0 80px #a78bfaaa}}
         *{-webkit-tap-highlight-color:transparent;box-sizing:border-box}
         ::-webkit-scrollbar{width:0}
         .shine-btn{position:relative;overflow:hidden}
@@ -4218,6 +4628,8 @@ export default function NexusTap(){
       {screen==="settings"         &&renderSettings()}
       {screen==="mascotcollection" &&renderMascotCollection()}
       {screen==="spinwheel"     &&renderSpinWheel()}
+      {screen==="infinity"      &&renderInfinity()}
+      {screen==="gauntlet"      &&renderGauntlet()}
       {storyData&&renderWorldStory()}
       {tutStep!==null&&renderTutorial()}
     </div>
