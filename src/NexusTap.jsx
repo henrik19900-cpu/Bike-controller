@@ -2140,8 +2140,12 @@ export default function NexusTap(){
     let pwrType=null,hitsLeft=1,maxHits=1,vx=0,vy=0;
     if(modifier?.type==="final_boss"){
       type="boss";color="#fbbf24";glow="#d97706";maxHits=10;hitsLeft=10;
+      moving=true;const a0=Math.random()*Math.PI*2;vx=Math.cos(a0)*0.8;vy=Math.sin(a0)*0.8;
     } else if(r<bossRate&&bossEnabled){
       type="boss";color="#ff6030";glow="#ff2000";maxHits=3;hitsLeft=3;
+      // Boss patterns by world — every boss now moves from spawn
+      moving=true;const ab=Math.random()*Math.PI*2;const spB=0.7+Math.random()*0.6;
+      vx=Math.cos(ab)*spB;vy=Math.sin(ab)*spB;
     } else if(r<(bossRate||0)+effBomb){
       type="bomb";color="#ef4444";glow="#dc2626";sfx("bombSpawn");
     } else if(r<(bossRate||0)+effBomb+0.07){
@@ -2173,6 +2177,8 @@ export default function NexusTap(){
     if(activePwrRef.current.some(p=>p.type==="FREEZE"&&p.endsAt>Date.now())){vx=0;vy=0;}
     // Normal targets telegraph their position 260ms before becoming active
     const anticipateMs=type==="normal"?260:0;
+    // Boss pattern: 4 patterns based on worldId, advances phases as HP drops
+    const bossPattern=type==="boss"?(cfg.world%4):null;
     targetsRef.current.push({
       id:Math.random().toString(36).slice(2),type,rarity:type==="normal"?rarity:null,
       x:pos.x,y:pos.y,radius:baseR,color,glow,lifetime,
@@ -2180,6 +2186,8 @@ export default function NexusTap(){
       born:performance.now(),anticipateMs,
       moving,ghost,vx,vy,pwrType,hitsLeft,maxHits,trail:moving?[]:null,
       worldId:cfg.world, worldColor:cfg.worldColor,
+      bossPattern, bossPhase:1, // phase 1 = full HP, 2 = mid, 3 = rage
+      cx:pos.x, cy:pos.y, // anchor for orbit patterns
     });
   },[sfx,pickPos]);
 
@@ -2400,9 +2408,38 @@ export default function NexusTap(){
     // BOSS
     if(hit.type==="boss"){
       hit.hitsLeft--;sfx("bossHit");vibrate(22);spawnParticles(hit.x,hit.y,hit.color,10,"spark");
-      // Rage mode on last hit
+      // Phase 2 transition at 66% HP (or 2/3 hits remaining for 3-hit bosses)
+      const hpPct=hit.hitsLeft/(hit.maxHits||1);
+      if(hpPct<=0.66&&hpPct>0.33&&hit.bossPhase===1){
+        hit.bossPhase=2;
+        sfx("bossPhase");vibrate([20,10,20]);
+        spawnPopup(hit.x,hit.y-50,"💨 PHASE 2!",hit.color||"#ff6030",18);
+        setScreenShake(true);setTimeout(()=>setScreenShake(false),350);
+        // New random direction, also remember new anchor for orbit pattern
+        const a2=Math.random()*Math.PI*2;
+        hit.vx=Math.cos(a2)*1.5;hit.vy=Math.sin(a2)*1.5;
+        hit.cx=hit.x;hit.cy=hit.y;
+        // Spawn 2 mini bombs as backup
+        const cfgNow=levelCfgRef.current;
+        if(cfgNow&&!cfgNow.isBoss){
+          for(let i=0;i<2;i++){
+            const ang=Math.random()*Math.PI*2;const dist=60+Math.random()*30;
+            targetsRef.current.push({
+              id:Math.random().toString(36).slice(2),type:"bomb",
+              x:hit.x+Math.cos(ang)*dist,y:hit.y+Math.sin(ang)*dist,
+              radius:BASE_R,color:"#ef4444",glow:"#dc2626",
+              lifetime:Math.min(3500,cfgNow.targetLifetime*0.55),
+              spawnedAt:Date.now(),born:performance.now(),
+              moving:false,hitsLeft:1,maxHits:1,
+              worldId:cfgNow.world,worldColor:cfgNow.worldColor,
+            });
+          }
+        }
+      }
+      // Rage mode on last hit (phase 3)
       if(hit.hitsLeft===1&&!hit.rage){
-        hit.rage=true;hit.moving=true;hit.vx=(Math.random()-0.5)*4;hit.vy=(Math.random()-0.5)*4;
+        hit.rage=true;hit.bossPhase=3;hit.moving=true;hit.vx=(Math.random()-0.5)*4;hit.vy=(Math.random()-0.5)*4;
+        hit.cx=hit.x;hit.cy=hit.y;
         sfx("bossPhase");vibrate([30,15,30,15,60]);
         spawnPopup(hit.x,hit.y-50,"⚠️ RAGE MODE!","#ff0000",20);
         setScreenShake(true);setTimeout(()=>setScreenShake(false),500);
@@ -2718,10 +2755,44 @@ export default function NexusTap(){
     targetsRef.current=targetsRef.current.filter(t=>{
       // Move
       if(t.moving&&!activePwrRef.current.some(p=>p.type==="FREEZE"&&p.endsAt>now)){
-        t.x+=t.vx*dt*0.056;t.y+=t.vy*dt*0.056;
-        const margin=t.radius+5;
-        if(t.x<margin||t.x>w-margin){t.vx*=-1;t.x=Math.max(margin,Math.min(w-margin,t.x));}
-        if(t.y<t.radius+95||t.y>h-margin){t.vy*=-1;t.y=Math.max(t.radius+95,Math.min(h-margin,t.y));}
+        if(t.type==="boss"&&t.bossPattern!=null){
+          // Boss-specific movement patterns, scaled by phase speed
+          const phaseSpeed=t.bossPhase===3?1.8:t.bossPhase===2?1.35:1.0;
+          const margin=t.radius+5;
+          if(t.bossPattern===0){
+            // Orbit around spawn anchor
+            const orbR=Math.min(80,Math.min(w,h)*0.18);
+            const omega=0.0011*phaseSpeed;
+            t.bossAngle=(t.bossAngle||0)+omega*dt;
+            t.x=(t.cx||t.x)+Math.cos(t.bossAngle)*orbR;
+            t.y=(t.cy||t.y)+Math.sin(t.bossAngle)*orbR*0.7;
+          } else if(t.bossPattern===1){
+            // Bounce (default)
+            t.x+=t.vx*dt*0.056*phaseSpeed;t.y+=t.vy*dt*0.056*phaseSpeed;
+            if(t.x<margin||t.x>w-margin){t.vx*=-1;t.x=Math.max(margin,Math.min(w-margin,t.x));}
+            if(t.y<t.radius+95||t.y>h-margin){t.vy*=-1;t.y=Math.max(t.radius+95,Math.min(h-margin,t.y));}
+          } else if(t.bossPattern===2){
+            // Vertical wave drift
+            t.x+=t.vx*dt*0.056*phaseSpeed;
+            t.y=(t.cy||t.y)+Math.sin((performance.now()-t.born)*0.0025*phaseSpeed)*45;
+            if(t.x<margin||t.x>w-margin){t.vx*=-1;t.x=Math.max(margin,Math.min(w-margin,t.x));}
+          } else {
+            // Zigzag — sudden direction change every ~700ms
+            t.bossZigT=(t.bossZigT||0)+dt;
+            if(t.bossZigT>700/phaseSpeed){
+              const a=Math.random()*Math.PI*2;const sp=1.2*phaseSpeed;
+              t.vx=Math.cos(a)*sp;t.vy=Math.sin(a)*sp;t.bossZigT=0;
+            }
+            t.x+=t.vx*dt*0.056;t.y+=t.vy*dt*0.056;
+            if(t.x<margin||t.x>w-margin){t.vx*=-1;t.x=Math.max(margin,Math.min(w-margin,t.x));}
+            if(t.y<t.radius+95||t.y>h-margin){t.vy*=-1;t.y=Math.max(t.radius+95,Math.min(h-margin,t.y));}
+          }
+        } else {
+          t.x+=t.vx*dt*0.056;t.y+=t.vy*dt*0.056;
+          const margin=t.radius+5;
+          if(t.x<margin||t.x>w-margin){t.vx*=-1;t.x=Math.max(margin,Math.min(w-margin,t.x));}
+          if(t.y<t.radius+95||t.y>h-margin){t.vy*=-1;t.y=Math.max(t.radius+95,Math.min(h-margin,t.y));}
+        }
         if(t.trail){t.trail.push({x:t.x,y:t.y});if(t.trail.length>12)t.trail.shift();}
       }
       // Squish (dying) animation — plays for 120ms then removes
