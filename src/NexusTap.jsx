@@ -4953,20 +4953,35 @@ export default function NexusTap(){
         </div>
       </div>
       <div>
-        <p className="text-xs font-bold opacity-40 mb-2 uppercase tracking-widest" style={{color:theme.accent}}>Theme</p>
+        <div className="flex justify-between items-baseline mb-2">
+          <p className="text-xs font-bold opacity-40 uppercase tracking-widest" style={{color:theme.accent}}>Theme</p>
+          <p className="text-xs opacity-50" style={{color:theme.accent}}>Your Level: <span style={{color:"#fff",fontWeight:"bold"}}>Lv {lvl}</span></p>
+        </div>
         <div className="flex flex-col gap-2">
           {THEMES.map(th=>{
             const locked=lvl<th.unlockLevel;
+            const levelsAway=th.unlockLevel-lvl;
             return(
               <NeonButton key={th.id} disabled={locked}
                 onClick={()=>{setTheme(th);sv.themeId=th.id;debounceSave();}}
                 className="flex items-center justify-between px-4 py-3 rounded-2xl"
-                style={{background:theme.id===th.id?`${th.accent}20`:"#ffffff06",border:`1px solid ${theme.id===th.id?th.accent:"#ffffff10"}`}}>
-                <div className="flex items-center gap-3">
-                  <div className="w-4 h-4 rounded-full" style={{background:th.accent,boxShadow:`0 0 8px ${th.accent}`}}/>
-                  <span style={{color:locked?"#444":th.accent}}>{th.name}</span>
+                style={{background:theme.id===th.id?`${th.accent}20`:"#ffffff06",border:`1px solid ${theme.id===th.id?th.accent:"#ffffff10"}`,opacity:locked?0.55:1}}>
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="w-4 h-4 rounded-full flex-shrink-0" style={{background:locked?"#444":th.accent,boxShadow:locked?"none":`0 0 8px ${th.accent}`}}/>
+                  <div className="flex-1 min-w-0">
+                    <div style={{color:locked?"#666":th.accent,fontWeight:"bold"}}>{th.name}</div>
+                    {locked&&(
+                      <div className="text-xs opacity-60 mt-0.5" style={{color:"#fff"}}>
+                        Unlocks at Lv {th.unlockLevel} {levelsAway>0?`· ${levelsAway} to go`:""}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                {locked?<span className="text-xs opacity-30">Lv{th.unlockLevel}</span>:theme.id===th.id?<span style={{color:th.accent}}>✓</span>:null}
+                {locked?(
+                  <span className="text-xs flex items-center gap-1" style={{color:"#888"}}>
+                    🔒 Lv{th.unlockLevel}
+                  </span>
+                ):theme.id===th.id?<span style={{color:th.accent,fontSize:18}}>✓</span>:<span className="text-xs opacity-40" style={{color:th.accent}}>tap to use</span>}
               </NeonButton>
             );
           })}
