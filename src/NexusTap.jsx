@@ -4633,6 +4633,14 @@ export default function NexusTap(){
     const all=[...sv.scores].sort((a,b)=>b-a).slice(0,10);
     const infAll=[...(sv.infinityScores||[])].sort((a,b)=>b-a).slice(0,5);
     const hasInfinity=(sv.unlockedLevel||1)>100||(sv.infinityScores||[]).length>0;
+    // Compute world-by-world star progress
+    const worldStars=WORLDS.map(w=>{
+      const lvls=Array.from({length:10},(_,i)=>w.id===10?91+i:(w.id-1)*10+i+1);
+      const stars=lvls.reduce((s,l)=>s+(sv.levelStars?.[l]||0),0);
+      return{world:w,stars,max:30,pct:Math.round((stars/30)*100)};
+    });
+    const totalStars=worldStars.reduce((s,w)=>s+w.stars,0);
+    const achPct=Math.round(((sv.unlockedAchievements||[]).length/ACHIEVEMENTS.length)*100);
     return(
       <div className="flex flex-col h-full px-4 py-5 gap-4 overflow-y-auto relative z-10">
         <div className="flex items-center gap-3">
@@ -4642,8 +4650,49 @@ export default function NexusTap(){
             👑×{sv.prestigeLevel} +{(sv.prestigeLevel||0)*5}%
           </span>}
         </div>
+        {/* ── PERSONAL STATS SUMMARY ── */}
+        <div className="grid grid-cols-2 gap-2">
+          <div className="p-3 rounded-2xl" style={{background:`${theme.accent}10`,border:`1px solid ${theme.accent}33`}}>
+            <div className="text-xs opacity-50 uppercase tracking-widest" style={{color:theme.accent}}>High Score</div>
+            <div className="text-xl font-black tabular-nums" style={{color:theme.accent}}>{(sv.highScore||0).toLocaleString()}</div>
+          </div>
+          <div className="p-3 rounded-2xl" style={{background:"#fbbf2410",border:"1px solid #fbbf2433"}}>
+            <div className="text-xs opacity-50 uppercase tracking-widest" style={{color:"#fbbf24"}}>Best Streak</div>
+            <div className="text-xl font-black tabular-nums" style={{color:"#fbbf24"}}>{sv.bestStreak||0}×</div>
+          </div>
+          <div className="p-3 rounded-2xl" style={{background:"#34d39910",border:"1px solid #34d39933"}}>
+            <div className="text-xs opacity-50 uppercase tracking-widest" style={{color:"#34d399"}}>Total Coins</div>
+            <div className="text-xl font-black tabular-nums" style={{color:"#34d399"}}>🪙 {(sv.totalCoins||0).toLocaleString()}</div>
+          </div>
+          <div className="p-3 rounded-2xl" style={{background:"#a78bfa10",border:"1px solid #a78bfa33"}}>
+            <div className="text-xs opacity-50 uppercase tracking-widest" style={{color:"#a78bfa"}}>Stars Total</div>
+            <div className="text-xl font-black tabular-nums" style={{color:"#a78bfa"}}>⭐ {totalStars}<span className="text-xs opacity-50">/300</span></div>
+          </div>
+        </div>
+        {/* ── WORLD PROGRESS RIBBON ── */}
+        <div className="rounded-2xl p-3" style={{background:"#ffffff05",border:"1px solid #ffffff10"}}>
+          <div className="text-xs font-bold opacity-50 mb-2 uppercase tracking-widest" style={{color:theme.accent}}>World Progress</div>
+          <div className="space-y-1.5">
+            {worldStars.map(w=>(
+              <div key={w.world.id} className="flex items-center gap-2">
+                <span style={{fontSize:16,minWidth:22}}>{w.world.emoji}</span>
+                <div className="flex-1">
+                  <div className="flex justify-between items-baseline">
+                    <span style={{fontSize:10,color:w.world.color,fontWeight:"bold",letterSpacing:"0.04em"}}>{w.world.name}</span>
+                    <span style={{fontSize:9,color:w.world.color,opacity:0.7}}>{w.stars}/30 ⭐</span>
+                  </div>
+                  <div style={{height:4,background:"#ffffff10",borderRadius:2,overflow:"hidden",marginTop:1}}>
+                    <div style={{width:`${w.pct}%`,height:"100%",background:w.world.color,boxShadow:`0 0 4px ${w.world.color}`,transition:"width 0.5s"}}/>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        {/* ── TOP 10 SCORES ── */}
+        <div className="text-xs font-bold opacity-40 uppercase tracking-widest" style={{color:theme.accent}}>Top 10 Scores</div>
         {all.length===0
-          ?<p className="text-center opacity-40 mt-8" style={{color:theme.accent}}>No scores yet!</p>
+          ?<p className="text-center opacity-40 text-sm" style={{color:theme.accent}}>No scores yet!</p>
           :all.map((s,i)=>(
             <div key={i} className="flex items-center justify-between px-4 py-3 rounded-2xl"
               style={{background:i===0?`${theme.accent}18`:"#ffffff05",border:`1px solid ${i<3?theme.accent+"44":"#ffffff0d"}`}}>
@@ -4667,10 +4716,17 @@ export default function NexusTap(){
             ))
           }
         </>}
-        <div className="mt-2 p-4 rounded-2xl text-center" style={{background:"#ffffff06",border:`1px solid ${theme.accent}22`}}>
-          <div className="text-xs opacity-40 mb-1" style={{color:theme.accent}}>Level Progress</div>
-          <div className="text-2xl font-black" style={{color:theme.accent}}>{Math.min(100,sv.unlockedLevel||1)}<span className="text-sm opacity-50">/100</span></div>
-          <div className="text-xs opacity-40 mt-1" style={{color:theme.accent}}>levels unlocked</div>
+        {/* ── COMPLETION CARDS ── */}
+        <div className="grid grid-cols-2 gap-2 mt-2">
+          <div className="p-3 rounded-2xl text-center" style={{background:"#ffffff06",border:`1px solid ${theme.accent}22`}}>
+            <div className="text-xs opacity-40 mb-1" style={{color:theme.accent}}>Levels Unlocked</div>
+            <div className="text-2xl font-black" style={{color:theme.accent}}>{Math.min(100,sv.unlockedLevel||1)}<span className="text-sm opacity-50">/100</span></div>
+          </div>
+          <div className="p-3 rounded-2xl text-center" style={{background:"#ffffff06",border:"1px solid #fbbf2422"}}>
+            <div className="text-xs opacity-40 mb-1" style={{color:"#fbbf24"}}>Achievements</div>
+            <div className="text-2xl font-black" style={{color:"#fbbf24"}}>{(sv.unlockedAchievements||[]).length}<span className="text-sm opacity-50">/{ACHIEVEMENTS.length}</span></div>
+            <div className="text-xs opacity-50 mt-0.5" style={{color:"#fbbf24"}}>{achPct}% complete</div>
+          </div>
         </div>
       </div>
     );
