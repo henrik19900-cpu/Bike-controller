@@ -520,6 +520,8 @@ const DEFAULT_SAVE = {
   infinityScores:[],     // top 10 infinity scores
   gauntletDate:null,     // date string of last gauntlet attempt
   gauntletBest:0,        // bosses defeated in best gauntlet run
+  mascotAccessories:{},  // { mascotId: accessoryId } — currently equipped
+  ownedAccessories:{},   // { "mascotId:accessoryId": true } — purchased
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -2716,11 +2718,24 @@ export default function NexusTap(){
     const glow=mood==="fire"||mood==="fever"?`drop-shadow(0 0 ${Math.round(size/2.5)}px ${m.color}) drop-shadow(0 0 ${Math.round(size/1.5)}px #ff6030aa)`
       :mood==="victory"||dancing?`drop-shadow(0 0 ${Math.round(size/2)}px ${m.color}) drop-shadow(0 0 ${Math.round(size)}px ${m.color}55)`
       :`drop-shadow(0 0 ${Math.round(size/3)}px ${m.color})`;
+    // Equipped accessory overlay
+    const accId=(saveRef.current.mascotAccessories||{})[m.id];
+    const acc=accId?MASCOT_ACCESSORIES.find(a=>a.id===accId):null;
     return(
-      <span style={{fontSize:size,lineHeight:1,display:"inline-block",
-        animation:anim,filter:glow,
-        ...sx}}>
-        {emoji}
+      <span style={{position:"relative",display:"inline-block",...sx}}>
+        <span style={{fontSize:size,lineHeight:1,display:"inline-block",
+          animation:anim,filter:glow}}>
+          {emoji}
+        </span>
+        {acc&&(
+          <span style={{
+            position:"absolute",top:-size*0.15,left:"50%",transform:"translateX(-50%)",
+            fontSize:size*0.5,lineHeight:1,pointerEvents:"none",
+            filter:`drop-shadow(0 0 ${Math.round(size/6)}px #ffd70088)`,
+            animation:anim}}>
+            {acc.emoji}
+          </span>
+        )}
       </span>
     );
   };
@@ -4383,6 +4398,74 @@ export default function NexusTap(){
             );
           })}
         </div>
+        {/* ── Accessory shop for active mascot ── */}
+        {(()=>{
+          const activeId=sv2.mascotId||"dragon";
+          const activeM=MASCOTS.find(m=>m.id===activeId)||MASCOTS[0];
+          const owned=sv2.ownedAccessories||{};
+          const equipped=(sv2.mascotAccessories||{})[activeId];
+          return(
+            <div style={{padding:"12px 16px 24px",borderTop:"1px solid #ffffff15",flexShrink:0}}>
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <div className="text-sm font-black" style={{color:activeM.color,letterSpacing:"0.05em"}}>
+                    🎩 {activeM.name}'s Accessories
+                  </div>
+                  <div className="text-xs opacity-50" style={{color:"#fff"}}>Coins: 🪙 {sv2.coins||0}</div>
+                </div>
+                {equipped&&(
+                  <button onClick={()=>{
+                    const ma={...(sv2.mascotAccessories||{})};delete ma[activeId];sv2.mascotAccessories=ma;
+                    flushSave();setNotif("Accessory removed");setTimeout(()=>setNotif(null),1500);
+                  }} className="text-xs px-3 py-1 rounded-lg font-bold"
+                    style={{background:"#ffffff10",color:"#ffffff90",border:"1px solid #ffffff20"}}>
+                    Remove
+                  </button>
+                )}
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
+                {MASCOT_ACCESSORIES.map(a=>{
+                  const ownKey=`${activeId}:${a.id}`;
+                  const isOwned=!!owned[ownKey];
+                  const isEquipped=equipped===a.id;
+                  const canBuy=(sv2.coins||0)>=a.cost;
+                  return(
+                    <button key={a.id} onClick={()=>{
+                      if(isOwned){
+                        // toggle equip
+                        sv2.mascotAccessories={...(sv2.mascotAccessories||{}),[activeId]:isEquipped?null:a.id};
+                        if(isEquipped){delete sv2.mascotAccessories[activeId];}
+                        flushSave();sfx("tap");
+                      }else if(canBuy){
+                        sv2.coins-=a.cost;
+                        sv2.ownedAccessories={...(sv2.ownedAccessories||{}),[ownKey]:true};
+                        sv2.mascotAccessories={...(sv2.mascotAccessories||{}),[activeId]:a.id};
+                        flushSave();sfx("coin");vibrate([20]);
+                        setNotif(`✨ ${a.name} equipped!`);setTimeout(()=>setNotif(null),1800);
+                      }
+                    }} disabled={!isOwned&&!canBuy}
+                      style={{
+                        position:"relative",padding:"10px 4px 8px",borderRadius:14,
+                        border:`2px solid ${isEquipped?"#ffd700":isOwned?activeM.color+"66":canBuy?"#ffffff22":"#ffffff08"}`,
+                        background:isEquipped?"#ffd70015":isOwned?activeM.color+"10":canBuy?"#ffffff05":"#00000040",
+                        cursor:(isOwned||canBuy)?"pointer":"not-allowed",
+                        opacity:(!isOwned&&!canBuy)?0.5:1,
+                        boxShadow:isEquipped?`0 0 12px #ffd70055`:"none",
+                        WebkitTapHighlightColor:"transparent"
+                      }}>
+                      {isEquipped&&<div style={{position:"absolute",top:4,right:4,fontSize:9,padding:"1px 5px",background:"#ffd700",color:"#000",borderRadius:5,fontWeight:"black"}}>ON</div>}
+                      <div style={{fontSize:30,lineHeight:1,marginBottom:4}}>{a.emoji}</div>
+                      <div style={{fontSize:10,fontWeight:"bold",color:"#fff",lineHeight:1.1}}>{a.name}</div>
+                      <div style={{fontSize:9,marginTop:3,color:isOwned?"#34d399":canBuy?"#fbbf24":"#ffffff40",fontWeight:"bold"}}>
+                        {isOwned?(isEquipped?"✓ Equipped":"Tap to wear"):`🪙 ${a.cost}`}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
       </div>
     );
   };
