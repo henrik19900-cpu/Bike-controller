@@ -2507,8 +2507,24 @@ export default function NexusTap(){
     // Mascot XP (level 5 = +5% coin bonus)
     const mascotIdNow=saveRef.current.mascotId||"dragon";
     const mXP=saveRef.current.mascotXP||(saveRef.current.mascotXP={});
+    const mLvlBefore=Math.min(20,Math.floor((mXP[mascotIdNow]||0)/500));
     mXP[mascotIdNow]=(mXP[mascotIdNow]||0)+Math.max(1,Math.floor(pts*0.01));
     const mLvlNow=Math.min(20,Math.floor((mXP[mascotIdNow]||0)/500));
+    // Evolution at LV5/10/15/20 — show popup with new perk
+    if(mLvlNow>mLvlBefore&&[5,10,15,20].includes(mLvlNow)){
+      const EVO_PERKS={5:"💰 +5% coins",10:"✨ Aura unlocked",15:"⚡ Fast dance",20:"👑 MAX rainbow aura"};
+      const m=MASCOTS.find(mm=>mm.id===mascotIdNow);
+      sfx("unlock");vibrate([40,20,40,20,80]);
+      setNotif(`🌟 ${m?.name||"Mascot"} → LV${mLvlNow}! ${EVO_PERKS[mLvlNow]}`);
+      setTimeout(()=>setNotif(null),3000);
+      // Auto-equip star at LV5, crown at LV20
+      const owned={...(saveRef.current.ownedAccessories||{})};
+      const equipped={...(saveRef.current.mascotAccessories||{})};
+      if(mLvlNow===5){owned[`${mascotIdNow}:star`]=true;equipped[mascotIdNow]=equipped[mascotIdNow]||"star";}
+      if(mLvlNow===20){owned[`${mascotIdNow}:crown`]=true;equipped[mascotIdNow]="crown";}
+      saveRef.current.ownedAccessories=owned;
+      saveRef.current.mascotAccessories=equipped;
+    }
     const coinMult=mLvlNow>=5?1.05:1;
     saveRef.current.coins=(saveRef.current.coins||0)+Math.max(1,Math.floor(pts*0.09*coinMult));
     saveRef.current.totalCoins=(saveRef.current.totalCoins||0)+Math.max(1,Math.floor(pts*0.09*coinMult));
@@ -2954,21 +2970,44 @@ export default function NexusTap(){
     const m=currentMascot;
     const emoji=m.e[mood]||m.e.idle;
     const bounce=mascotBounce&&mood!=="sad"&&mood!=="scared"&&!dancing;
-    const anim=dancing?`${m.dance} 0.55s ease-in-out infinite`
+    // Mascot level — drives evolution perks
+    const mLvl=Math.min(20,Math.floor(((saveRef.current.mascotXP||{})[m.id]||0)/500));
+    // LV15+: faster dance, LV20: even faster
+    const danceSpd=mLvl>=20?0.4:mLvl>=15?0.46:0.55;
+    const anim=dancing?`${m.dance} ${danceSpd}s ease-in-out infinite`
       :bounce?"mascotBounce 0.32s cubic-bezier(0.34,1.6,0.64,1)"
-      :(mood==="excited"||mood==="fire"||mood==="fever")?`${m.dance} 1.1s ease-in-out infinite`
+      :(mood==="excited"||mood==="fire"||mood==="fever")?`${m.dance} ${mLvl>=15?0.9:1.1}s ease-in-out infinite`
       :mood==="sad"?"mascotSad 0.6s ease-in-out 1"
       :mood==="scared"?"mascotShake 0.4s ease-in-out 1"
       :"mascotIdle 2.2s ease-in-out infinite";
-    const glow=mood==="fire"||mood==="fever"?`drop-shadow(0 0 ${Math.round(size/2.5)}px ${m.color}) drop-shadow(0 0 ${Math.round(size/1.5)}px #ff6030aa)`
-      :mood==="victory"||dancing?`drop-shadow(0 0 ${Math.round(size/2)}px ${m.color}) drop-shadow(0 0 ${Math.round(size)}px ${m.color}55)`
-      :`drop-shadow(0 0 ${Math.round(size/3)}px ${m.color})`;
+    // LV10+: extra glow aura. LV20: rainbow MAX aura
+    const auraColor=mLvl>=20?"#ffd700":m.color;
+    const auraStrength=mLvl>=20?1.5:mLvl>=10?1.1:1;
+    const glow=mood==="fire"||mood==="fever"?`drop-shadow(0 0 ${Math.round(size/2.5*auraStrength)}px ${m.color}) drop-shadow(0 0 ${Math.round(size/1.5)}px #ff6030aa)`
+      :mood==="victory"||dancing?`drop-shadow(0 0 ${Math.round(size/2*auraStrength)}px ${auraColor}) drop-shadow(0 0 ${Math.round(size*auraStrength)}px ${auraColor}55)`
+      :`drop-shadow(0 0 ${Math.round(size/3*auraStrength)}px ${auraColor})`;
     // Equipped accessory overlay
     const accId=(saveRef.current.mascotAccessories||{})[m.id];
     const acc=accId?MASCOT_ACCESSORIES.find(a=>a.id===accId):null;
     return(
       <span style={{position:"relative",display:"inline-block",...sx}}>
-        <span style={{fontSize:size,lineHeight:1,display:"inline-block",
+        {/* LV20 MAX rainbow aura ring */}
+        {mLvl>=20&&(
+          <span style={{
+            position:"absolute",inset:`-${size*0.12}px`,borderRadius:"50%",
+            background:"conic-gradient(from 0deg,#ff6030,#fbbf24,#34d399,#60a5fa,#f472b6,#a78bfa,#ff6030)",
+            filter:`blur(${size/8}px)`,opacity:0.55,
+            animation:"slotSpin 3.5s linear infinite",pointerEvents:"none"}}/>
+        )}
+        {/* LV10+ subtle aura ring */}
+        {mLvl>=10&&mLvl<20&&(
+          <span style={{
+            position:"absolute",inset:`-${size*0.08}px`,borderRadius:"50%",
+            background:`radial-gradient(circle,${m.color}55 0%,transparent 70%)`,
+            opacity:0.7,pointerEvents:"none",
+            animation:"floatGlow 2.4s ease-in-out infinite"}}/>
+        )}
+        <span style={{fontSize:size,lineHeight:1,display:"inline-block",position:"relative",
           animation:anim,filter:glow}}>
           {emoji}
         </span>
