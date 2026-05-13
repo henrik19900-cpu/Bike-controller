@@ -1267,6 +1267,11 @@ function drawTarget(ctx, t, ts) {
   const spawnScale=agePn<200?Math.min(1.08,agePn/200*1.08):1;
   let ghostAlpha=1;
   if(t.ghost) ghostAlpha=0.3+0.7*(0.5+0.5*Math.sin(ts/200));
+  // Haunted Castle (W7) ghost wave — temporary translucency
+  if(t.waveGhost&&Date.now()<t.waveGhost){
+    const remaining=(t.waveGhost-Date.now())/1400;
+    ghostAlpha*=0.35+0.65*(1-remaining); // dips then recovers
+  }
 
   if(t.moving) drawTrail(ctx,t);
 
@@ -2173,6 +2178,10 @@ export default function NexusTap(){
     const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
+    // World modifiers: Ocean Deep (8) — slower targets (calmer waters), longer lifetimes
+    if(cfg.world===8)lifetime*=1.15;
+    // World modifiers: Goblin Mines (6) — slightly faster targets (more chaotic) — short lifetimes
+    if(cfg.world===6)lifetime*=0.92;
     if(activePwrRef.current.some(p=>p.type==="SLOW"&&p.endsAt>Date.now()))lifetime*=1.6;
     if(activePwrRef.current.some(p=>p.type==="FREEZE"&&p.endsAt>Date.now())){vx=0;vy=0;}
     // Normal targets telegraph their position 260ms before becoming active
@@ -2848,10 +2857,32 @@ export default function NexusTap(){
     spawnTimer.current+=dt;
     if(spawnTimer.current>=(rageSpawn?cfg.spawnInterval*0.5:cfg.spawnInterval)){spawnTimer.current=0;spawnTarget();}
 
-    // Combo decay — reduce streak after 2.5s of inactivity
-    if(gs.streak>0&&gs.lastTapTime&&(Date.now()-gs.lastTapTime)>2500){
+    // World modifier: Dragon's Lair (W1) — small ground tremors every ~7-10s
+    if(cfg.world===1){
+      gs.lairTremorAt=gs.lairTremorAt||(Date.now()+8000+Math.random()*3000);
+      if(Date.now()>=gs.lairTremorAt){
+        setScreenShake(true);setTimeout(()=>setScreenShake(false),250);
+        try{navigator.vibrate?.([20]);}catch{}
+        gs.lairTremorAt=Date.now()+7000+Math.random()*4000;
+      }
+    }
+    // World modifier: Haunted Castle (W7) — periodic 'ghost wave' makes targets fade
+    if(cfg.world===7){
+      gs.ghostWaveAt=gs.ghostWaveAt||(Date.now()+5000);
+      gs.ghostWaveEnd=gs.ghostWaveEnd||0;
+      if(Date.now()>=gs.ghostWaveAt&&Date.now()>gs.ghostWaveEnd){
+        gs.ghostWaveEnd=Date.now()+1400;
+        gs.ghostWaveAt=Date.now()+5500+Math.random()*2000;
+        // Mark all current normal targets as wave-ghosted
+        targetsRef.current.forEach(t=>{if(t.type==="normal")t.waveGhost=Date.now()+1400;});
+      }
+    }
+
+    // Combo decay — reduce streak after 2.5s of inactivity (1.5s in Viking Fjords frost)
+    const decayMs=cfg.world===5?1500:2500; // Viking Fjords: combo slips through frost faster
+    if(gs.streak>0&&gs.lastTapTime&&(Date.now()-gs.lastTapTime)>decayMs){
       gs.streak=Math.max(0,gs.streak-1);
-      gs.lastTapTime=Date.now()-2500; // keep decaying at 1/2.5s rate
+      gs.lastTapTime=Date.now()-decayMs;
       setStreakDecaying(gs.streak>0);
     }
 
