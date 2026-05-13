@@ -220,6 +220,13 @@ const MYSTERY_PRIZES=[
   {label:"JACKPOT!",  emoji:"🌈", type:"jackpot",value:2000, weight:5 },
 ];
 
+// Boss loot table — one guaranteed drop per boss kill
+const BOSS_LOOT=[
+  {type:"coins",  label:"COIN BURST",    emoji:"💰", min:50,  max:200, weight:40, color:"#ffd700"},
+  {type:"xp",     label:"XP SURGE",      emoji:"⚡", min:30,  max:80,  weight:35, color:"#60a5fa"},
+  {type:"fragment",label:"RARE FRAGMENT",emoji:"💎", min:1,   max:1,   weight:25, color:"#c084fc"},
+];
+
 const LEVEL_NAMES = [
   // World 1 — Dragon's Lair
   "Cave Entrance","Warm Tunnel","Ember Glow","Scale Watch","Fireball Fun","Lava Bridge","Flame Trail","Dragon's Den","Fire Festival","Dragon Buddy",
@@ -538,6 +545,10 @@ const DEFAULT_SAVE = {
   tournamentDate:null,    // day key of today's tournament attempt
   tournamentBest:0,       // best score today
   tournamentHistory:[],   // [{date, score, rank}] last 7 days
+  bossFragments:0,        // cosmetic fragments from boss loot (10 = 1 accessory unlock)
+  bossLootHistory:[],     // [{type, amount, date}] last 20 drops
+  skillPoints:0,          // earned via XP milestones, spent in skill tree
+  skills:{},              // { skillId: level }
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -1379,6 +1390,15 @@ function drawParticle(ctx,p,now){
       ctx.lineTo(lx,ly);
     }
     ctx.stroke();
+  } else if(p.type==="trail"){
+    // Cross/star sparkle — perfect-tap trail effect
+    const s=Math.max(0,p.size*life);
+    ctx.strokeStyle=p.color; ctx.lineWidth=Math.max(0.5,s*0.6); ctx.lineCap="round";
+    ctx.shadowColor=p.color; ctx.shadowBlur=s*3;
+    ctx.beginPath();ctx.moveTo(p.x-s,p.y);ctx.lineTo(p.x+s,p.y);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(p.x,p.y-s);ctx.lineTo(p.x,p.y+s);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(p.x-s*0.7,p.y-s*0.7);ctx.lineTo(p.x+s*0.7,p.y+s*0.7);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(p.x+s*0.7,p.y-s*0.7);ctx.lineTo(p.x-s*0.7,p.y+s*0.7);ctx.stroke();
   } else {
     ctx.fillStyle=p.color; ctx.shadowColor=p.color; ctx.shadowBlur=p.size*2.5;
     const s=Math.max(0,p.size*life);
@@ -1966,6 +1986,7 @@ export default function NexusTap(){
   const [infinityRound,  setInfinityRound]  = useState(1);
   const [gauntletState,  setGauntletState]  = useState(null); // null | {bossIndex, lives, score}
   const [prestigeAnim,   setPrestigeAnim]   = useState(false);
+  const [chainFlash,     setChainFlash]     = useState(null); // null | {label, at}
 
   // Canvas & game refs
   const canvasRef    = useRef(null);
@@ -2506,6 +2527,37 @@ export default function NexusTap(){
         _bgBlast={x:hit.x,y:hit.y,at:performance.now()}; // explode bg particles
         spawnPopup(hit.x,hit.y-28,`🏆 BOSS! +${pts}`,"#ffd700",24);
         unlock("boss_kill");
+        // Boss loot drop — guaranteed rare reward
+        {
+          const totalW=BOSS_LOOT.reduce((s,l)=>s+l.weight,0);
+          let r=Math.random()*totalW,loot=BOSS_LOOT[BOSS_LOOT.length-1];
+          for(const l of BOSS_LOOT){r-=l.weight;if(r<=0){loot=l;break;}}
+          const amount=loot.min===loot.max?loot.min:Math.floor(loot.min+Math.random()*(loot.max-loot.min+1));
+          const sv2=saveRef.current;
+          if(loot.type==="coins"){sv2.coins+=amount;sv2.totalCoins=(sv2.totalCoins||0)+amount;sfx("coin");}
+          else if(loot.type==="xp"){sv2.xp=(sv2.xp||0)+amount;}
+          else if(loot.type==="fragment"){
+            sv2.bossFragments=(sv2.bossFragments||0)+1;
+            if(sv2.bossFragments>=10){
+              // Every 10 fragments unlock a random unowned accessory
+              const allAcc=["hat","crown","glasses","halo","bow","star"];
+              const owned=sv2.ownedAccessories||{};
+              const avail=allAcc.filter(id=>!Object.keys(owned).some(k=>k.endsWith(":"+id)));
+              if(avail.length>0){
+                const pick=avail[Math.floor(Math.random()*avail.length)];
+                const key=(sv2.mascotId||"dragon")+":"+pick;
+                sv2.ownedAccessories={...owned,[key]:true};
+                sv2.bossFragments-=10;
+                setTimeout(()=>setNotif("🎁 Fragment reward: "+pick+" accessory unlocked!"),600);
+              }
+            }
+          }
+          sv2.bossLootHistory=[{type:loot.type,amount,date:getTodayKey()},...(sv2.bossLootHistory||[])].slice(0,20);
+          debounceSave();
+          const lootLabel=loot.type==="fragment"?`${loot.emoji} FRAGMENT x1 (${sv2.bossFragments||1}/10)`:`${loot.emoji} ${loot.label} +${amount}`;
+          setTimeout(()=>spawnPopup(hit.x,hit.y-70,lootLabel,loot.color,18),200);
+          setTimeout(()=>{sfx("unlock");vibrate([15,10,30]);},350);
+        }
         // BONUS ROUND — free spins equivalent (non-boss levels only)
         {const cfgB=levelCfgRef.current;
         if(cfgB&&!cfgB.isBoss&&!gs.bonusRoundActive){
@@ -2634,12 +2686,32 @@ export default function NexusTap(){
         spawnParticles(t.x,t.y,t.color,14,"dot");
         spawnPopup(t.x,t.y-18,`+${chainPts} CHAIN!`,hit.color,12);
       });
-      if(chained>0){sfx("chainBonus");vibrate([8,4,8]);}
+      if(chained>0){
+        sfx("chainBonus");vibrate([8,4,8]);
+        // Chain count announcement popup
+        const chainLabel=chained>=4?"⚡⚡⚡ CHAIN x"+chained+"!":chained>=2?"⚡⚡ CHAIN x"+chained+"!":"⚡ CHAIN!";
+        setChainFlash({label:chainLabel,at:Date.now()});
+      }
       if(chained>=4)unlock("chain_4");
     }
     if(isPerfect){
       sfx("perfect");vibrate([8,8,8]);spawnPopup(hit.x,hit.y-22,"✨ PERFECT!","#fbbf24",18);
       setPerfectFlash(true);setTimeout(()=>setPerfectFlash(false),350);unlock("perfect_tap");
+      // Golden star burst trail for perfect taps
+      const trailColors=["#ffd700","#fbbf24","#fffbe6","#f59e0b","#ffffff"];
+      const _pnow=performance.now();
+      for(let i=0;i<20;i++){
+        const ang=Math.random()*Math.PI*2,spd=1.5+Math.random()*3.5;
+        particlesRef.current.push({
+          type:"trail",x:hit.x,y:hit.y,
+          vx:Math.cos(ang)*spd,vy:Math.sin(ang)*spd,
+          color:trailColors[i%trailColors.length],
+          born:_pnow,duration:380+Math.random()*360,
+          size:2+Math.random()*4,alpha:1,
+        });
+      }
+      // Ring shockwave in gold
+      particlesRef.current.push({type:"shockwave",x:hit.x,y:hit.y,r:1,color:"#ffd700",born:_pnow,duration:500,alpha:0.85});
     } else if(hit.rarity.label){
       spawnPopup(hit.x,hit.y,hit.rarity.label,hit.color,14);
     }
@@ -2886,6 +2958,10 @@ export default function NexusTap(){
           gs.streak=0;streakShRef.current=false;setStreakShieldActive(false);setMascotMood("sad");
           showMascotSpeech("miss");
           setTimeout(()=>setMascotMood("idle"),1200);
+          // Screen shake on miss
+          setScreenShake(true);setTimeout(()=>setScreenShake(false),280);
+          // Red flash at target position
+          spawnParticles(t.x,t.y,"#ef4444",8,"spark");
           // no_miss modifier: instant fail
           if(cfg?.modifier?.type==="no_miss"){endLevel(false);return false;}
         }
@@ -4050,6 +4126,16 @@ export default function NexusTap(){
             {currentMascot.name.toUpperCase()}
           </div>
         </div>
+        {/* Chain flash popup */}
+        {chainFlash&&(Date.now()-chainFlash.at<900)&&(
+          <div key={chainFlash.at} className="absolute left-1/2 pointer-events-none z-40"
+            style={{top:"45%",transform:"translateX(-50%)",animation:"streakBurstAnim 0.85s cubic-bezier(0.34,1.4,0.64,1) forwards",textAlign:"center",whiteSpace:"nowrap"}}>
+            <div className="font-black" style={{fontSize:"clamp(1.2rem,6vw,2rem)",color:"#60a5fa",
+              textShadow:"0 0 30px #60a5fa,0 0 60px #60a5fa55",letterSpacing:"0.04em"}}>
+              {chainFlash.label}
+            </div>
+          </div>
+        )}
         {/* Streak milestone burst */}
         {streakBurst&&(
           <div className="absolute left-1/2 pointer-events-none z-40"
