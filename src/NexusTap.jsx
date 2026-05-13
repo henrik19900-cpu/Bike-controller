@@ -1311,6 +1311,19 @@ function drawParticle(ctx,p,now){
     ctx.strokeStyle=p.color; ctx.lineWidth=Math.max(0.5,p.size*life); ctx.lineCap="round";
     ctx.shadowColor=p.color; ctx.shadowBlur=p.size*3;
     ctx.beginPath(); ctx.moveTo(p.x-p.vx*2,p.y-p.vy*2); ctx.lineTo(p.x,p.y); ctx.stroke();
+  } else if(p.type==="arc"){
+    // Lightning arc from (x,y) to (x2,y2) — chain reaction visual
+    ctx.strokeStyle=p.color; ctx.lineWidth=Math.max(1,4*life); ctx.lineCap="round";
+    ctx.shadowColor=p.color; ctx.shadowBlur=20;
+    ctx.beginPath(); ctx.moveTo(p.x,p.y);
+    const segments=6;
+    for(let i=1;i<=segments;i++){
+      const t=i/segments;
+      const lx=p.x+(p.x2-p.x)*t+(Math.random()-0.5)*16*(1-Math.abs(t-0.5)*2);
+      const ly=p.y+(p.y2-p.y)*t+(Math.random()-0.5)*16*(1-Math.abs(t-0.5)*2);
+      ctx.lineTo(lx,ly);
+    }
+    ctx.stroke();
   } else {
     ctx.fillStyle=p.color; ctx.shadowColor=p.color; ctx.shadowBlur=p.size*2.5;
     const s=Math.max(0,p.size*life);
@@ -2421,6 +2434,32 @@ export default function NexusTap(){
       sfx("uncommon");vibrate(14);spawnParticles(hit.x,hit.y,hit.color,12,"dot");
     } else {
       vibrate(8);spawnParticles(hit.x,hit.y,hit.color,8,"dot");
+    }
+    // ── CHAIN REACTIONS — Rare+ targets can chain-detonate nearby normal targets ──
+    const chainChance=hit.rarity.name==="legendary"?1.0:hit.rarity.name==="epic"?0.55:hit.rarity.name==="rare"?0.22:0;
+    if(chainChance>0){
+      const chainRange=hit.radius*4.2+90;
+      const candidates=targetsRef.current.filter(t=>
+        t!==hit&&!t.dying&&!t.anticipateMs||(t.anticipateMs&&(performance.now()-t.born)>=t.anticipateMs)
+      ).filter(t=>t.type==="normal"&&t.id!==hit.id&&!t.dying);
+      let chained=0;
+      candidates.forEach(t=>{
+        if(chained>=4)return;
+        const dist=Math.hypot(t.x-hit.x,t.y-hit.y);
+        if(dist>chainRange)return;
+        if(Math.random()>chainChance)return;
+        chained++;
+        // Lightning arc from hit to chained target
+        particlesRef.current.push({type:"arc",x:hit.x,y:hit.y,x2:t.x,y2:t.y,
+          color:hit.color,size:3,born:performance.now(),duration:280,alpha:1});
+        // Detonate
+        t.dying=performance.now();
+        const chainPts=Math.max(1,Math.floor((t.rarity?.mult||1)*combo*feverMult*0.5*prestigeMult));
+        gs.score+=chainPts;
+        spawnParticles(t.x,t.y,t.color,14,"dot");
+        spawnPopup(t.x,t.y-18,`+${chainPts} CHAIN!`,hit.color,12);
+      });
+      if(chained>0){sfx("chainBonus");vibrate([8,4,8]);}
     }
     if(isPerfect){
       sfx("perfect");vibrate([8,8,8]);spawnPopup(hit.x,hit.y-22,"✨ PERFECT!","#fbbf24",18);
