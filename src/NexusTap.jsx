@@ -3889,8 +3889,25 @@ export default function NexusTap(){
   const renderPlaying=()=>{
     const cfg=levelCfgRef.current;
     const wc=cfg?WORLDS[cfg.world-1].color:theme.accent;
+    const speedMode=sv.speedMode||1.0;
+    const speedLabel=speedMode<=0.75?"🐢":speedMode>=1.5?"🔥":speedMode>=1.2?"⚡":speedMode>=1?"":"";
     return(
       <div className="absolute inset-0" onTouchStart={handleTap} onClick={handleTap} style={{touchAction:"none",zIndex:10}}>
+        {/* Mode indicators (top corners, non-default modes only) */}
+        <div className="absolute top-2 right-2 z-30 flex flex-col gap-1 items-end pointer-events-none">
+          {speedMode!==1.0&&(
+            <div style={{padding:"3px 8px",borderRadius:8,background:`${wc}33`,border:`1px solid ${wc}66`,
+              color:"#fff",fontSize:10,fontWeight:"bold",letterSpacing:"0.04em",boxShadow:`0 0 8px ${wc}44`}}>
+              {speedLabel} {speedMode.toFixed(1)}×
+            </div>
+          )}
+          {sv.colorblindMode&&(
+            <div style={{padding:"3px 8px",borderRadius:8,background:`${wc}33`,border:`1px solid ${wc}66`,
+              color:"#fff",fontSize:10,fontWeight:"bold",letterSpacing:"0.04em"}}>
+              ♛ CB
+            </div>
+          )}
+        </div>
         {/* HUD */}
         <div className="absolute top-0 left-0 right-0 z-20 flex items-stretch"
           style={{background:"rgba(0,0,0,0.62)",backdropFilter:"blur(6px)",borderBottom:`1px solid ${wc}22`}}>
