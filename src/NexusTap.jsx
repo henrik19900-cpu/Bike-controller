@@ -1939,6 +1939,7 @@ export default function NexusTap(){
   const [mascotDancing, setMascotDancing] = useState(false);
   const [mascotUnlockedData, setMascotUnlockedData] = useState(null); // newly unlocked mascot
   const [dailyBonusData, setDailyBonusData] = useState(null); // {day, coins, xp, isWeekly}
+  const [shopConfirm, setShopConfirm] = useState(null); // {total, items, onConfirm}
   const [spinState,     setSpinState]     = useState(null);
   const [spinResult,    setSpinResult]    = useState(null);
   const [spinDeg,       setSpinDeg]       = useState(0);
@@ -3851,23 +3852,30 @@ export default function NexusTap(){
         <NeonButton onClick={()=>{
           const total=cartItems.reduce((s,id)=>s+(SHOP_ITEMS.find(i=>i.id===id)?.cost||0),0);
           if(sv.coins<total){setNotif("Not enough coins! 🪙");return;}
-          sv.coins-=total;flushSave();
-          // Show world story intro when first entering a new world (level 1 of each world)
-          const isFirstLevelOfWorld=cfg.id%10===1;
-          const seenWorlds=saveRef.current.seenWorldStories||[];
-          const seenBoss=`boss_${cfg.world}`;
-          const seenBosses=saveRef.current.seenBossIntros||[];
-          if(cfg.isBoss&&!seenBosses.includes(cfg.world)){
-            const ws=WORLD_STORIES.find(s=>s.worldId===cfg.world);
-            if(ws?.bossIntro){
-              setStoryData({type:"boss",worldId:cfg.world,bossIntro:ws.bossIntro,onDone:()=>startGame(selectedLevel,cartItems)});
-              return;
+          // The actual start logic, extracted so confirmation can call it
+          const doStart=()=>{
+            sv.coins-=total;flushSave();
+            const isFirstLevelOfWorld=cfg.id%10===1;
+            const seenWorlds=saveRef.current.seenWorldStories||[];
+            const seenBosses=saveRef.current.seenBossIntros||[];
+            if(cfg.isBoss&&!seenBosses.includes(cfg.world)){
+              const ws=WORLD_STORIES.find(s=>s.worldId===cfg.world);
+              if(ws?.bossIntro){
+                setStoryData({type:"boss",worldId:cfg.world,bossIntro:ws.bossIntro,onDone:()=>startGame(selectedLevel,cartItems)});
+                return;
+              }
             }
-          }
-          if(isFirstLevelOfWorld&&!seenWorlds.includes(cfg.world)){
-            setStoryData({type:"world",worldId:cfg.world,panelIndex:0,onDone:()=>startGame(selectedLevel,cartItems)});
+            if(isFirstLevelOfWorld&&!seenWorlds.includes(cfg.world)){
+              setStoryData({type:"world",worldId:cfg.world,panelIndex:0,onDone:()=>startGame(selectedLevel,cartItems)});
+            } else {
+              startGame(selectedLevel,cartItems);
+            }
+          };
+          // Confirm if buying anything
+          if(total>0){
+            setShopConfirm({total,items:[...cartItems],onConfirm:()=>{setShopConfirm(null);doStart();}});
           } else {
-            startGame(selectedLevel,cartItems);
+            doStart();
           }
         }} className="w-full py-4 text-xl mt-1"
           style={{background:`linear-gradient(135deg,${cfg.worldColor}88,${cfg.worldColor})`,boxShadow:`0 0 28px ${cfg.worldColor}55`}}>
@@ -5318,6 +5326,67 @@ export default function NexusTap(){
       </div>
       {storyData&&renderWorldStory()}
       {tutStep!==null&&renderTutorial()}
+      {/* ── SHOP PURCHASE CONFIRMATION ── */}
+      {shopConfirm&&(
+        <div className="absolute inset-0 flex items-center justify-center z-50 px-5"
+          style={{background:"rgba(0,0,0,0.82)",backdropFilter:"blur(10px)",animation:"vtScreenIn 0.18s ease-out"}}
+          onClick={(e)=>{if(e.target===e.currentTarget)setShopConfirm(null);}}>
+          <div className="w-full max-w-sm rounded-3xl p-5"
+            style={{background:"linear-gradient(160deg,#fbbf2422 0%,#180400 70%)",
+              border:"1px solid #fbbf2455",boxShadow:"0 0 50px #fbbf2466",
+              animation:"victoryBurst 0.36s cubic-bezier(0.34,1.4,0.64,1)"}}>
+            <div className="text-center mb-3">
+              <div className="text-3xl mb-1">🛒</div>
+              <h3 className="font-black text-lg" style={{color:"#fbbf24"}}>Confirm Purchase</h3>
+              <p className="text-xs opacity-60" style={{color:"#fff"}}>Coins are spent at start — no refunds</p>
+            </div>
+            {/* Items list */}
+            <div className="space-y-1 mb-3 max-h-44 overflow-y-auto">
+              {shopConfirm.items.map(id=>{const item=SHOP_ITEMS.find(i=>i.id===id);return item?(
+                <div key={id} className="flex items-center justify-between px-3 py-2 rounded-xl"
+                  style={{background:"#ffffff08",border:"1px solid #ffffff15"}}>
+                  <div className="flex items-center gap-2">
+                    <span style={{fontSize:20}}>{item.icon}</span>
+                    <div>
+                      <div className="text-sm font-bold" style={{color:"#fff"}}>{item.name}</div>
+                      <div className="text-xs opacity-50" style={{color:"#fff"}}>{item.desc}</div>
+                    </div>
+                  </div>
+                  <div className="text-sm font-black" style={{color:"#fbbf24"}}>🪙 {item.cost}</div>
+                </div>
+              ):null;})}
+            </div>
+            {/* Total + balance */}
+            <div className="rounded-xl p-3 mb-4" style={{background:"#fbbf2410",border:"1px solid #fbbf2433"}}>
+              <div className="flex justify-between text-sm mb-1">
+                <span className="opacity-60" style={{color:"#fff"}}>Total cost</span>
+                <span className="font-black" style={{color:"#fbbf24"}}>🪙 {shopConfirm.total}</span>
+              </div>
+              <div className="flex justify-between text-sm mb-1">
+                <span className="opacity-60" style={{color:"#fff"}}>Your coins</span>
+                <span style={{color:"#fff"}}>🪙 {(sv.coins||0).toLocaleString()}</span>
+              </div>
+              <div className="border-t border-white border-opacity-10 my-1.5"></div>
+              <div className="flex justify-between text-sm">
+                <span className="opacity-60" style={{color:"#fff"}}>After purchase</span>
+                <span className="font-black" style={{color:"#34d399"}}>🪙 {((sv.coins||0)-shopConfirm.total).toLocaleString()}</span>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <NeonButton onClick={()=>setShopConfirm(null)}
+                className="flex-1 py-3 text-sm font-bold"
+                style={{background:"#ffffff10",border:"1px solid #ffffff20",color:"#ffffff90"}}>
+                Cancel
+              </NeonButton>
+              <NeonButton onClick={()=>{sfx("coin");shopConfirm.onConfirm();}}
+                className="flex-1 py-3 text-sm font-black"
+                style={{background:"linear-gradient(135deg,#b45309,#fbbf24)",boxShadow:"0 0 24px #fbbf2455",color:"#fff",letterSpacing:"0.04em"}}>
+                ✓ Confirm
+              </NeonButton>
+            </div>
+          </div>
+        </div>
+      )}
       {/* ── DAILY LOGIN BONUS POPUP ── */}
       {dailyBonusData&&(
         <div className="absolute inset-0 flex flex-col items-center justify-center z-50 px-5"
