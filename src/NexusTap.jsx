@@ -353,6 +353,7 @@ const ACHIEVEMENTS = [
   { id:"missions_all", label:"Quest Finisher",   desc:"Complete all daily quests",        icon:"📜", xp:50  },
   { id:"daily_7",      label:"Daily Hero",       desc:"Play 7 days in a row",             icon:"🌞", xp:75  },
   { id:"five_star",    label:"Perfect Boss Win",  desc:"3-star a boss level",             icon:"⭐", xp:100 },
+  { id:"weekly_done",  label:"Weekly Champion",   desc:"Clear the Weekly Challenge",       icon:"🗓️", xp:150 },
 ];
 
 const MISSION_TEMPLATES = [
@@ -522,6 +523,9 @@ const DEFAULT_SAVE = {
   gauntletBest:0,        // bosses defeated in best gauntlet run
   mascotAccessories:{},  // { mascotId: accessoryId } — currently equipped
   ownedAccessories:{},   // { "mascotId:accessoryId": true } — purchased
+  weeklyChallengeDate:null, // week key of last weekly attempt
+  weeklyChallengeCompleted:false, // true if this week's weekly was beaten
+  weeklyChallengeBest:0, // best score on this week's weekly
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -2138,8 +2142,22 @@ export default function NexusTap(){
       // Unlock next
       if(cfg.id>=sv.unlockedLevel) sv.unlockedLevel=Math.min(100,cfg.id+1);
       // XP + coins
-      const xpEarned=Math.floor(score/6)+gs.sessionStats.rareHits*8+gs.sessionStats.bossKills*30+(stars-1)*40;
-      const coinsEarned=Math.floor(score*0.14)+gs.sessionStats.bossKills*20+stars*15;
+      let xpEarned=Math.floor(score/6)+gs.sessionStats.rareHits*8+gs.sessionStats.bossKills*30+(stars-1)*40;
+      let coinsEarned=Math.floor(score*0.14)+gs.sessionStats.bossKills*20+stars*15;
+      // Weekly Challenge bonus
+      const wk=getWeekKey();
+      if(cfg.id===getWeeklyChallengeLevel()&&!cfg.isInfinity&&!cfg.isGauntlet){
+        const wasCompleted=sv.weeklyChallengeDate===wk&&sv.weeklyChallengeCompleted;
+        sv.weeklyChallengeDate=wk;
+        if(sv.weeklyChallengeDate!==wk||!sv.weeklyChallengeBest)sv.weeklyChallengeBest=0;
+        if(score>(sv.weeklyChallengeBest||0))sv.weeklyChallengeBest=score;
+        if(!wasCompleted){
+          sv.weeklyChallengeCompleted=true;
+          coinsEarned+=500;xpEarned+=200;
+          unlock("weekly_done");
+          setTimeout(()=>setNotif("🗓️ Weekly Challenge Cleared! +500🪙 +200XP"),700);
+        }
+      }
       const prevLvl=getLvl(sv.xp);sv.xp+=xpEarned;
       if(getLvl(sv.xp)>prevLvl){sfx("levelUp");setNotif(`Level Up! Lv ${getLvl(sv.xp)} 🎉`);}
       sv.coins=(sv.coins||0)+coinsEarned;sv.totalCoins=(sv.totalCoins||0)+coinsEarned;
@@ -2526,7 +2544,7 @@ export default function NexusTap(){
 
   // Menu canvas loop
   useEffect(()=>{
-    if(screen!=="menu"&&screen!=="levelmap"&&screen!=="shop"&&screen!=="levelcomplete"&&screen!=="gameover"&&screen!=="spinwheel"&&screen!=="missions"&&screen!=="achievements"&&screen!=="leaderboard"&&screen!=="settings"&&screen!=="infinity"&&screen!=="gauntlet"&&screen!=="mascotcollection")return;
+    if(screen!=="menu"&&screen!=="levelmap"&&screen!=="shop"&&screen!=="levelcomplete"&&screen!=="gameover"&&screen!=="spinwheel"&&screen!=="missions"&&screen!=="achievements"&&screen!=="leaderboard"&&screen!=="settings"&&screen!=="infinity"&&screen!=="gauntlet"&&screen!=="mascotcollection"&&screen!=="weekly")return;
     let raf;
     const loop=(ts)=>{
       const canvas=canvasRef.current;if(!canvas)return;
@@ -3122,6 +3140,23 @@ export default function NexusTap(){
             style={{background:alreadyDone?"#ffffff08":"#ff6b3522",border:`1px solid ${alreadyDone?"#ffffff15":"#ff6b3566"}`,
               color:alreadyDone?"#ffffff30":"#ff6b35",opacity:alreadyDone?0.5:1}}>
             ⚔️ {alreadyDone?"Daily Gauntlet (done today)":`Daily Boss Gauntlet! ${sv.gauntletBest>0?`• Record: ${sv.gauntletBest} bosses`:""}`}
+          </NeonButton>
+        );
+      })()}
+      {/* Weekly Challenge */}
+      {(()=>{
+        if((sv.unlockedLevel||1)<20)return null;
+        const wk=getWeekKey();
+        const isThisWeek=sv.weeklyChallengeDate===wk;
+        const done=isThisWeek&&sv.weeklyChallengeCompleted;
+        const wkLvl=getWeeklyChallengeLevel();
+        return(
+          <NeonButton onClick={()=>{if(!done)go("weekly");}}
+            className="w-full py-3 text-sm font-black"
+            style={{background:done?"#ffffff08":"linear-gradient(135deg,#a78bfa22,#7c3aed22)",
+              border:`1px solid ${done?"#ffffff15":"#a78bfa66"}`,
+              color:done?"#ffffff30":"#a78bfa",opacity:done?0.5:1}}>
+            🗓️ {done?"Weekly Done — see you Monday!":`Weekly Challenge: Level ${wkLvl}!`}
           </NeonButton>
         );
       })()}
@@ -4646,6 +4681,71 @@ export default function NexusTap(){
     );
   };
 
+  // ── Weekly Challenge Screen ──
+  const renderWeekly=()=>{
+    const wk=getWeekKey();
+    const wkLvl=getWeeklyChallengeLevel();
+    const cfg=getLevelConfig(wkLvl);
+    const wld=WORLDS[cfg.world-1];
+    const isThisWeek=sv.weeklyChallengeDate===wk;
+    const completed=isThisWeek&&sv.weeklyChallengeCompleted;
+    const best=isThisWeek?(sv.weeklyChallengeBest||0):0;
+    return(
+      <div className="flex flex-col h-full px-5 py-6 gap-5 relative z-10 items-center justify-center">
+        <NeonButton onClick={()=>go("menu")} className="absolute top-4 left-4 px-3 py-2 text-sm" style={{background:"#ffffff10"}}>← Back</NeonButton>
+        <div className="text-center">
+          <div className="text-5xl mb-2" style={{animation:"floatGlow 2s ease-in-out infinite",filter:"drop-shadow(0 0 20px #a78bfa)"}}>🗓️</div>
+          <h2 className="font-black text-3xl" style={{color:"#a78bfa",textShadow:"0 0 30px #a78bfaaa",letterSpacing:"0.08em"}}>WEEKLY CHALLENGE</h2>
+          <p className="text-sm opacity-60 mt-1" style={{color:"#a78bfa"}}>Resets every Monday · 3× coin reward</p>
+        </div>
+        <div className="w-full rounded-2xl p-5" style={{background:`linear-gradient(160deg,${wld.color}22 0%,${wld.bg} 60%)`,border:`1px solid ${wld.color}55`,boxShadow:`0 0 30px ${wld.color}33`}}>
+          <div className="flex items-center gap-3 mb-3">
+            <span style={{fontSize:36}}>{wld.emoji}</span>
+            <div>
+              <div className="text-xs uppercase tracking-widest opacity-55 font-bold" style={{color:wld.color}}>{wld.name}</div>
+              <div className="text-lg font-black" style={{color:wld.color}}>Level {wkLvl}: {cfg.name}</div>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="p-2 rounded-lg" style={{background:"#ffffff08"}}>
+              <div className="opacity-50" style={{color:wld.color}}>Goal</div>
+              <div className="font-bold" style={{color:"#fff"}}>{cfg.scoreGoal.toLocaleString()} pts</div>
+            </div>
+            <div className="p-2 rounded-lg" style={{background:"#ffffff08"}}>
+              <div className="opacity-50" style={{color:wld.color}}>Lives</div>
+              <div className="font-bold" style={{color:"#fff"}}>{cfg.lives}</div>
+            </div>
+          </div>
+          {best>0&&(
+            <div className="mt-3 p-2 rounded-lg text-center" style={{background:"#a78bfa18",border:"1px solid #a78bfa44"}}>
+              <div className="text-xs opacity-60" style={{color:"#a78bfa"}}>Your best this week</div>
+              <div className="text-xl font-black" style={{color:"#a78bfa"}}>{best.toLocaleString()}</div>
+            </div>
+          )}
+        </div>
+        <div className="w-full rounded-xl p-3 text-center" style={{background:"#fbbf2418",border:"1px solid #fbbf2444"}}>
+          <div className="text-xs opacity-70" style={{color:"#fbbf24"}}>🏆 Reward for clearing</div>
+          <div className="font-black text-base" style={{color:"#fbbf24"}}>+500 🪙 · +200 XP · Unique badge</div>
+        </div>
+        <NeonButton onClick={()=>{
+          if(completed)return;
+          setSelectedLevel(wkLvl);
+          sv.weeklyChallengeDate=wk;
+          if(!isThisWeek){sv.weeklyChallengeBest=0;sv.weeklyChallengeCompleted=false;}
+          flushSave();
+          go("shop");
+        }} disabled={completed}
+          className="w-full py-5 text-xl font-black"
+          style={{background:completed?"#ffffff10":"linear-gradient(135deg,#6d28d9,#a78bfa)",
+            boxShadow:completed?"none":"0 0 40px #a78bfa66",
+            color:completed?"#ffffff40":"#fff",letterSpacing:"0.06em",
+            opacity:completed?0.5:1}}>
+          {completed?"✓ Done! See you Monday":"🗓️ BEGIN WEEKLY CHALLENGE"}
+        </NeonButton>
+      </div>
+    );
+  };
+
   // ── Daily Boss Gauntlet Screen ──
   const renderGauntlet=()=>{
     const alreadyDone=sv.gauntletDate===getTodayKey();
@@ -4800,6 +4900,7 @@ export default function NexusTap(){
       {screen==="spinwheel"     &&renderSpinWheel()}
       {screen==="infinity"      &&renderInfinity()}
       {screen==="gauntlet"      &&renderGauntlet()}
+      {screen==="weekly"        &&renderWeekly()}
       </div>
       {storyData&&renderWorldStory()}
       {tutStep!==null&&renderTutorial()}
