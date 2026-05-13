@@ -3335,6 +3335,28 @@ export default function NexusTap(){
 
       {/* ── Mascot showcase on menu ── */}
       <div className="flex flex-col items-center gap-2" style={{marginTop:-4,marginBottom:-4}}>
+        {/* Time-based greeting speech bubble */}
+        {(()=>{
+          const h=new Date().getHours();
+          const streak=sv.loginStreak||0;
+          const name=currentMascot.name;
+          let greeting;
+          if(streak>=7&&Math.random()<0.4) greeting=`Day ${streak} streak! 🔥`;
+          else if(h>=5&&h<11) greeting=`Good morning! ☀️`;
+          else if(h>=11&&h<17) greeting=`Hey there! 👋`;
+          else if(h>=17&&h<22) greeting=`Good evening! 🌙`;
+          else greeting=`Up late? Let's play! 🌌`;
+          return(
+            <div style={{
+              fontSize:11,fontWeight:"bold",padding:"5px 12px",borderRadius:14,
+              background:`${currentMascot.color}22`,border:`1px solid ${currentMascot.color}55`,
+              color:currentMascot.color,
+              animation:"speechBubble 0.5s cubic-bezier(0.34,1.5,0.64,1) both",
+              marginBottom:4,position:"relative"}}>
+              {greeting}
+            </div>
+          );
+        })()}
         <MascotEmoji mood="idle" size={90}/>
         <div className="font-black tracking-widest" style={{
           fontSize:"0.8rem",color:currentMascot.color,
