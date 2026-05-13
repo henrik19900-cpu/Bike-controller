@@ -526,6 +526,9 @@ const DEFAULT_SAVE = {
   weeklyChallengeDate:null, // week key of last weekly attempt
   weeklyChallengeCompleted:false, // true if this week's weekly was beaten
   weeklyChallengeBest:0, // best score on this week's weekly
+  tournamentDate:null,    // day key of today's tournament attempt
+  tournamentBest:0,       // best score today
+  tournamentHistory:[],   // [{date, score, rank}] last 7 days
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -2239,6 +2242,23 @@ export default function NexusTap(){
           setTimeout(()=>setNotif("🗓️ Weekly Challenge Cleared! +500🪙 +200XP"),700);
         }
       }
+      // Daily Tournament — 2x coins, track best + rank, log history
+      const todayKey=getTodayKey();
+      if(cfg.id===getDailyChallengeLevel()&&!cfg.isInfinity&&!cfg.isGauntlet){
+        if(sv.tournamentDate!==todayKey){
+          // Push previous day to history if it exists
+          if(sv.tournamentDate&&sv.tournamentBest>0){
+            const prevCfg=getLevelConfig(cfg.id); // close enough; we don't store yesterday's level
+            const prevRatio=sv.tournamentBest/(prevCfg.scoreGoal||1);
+            const prevRank=prevRatio>=3?"Top 5%":prevRatio>=2.2?"Top 15%":prevRatio>=1.5?"Top 35%":prevRatio>=1?"Top 60%":"Bottom 40%";
+            sv.tournamentHistory=[{date:sv.tournamentDate,score:sv.tournamentBest,rank:prevRank},...(sv.tournamentHistory||[])].slice(0,7);
+          }
+          sv.tournamentDate=todayKey;sv.tournamentBest=0;
+        }
+        if(score>(sv.tournamentBest||0))sv.tournamentBest=score;
+        coinsEarned*=2; // 2× coin reward
+        setTimeout(()=>setNotif(`🏆 Tournament! 2× coins: +${coinsEarned}🪙`),700);
+      }
       const prevLvl=getLvl(sv.xp);sv.xp+=xpEarned;
       if(getLvl(sv.xp)>prevLvl){sfx("levelUp");setNotif(`Level Up! Lv ${getLvl(sv.xp)} 🎉`);}
       sv.coins=(sv.coins||0)+coinsEarned;sv.totalCoins=(sv.totalCoins||0)+coinsEarned;
@@ -2731,7 +2751,7 @@ export default function NexusTap(){
 
   // Menu canvas loop
   useEffect(()=>{
-    if(screen!=="menu"&&screen!=="levelmap"&&screen!=="shop"&&screen!=="levelcomplete"&&screen!=="gameover"&&screen!=="spinwheel"&&screen!=="missions"&&screen!=="achievements"&&screen!=="leaderboard"&&screen!=="settings"&&screen!=="infinity"&&screen!=="gauntlet"&&screen!=="mascotcollection"&&screen!=="weekly")return;
+    if(screen!=="menu"&&screen!=="levelmap"&&screen!=="shop"&&screen!=="levelcomplete"&&screen!=="gameover"&&screen!=="spinwheel"&&screen!=="missions"&&screen!=="achievements"&&screen!=="leaderboard"&&screen!=="settings"&&screen!=="infinity"&&screen!=="gauntlet"&&screen!=="mascotcollection"&&screen!=="weekly"&&screen!=="tournament")return;
     let raf;
     const loop=(ts)=>{
       const canvas=canvasRef.current;if(!canvas)return;
@@ -3423,6 +3443,22 @@ export default function NexusTap(){
               border:`1px solid ${done?"#ffffff15":"#a78bfa66"}`,
               color:done?"#ffffff30":"#a78bfa",opacity:done?0.5:1}}>
             🗓️ {done?"Weekly Done — see you Monday!":`Weekly Challenge: Level ${wkLvl}!`}
+          </NeonButton>
+        );
+      })()}
+      {/* Daily Tournament */}
+      {(()=>{
+        if((sv.unlockedLevel||1)<5)return null;
+        const today=getTodayKey();
+        const isToday=sv.tournamentDate===today;
+        const todayBest=isToday?(sv.tournamentBest||0):0;
+        const dailyLvl=getDailyChallengeLevel();
+        return(
+          <NeonButton onClick={()=>go("tournament")}
+            className="w-full py-3 text-sm font-black"
+            style={{background:"linear-gradient(135deg,#fbbf2422,#d9770622)",
+              border:"1px solid #fbbf2466",color:"#fbbf24"}}>
+            🏆 Daily Tournament: Lv {dailyLvl} {todayBest>0?`• Best: ${todayBest.toLocaleString()}`:""}
           </NeonButton>
         );
       })()}
@@ -5012,6 +5048,75 @@ export default function NexusTap(){
     );
   };
 
+  // ── Daily Tournament Screen ──
+  const renderTournament=()=>{
+    const today=getTodayKey();
+    const dailyLvl=getDailyChallengeLevel();
+    const cfg=getLevelConfig(dailyLvl);
+    const wld=WORLDS[cfg.world-1];
+    const isToday=sv.tournamentDate===today;
+    const todayBest=isToday?(sv.tournamentBest||0):0;
+    // Estimate rank from score — heuristic: higher score = better rank
+    // Rough mapping: score / scoreGoal ratio → percentile
+    const ratio=todayBest/(cfg.scoreGoal||1);
+    const estRank=todayBest===0?"—":ratio>=3?"Top 5%":ratio>=2.2?"Top 15%":ratio>=1.5?"Top 35%":ratio>=1?"Top 60%":"Bottom 40%";
+    const history=(sv.tournamentHistory||[]).slice(0,7);
+    return(
+      <div className="flex flex-col h-full px-5 py-6 gap-4 relative z-10 overflow-y-auto">
+        <NeonButton onClick={()=>go("menu")} className="absolute top-4 left-4 px-3 py-2 text-sm" style={{background:"#ffffff10"}}>← Back</NeonButton>
+        <div className="text-center pt-8">
+          <div className="text-5xl mb-2" style={{animation:"floatGlow 2s ease-in-out infinite",filter:"drop-shadow(0 0 20px #fbbf24)"}}>🏆</div>
+          <h2 className="font-black text-3xl" style={{color:"#fbbf24",textShadow:"0 0 30px #fbbf24aa",letterSpacing:"0.08em"}}>DAILY TOURNAMENT</h2>
+          <p className="text-sm opacity-60 mt-1" style={{color:"#fbbf24"}}>Same level for all players today · 2× coin reward</p>
+        </div>
+        <div className="w-full rounded-2xl p-5" style={{background:`linear-gradient(160deg,${wld.color}22 0%,${wld.bg} 60%)`,border:`1px solid ${wld.color}55`,boxShadow:`0 0 30px ${wld.color}33`}}>
+          <div className="flex items-center gap-3 mb-3">
+            <span style={{fontSize:36}}>{wld.emoji}</span>
+            <div>
+              <div className="text-xs uppercase tracking-widest opacity-55 font-bold" style={{color:wld.color}}>{wld.name}</div>
+              <div className="text-lg font-black" style={{color:wld.color}}>Level {dailyLvl}: {cfg.name}</div>
+            </div>
+          </div>
+          {todayBest>0?(
+            <div className="mt-3 grid grid-cols-2 gap-2 text-center">
+              <div className="p-2 rounded-lg" style={{background:"#fbbf2418",border:"1px solid #fbbf2444"}}>
+                <div className="text-xs opacity-60" style={{color:"#fbbf24"}}>Today's Best</div>
+                <div className="text-xl font-black" style={{color:"#fbbf24"}}>{todayBest.toLocaleString()}</div>
+              </div>
+              <div className="p-2 rounded-lg" style={{background:"#a78bfa18",border:"1px solid #a78bfa44"}}>
+                <div className="text-xs opacity-60" style={{color:"#a78bfa"}}>Estimated Rank</div>
+                <div className="text-xl font-black" style={{color:"#a78bfa"}}>{estRank}</div>
+              </div>
+            </div>
+          ):(
+            <div className="text-sm text-center opacity-50 mt-2" style={{color:"#fff"}}>No attempt yet — go for the high score!</div>
+          )}
+        </div>
+        {/* 7-day history */}
+        {history.length>0&&(
+          <div className="w-full rounded-xl p-3" style={{background:"#ffffff05",border:"1px solid #ffffff10"}}>
+            <div className="text-xs uppercase tracking-widest opacity-50 mb-2" style={{color:"#fbbf24"}}>Last 7 Tournaments</div>
+            <div className="space-y-1">
+              {history.map((h,i)=>(
+                <div key={i} className="flex justify-between text-xs" style={{color:"#ffffff80"}}>
+                  <span>{h.date}</span>
+                  <span style={{color:"#fbbf24",fontWeight:"bold"}}>{h.score.toLocaleString()} · {h.rank}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        <NeonButton onClick={()=>{setSelectedLevel(dailyLvl);go("shop");}}
+          className="w-full py-5 text-xl font-black"
+          style={{background:"linear-gradient(135deg,#b45309,#fbbf24)",
+            boxShadow:"0 0 40px #fbbf2466",letterSpacing:"0.06em"}}>
+          🏆 ENTER TOURNAMENT
+        </NeonButton>
+        <p className="text-xs text-center opacity-30" style={{color:"#fbbf24"}}>Coins from this run are doubled</p>
+      </div>
+    );
+  };
+
   // ── Daily Boss Gauntlet Screen ──
   const renderGauntlet=()=>{
     const alreadyDone=sv.gauntletDate===getTodayKey();
@@ -5167,6 +5272,7 @@ export default function NexusTap(){
       {screen==="infinity"      &&renderInfinity()}
       {screen==="gauntlet"      &&renderGauntlet()}
       {screen==="weekly"        &&renderWeekly()}
+      {screen==="tournament"    &&renderTournament()}
       </div>
       {storyData&&renderWorldStory()}
       {tutStep!==null&&renderTutorial()}
