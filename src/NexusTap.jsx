@@ -1870,6 +1870,7 @@ export default function NexusTap(){
   const [mascotMood,    setMascotMood]    = useState("idle");
   const [mascotDancing, setMascotDancing] = useState(false);
   const [mascotUnlockedData, setMascotUnlockedData] = useState(null); // newly unlocked mascot
+  const [dailyBonusData, setDailyBonusData] = useState(null); // {day, coins, xp, isWeekly}
   const [spinState,     setSpinState]     = useState(null);
   const [spinResult,    setSpinResult]    = useState(null);
   const [spinDeg,       setSpinDeg]       = useState(0);
@@ -1953,17 +1954,26 @@ export default function NexusTap(){
     debounceSave();
   },[debounceSave]);
 
-  // Daily login
+  // Daily login — 7-day rotating reward calendar
   useEffect(()=>{
     const sv=saveRef.current, today=getTodayKey();
     if(sv.lastLoginDate===today)return;
     const yesterday=(d=>{d.setDate(d.getDate()-1);return`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;})(new Date());
     sv.loginStreak=sv.lastLoginDate===yesterday?(sv.loginStreak||0)+1:1;
     sv.lastLoginDate=today;
-    sv.xp+=20+Math.min(sv.loginStreak,7)*5;
-    setNotif(`Day ${sv.loginStreak} login! +${20+Math.min(sv.loginStreak,7)*5} XP`);
+    // 7-day cycle — day 7 = jackpot, then resets
+    const dayInCycle=((sv.loginStreak-1)%7)+1; // 1..7
+    const COIN_REWARD=[40,60,80,120,160,220,400]; // day 1..7
+    const XP_REWARD=[25,35,50,75,100,140,250];
+    const coinsGiven=COIN_REWARD[dayInCycle-1];
+    const xpGiven=XP_REWARD[dayInCycle-1];
+    sv.coins=(sv.coins||0)+coinsGiven;
+    sv.totalCoins=(sv.totalCoins||0)+coinsGiven;
+    sv.xp+=xpGiven;
     if(sv.loginStreak>=7)unlock("daily_7");
     flushSave();
+    // Show popup
+    setDailyBonusData({day:dayInCycle,streak:sv.loginStreak,coins:coinsGiven,xp:xpGiven,isJackpot:dayInCycle===7});
   },[]);// eslint-disable-line
 
   // Missions
@@ -4904,6 +4914,66 @@ export default function NexusTap(){
       </div>
       {storyData&&renderWorldStory()}
       {tutStep!==null&&renderTutorial()}
+      {/* ── DAILY LOGIN BONUS POPUP ── */}
+      {dailyBonusData&&(
+        <div className="absolute inset-0 flex flex-col items-center justify-center z-50 px-5"
+          style={{background:"rgba(0,0,0,0.86)",backdropFilter:"blur(14px)",animation:"vtScreenIn 0.3s ease-out"}}
+          onClick={(e)=>{if(e.target===e.currentTarget)setDailyBonusData(null);}}>
+          <div className="w-full max-w-sm rounded-3xl p-6 text-center"
+            style={{
+              background:dailyBonusData.isJackpot?"linear-gradient(160deg,#fbbf2422 0%,#180400 70%)":"linear-gradient(160deg,#a78bfa22 0%,#0a0218 70%)",
+              border:`1px solid ${dailyBonusData.isJackpot?"#fbbf24":"#a78bfa"}55`,
+              boxShadow:`0 0 60px ${dailyBonusData.isJackpot?"#fbbf24":"#a78bfa"}55`,
+              animation:"victoryBurst 0.5s cubic-bezier(0.34,1.4,0.64,1)"}}>
+            <div className="text-5xl mb-2" style={{
+              animation:"floatGlow 1.6s ease-in-out infinite",
+              filter:`drop-shadow(0 0 24px ${dailyBonusData.isJackpot?"#fbbf24":"#a78bfa"})`}}>
+              {dailyBonusData.isJackpot?"🎁":"🌞"}
+            </div>
+            <h2 className="text-xl font-black mb-1" style={{color:dailyBonusData.isJackpot?"#fbbf24":"#a78bfa"}}>
+              {dailyBonusData.isJackpot?"WEEKLY JACKPOT!":"Daily Login Bonus!"}
+            </h2>
+            <p className="text-xs opacity-60 mb-4" style={{color:"#fff"}}>
+              Day {dailyBonusData.streak} · {dailyBonusData.isJackpot?"You did it! 🎉":"Welcome back!"}
+            </p>
+            {/* 7-day calendar */}
+            <div className="grid grid-cols-7 gap-1.5 mb-4">
+              {[1,2,3,4,5,6,7].map(d=>{
+                const isToday=d===dailyBonusData.day;
+                const isPast=d<dailyBonusData.day;
+                const COIN=[40,60,80,120,160,220,400];
+                return(
+                  <div key={d} className="flex flex-col items-center" style={{
+                    padding:"6px 2px",borderRadius:9,
+                    background:isToday?(d===7?"#fbbf2433":"#a78bfa33"):isPast?"#ffffff10":"#ffffff05",
+                    border:`1px solid ${isToday?(d===7?"#fbbf24":"#a78bfa"):isPast?"#ffffff20":"#ffffff10"}`,
+                    boxShadow:isToday?`0 0 12px ${d===7?"#fbbf24":"#a78bfa"}66`:"none"}}>
+                    <div style={{fontSize:9,opacity:0.6,color:isToday?(d===7?"#fbbf24":"#a78bfa"):"#fff"}}>D{d}</div>
+                    <div style={{fontSize:14,marginTop:1}}>{isPast?"✓":d===7?"🎁":"🪙"}</div>
+                    <div style={{fontSize:8,marginTop:1,opacity:0.7,color:isToday?(d===7?"#fbbf24":"#a78bfa"):"#fff"}}>{COIN[d-1]}</div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex gap-3 justify-center mb-4">
+              <div className="px-3 py-2 rounded-xl flex-1" style={{background:"#fbbf2418",border:"1px solid #fbbf2444"}}>
+                <div className="text-xs opacity-50" style={{color:"#fbbf24"}}>Coins</div>
+                <div className="text-lg font-black" style={{color:"#fbbf24"}}>+🪙 {dailyBonusData.coins}</div>
+              </div>
+              <div className="px-3 py-2 rounded-xl flex-1" style={{background:"#a78bfa18",border:"1px solid #a78bfa44"}}>
+                <div className="text-xs opacity-50" style={{color:"#a78bfa"}}>XP</div>
+                <div className="text-lg font-black" style={{color:"#a78bfa"}}>+{dailyBonusData.xp}</div>
+              </div>
+            </div>
+            <NeonButton onClick={()=>{sfx("coin");setDailyBonusData(null);}}
+              className="w-full py-3 text-base font-black"
+              style={{background:dailyBonusData.isJackpot?"linear-gradient(135deg,#b45309,#fbbf24)":"linear-gradient(135deg,#6d28d9,#a78bfa)",
+                boxShadow:`0 0 30px ${dailyBonusData.isJackpot?"#fbbf24":"#a78bfa"}66`,letterSpacing:"0.05em"}}>
+              {dailyBonusData.isJackpot?"🎉 CLAIM JACKPOT":"✨ Awesome!"}
+            </NeonButton>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
