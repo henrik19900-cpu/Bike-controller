@@ -354,6 +354,15 @@ const ACHIEVEMENTS = [
   { id:"daily_7",      label:"Daily Hero",       desc:"Play 7 days in a row",             icon:"🌞", xp:75  },
   { id:"five_star",    label:"Perfect Boss Win",  desc:"3-star a boss level",             icon:"⭐", xp:100 },
   { id:"weekly_done",  label:"Weekly Champion",   desc:"Clear the Weekly Challenge",       icon:"🗓️", xp:150 },
+  // ── Mid-tier achievements (added Phase 4A) ──
+  { id:"streak_5",     label:"Warming Up",        desc:"5-tap streak",                     icon:"🌟", xp:8  },
+  { id:"combo_15",     label:"Combo Master",      desc:"Reach a 15× combo",                icon:"💫", xp:30 },
+  { id:"three_stars_5",label:"Star Collector",    desc:"Get 3 stars on 5 different levels",icon:"✨", xp:60 },
+  { id:"mimic_hit",    label:"Mirror Master",     desc:"Tap a Mimic target",               icon:"🪞", xp:25 },
+  { id:"chain_4",      label:"Chain Reaction",    desc:"Trigger 4 chains in one tap",      icon:"⚡", xp:45 },
+  { id:"mascot_lv10",  label:"Best Friends",      desc:"Level up a mascot to LV10",        icon:"🐾", xp:80 },
+  { id:"prestige_1",   label:"Prestige Pioneer",  desc:"Prestige for the first time",      icon:"👑", xp:200 },
+  { id:"tournament_top",label:"Tournament Top",   desc:"Reach Top 15% in a daily tournament",icon:"🏆", xp:90 },
 ];
 
 const MISSION_TEMPLATES = [
@@ -2258,6 +2267,8 @@ export default function NexusTap(){
         if(score>(sv.tournamentBest||0))sv.tournamentBest=score;
         coinsEarned*=2; // 2× coin reward
         setTimeout(()=>setNotif(`🏆 Tournament! 2× coins: +${coinsEarned}🪙`),700);
+        // Tournament Top achievement — Top 15% requires ratio >= 2.2
+        if(score/(cfg.scoreGoal||1)>=2.2)unlock("tournament_top");
       }
       const prevLvl=getLvl(sv.xp);sv.xp+=xpEarned;
       if(getLvl(sv.xp)>prevLvl){sfx("levelUp");setNotif(`Level Up! Lv ${getLvl(sv.xp)} 🎉`);}
@@ -2268,6 +2279,9 @@ export default function NexusTap(){
       if(stars===3&&cfg.isBoss)unlock("five_star");
       if(cfg.id>=10)unlock("level_10");if(cfg.id>=25)unlock("level_25");if(cfg.id>=50)unlock("level_50");if(cfg.id>=100)unlock("level_100");
       if(stars>=1)unlock("three_stars");
+      // three_stars_5: count distinct levels with 3 stars
+      const tsCount=Object.values(sv.levelStars||{}).filter(n=>n>=3).length;
+      if(tsCount>=5)unlock("three_stars_5");
       // Infinity best update
       if(cfg.isInfinity){
         if(score>(sv.infinityBest||0))sv.infinityBest=score;
@@ -2340,6 +2354,7 @@ export default function NexusTap(){
       spawnParticles(hit.x,hit.y,"#ffffff",10,"dot");
       spawnPopup(hit.x,hit.y-22,`🪞 MIMIC! +${pts}`,lastColor,18);
       sfx("comboNote",gs.streak);
+      unlock("mimic_hit");
       // Save coins
       saveRef.current.coins=(saveRef.current.coins||0)+Math.max(1,Math.floor(pts*0.09));
       saveRef.current.totalCoins=(saveRef.current.totalCoins||0)+Math.max(1,Math.floor(pts*0.09));
@@ -2537,6 +2552,7 @@ export default function NexusTap(){
       sfx("unlock");vibrate([40,20,40,20,80]);
       setNotif(`🌟 ${m?.name||"Mascot"} → LV${mLvlNow}! ${EVO_PERKS[mLvlNow]}`);
       setTimeout(()=>setNotif(null),3000);
+      if(mLvlNow>=10)unlock("mascot_lv10");
       // Auto-equip star at LV5, crown at LV20
       const owned={...(saveRef.current.ownedAccessories||{})};
       const equipped={...(saveRef.current.mascotAccessories||{})};
@@ -2618,6 +2634,7 @@ export default function NexusTap(){
         spawnPopup(t.x,t.y-18,`+${chainPts} CHAIN!`,hit.color,12);
       });
       if(chained>0){sfx("chainBonus");vibrate([8,4,8]);}
+      if(chained>=4)unlock("chain_4");
     }
     if(isPerfect){
       sfx("perfect");vibrate([8,8,8]);spawnPopup(hit.x,hit.y-22,"✨ PERFECT!","#fbbf24",18);
@@ -2630,7 +2647,9 @@ export default function NexusTap(){
     if(cl){setComboLabel(cl[1]);clearTimeout(window.__clt);window.__clt=setTimeout(()=>setComboLabel(""),1300);}
     // Achievements
     unlock("first_tap");
+    if(gs.streak>=5)unlock("streak_5");
     if(gs.streak>=10)unlock("streak_10");if(gs.streak>=25)unlock("streak_25");if(gs.streak>=50)unlock("streak_50");
+    if(gs.streak>=15)unlock("combo_15");
     if(gs.score>=2000)unlock("score_2000");
     // Fever
     if(gs.streak>=FEVER_STREAK&&!gs.feverActive){
@@ -4301,6 +4320,7 @@ export default function NexusTap(){
           <NeonButton onClick={()=>{
             if(window.confirm(`PRESTIGE! Reset levels 1-100 and earn +5% permanent score bonus? (Prestige ${(sv.prestigeLevel||0)+1}/5)`)){
               sv.prestigeLevel=(sv.prestigeLevel||0)+1;sv.unlockedLevel=1;
+              unlock("prestige_1");
               flushSave();sfx("prestige");vibrate([30,15,30,15,60,15,100]);
               setPrestigeAnim(true);setTimeout(()=>setPrestigeAnim(false),2000);
               setNotif(`👑 PRESTIGE ${sv.prestigeLevel}! +${sv.prestigeLevel*5}% score bonus forever!`);
