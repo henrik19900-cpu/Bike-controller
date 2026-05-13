@@ -1139,6 +1139,43 @@ function drawTreasure(ctx, r, ts) {
 }
 
 // ── Mystery Box target ──
+function drawMimic(ctx, r, ts, mimicColor="#c8c8c8", mimicGlow="#ffffff") {
+  // Mimic — silvery shape-shifting target with rotating "?" glyph
+  const pulse=0.5+0.5*Math.sin(ts*0.005);
+  const spin=ts*0.0014;
+  ctx.save();
+  // Outer halo
+  const halo=ctx.createRadialGradient(0,0,r*0.2,0,0,r*2.1);
+  halo.addColorStop(0,mimicColor+"55");halo.addColorStop(0.6,mimicColor+"15");halo.addColorStop(1,"transparent");
+  ctx.fillStyle=halo;ctx.beginPath();ctx.arc(0,0,r*2.1,0,Math.PI*2);ctx.fill();
+  // Pulsing outer ring
+  ctx.save();ctx.rotate(spin*0.6);
+  ctx.strokeStyle=mimicGlow;ctx.globalAlpha=0.5+pulse*0.4;ctx.lineWidth=2;
+  ctx.shadowColor=mimicGlow;ctx.shadowBlur=18;
+  ctx.setLineDash([5,8]);
+  ctx.beginPath();ctx.arc(0,0,r*1.35,0,Math.PI*2);ctx.stroke();
+  ctx.setLineDash([]);ctx.restore();
+  // Body — shifting prismatic look
+  ctx.shadowColor=mimicGlow;ctx.shadowBlur=r*(0.7+pulse*0.5);
+  const body=ctx.createRadialGradient(-r*0.3,-r*0.3,0,0,0,r);
+  body.addColorStop(0,"#f5f5f5");body.addColorStop(0.4,mimicColor);body.addColorStop(1,mimicGlow);
+  ctx.fillStyle=body;ctx.beginPath();ctx.arc(0,0,r*(0.92+pulse*0.08),0,Math.PI*2);ctx.fill();
+  // "?" glyph
+  ctx.fillStyle="#111";ctx.shadowColor="transparent";ctx.shadowBlur=0;
+  ctx.font=`bold ${Math.round(r*1.3)}px 'Segoe UI',sans-serif`;
+  ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.fillText("?",0,r*0.05);
+  // Sparkle satellites
+  for(let i=0;i<5;i++){
+    const a=i*Math.PI*0.4+spin*2;const d=r*1.55;
+    const op=0.3+0.7*Math.abs(Math.sin(ts*0.008+i*1.3));
+    ctx.save();ctx.translate(Math.cos(a)*d,Math.sin(a)*d);ctx.globalAlpha=op;
+    ctx.fillStyle="#ffffff";ctx.shadowColor=mimicGlow;ctx.shadowBlur=10;
+    ctx.beginPath();ctx.arc(0,0,r*0.08,0,Math.PI*2);ctx.fill();ctx.restore();
+  }
+  ctx.restore();
+}
+
 function drawMystery(ctx, r, ts) {
   const pulse=0.5+0.5*Math.sin(ts*0.004);
   const spin=ts*0.0018;
@@ -1263,6 +1300,7 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="boss")     drawBoss(ctx,t.radius,t.hitsLeft,t.maxHits,ts,t.worldId||1,t.rage||false);
   else if(t.type==="treasure") drawTreasure(ctx,t.radius,ts);
   else if(t.type==="mystery")  drawMystery(ctx,t.radius,ts);
+  else if(t.type==="mimic")    drawMimic(ctx,t.radius,ts);
   else{
     const nm=t.rarity?.name;
     if     (nm==="common")    drawCommon(ctx,t.radius,t.color,t.glow,ts,timeLeft);
@@ -2113,6 +2151,9 @@ export default function NexusTap(){
     } else if(r<(bossRate||0)+effBomb+0.07+0.045&&(gs.score>0||Math.random()<0.3)&&luckyRef.current!=="active"){
       // 4.5% treasure chest — the variable reward slot machine
       type="treasure";color="#ffd700";glow="#c8a000";
+    } else if((cfg.id||0)>=15&&Math.random()<0.04&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 4% Mimic — copies the last tapped rarity for its score
+      type="mimic";color="#c8c8c8";glow="#ffffff";
     } else if(Math.random()<0.035&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")&&!gs.mysteryPause){
       // 3.5% Mystery Box — Las Vegas variable-ratio slot machine
       type="mystery";color="#ffd700";glow="#b8860b";
@@ -2125,7 +2166,7 @@ export default function NexusTap(){
       }
       if(!moving&&Math.random()<effGhost)ghost=true;
     }
-    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
+    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
     if(activePwrRef.current.some(p=>p.type==="SLOW"&&p.endsAt>Date.now()))lifetime*=1.6;
@@ -2239,6 +2280,37 @@ export default function NexusTap(){
     }
     ripplesRef.current.push({x:tx,y:ty,r:12,alpha:0.7,color:hit?(hit.color||"#a78bfa"):"#ffffff44"});
     if(!hit)return;
+
+    // MIMIC — copies last tapped rarity for its score
+    if(hit.type==="mimic"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      // Use last rarity mult (default UNCOMMON if no recent hit)
+      const lastMult=gs.lastRarityMult||RARITY.UNCOMMON.mult;
+      const lastColor=gs.lastRarityColor||RARITY.UNCOMMON.color;
+      const lastName=gs.lastRarityName||"uncommon";
+      const pts=Math.round(lastMult*combo*feverMult*prestigeMult*1.3); // 1.3× mimic bonus
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;
+      if(lastName!=="common")gs.sessionStats.rareHits++;
+      // Visual: mimic morphs into the copied rarity color
+      hit.dying=performance.now();
+      sfx(lastName==="legendary"?"legendary":lastName==="epic"?"epic":lastName==="rare"?"rare":"uncommon");
+      vibrate([10,8,10]);
+      spawnParticles(hit.x,hit.y,lastColor,30,"spark");
+      spawnParticles(hit.x,hit.y,"#ffffff",10,"dot");
+      spawnPopup(hit.x,hit.y-22,`🪞 MIMIC! +${pts}`,lastColor,18);
+      sfx("comboNote",gs.streak);
+      // Save coins
+      saveRef.current.coins=(saveRef.current.coins||0)+Math.max(1,Math.floor(pts*0.09));
+      saveRef.current.totalCoins=(saveRef.current.totalCoins||0)+Math.max(1,Math.floor(pts*0.09));
+      // Win check
+      const cfg2=levelCfgRef.current;
+      if(cfg2){const scoreWin=gs.score>=cfg2.scoreGoal;if(scoreWin&&(!cfg2.modifier||checkModGoal(cfg2.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
 
     // TREASURE CHEST — jackpot variable reward
     if(hit.type==="treasure"){
@@ -2382,6 +2454,10 @@ export default function NexusTap(){
     const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
     const pts=Math.round(hit.rarity.mult*combo*feverMult*(isDouble?2:1)*(isPerfect?1.5:1)*prestigeMult);
     gs.score+=pts;
+    // Track last rarity for Mimic targets
+    gs.lastRarityMult=hit.rarity.mult;
+    gs.lastRarityColor=hit.color;
+    gs.lastRarityName=hit.rarity.name;
     // Mascot XP (level 5 = +5% coin bonus)
     const mascotIdNow=saveRef.current.mascotId||"dragon";
     const mXP=saveRef.current.mascotXP||(saveRef.current.mascotXP={});
