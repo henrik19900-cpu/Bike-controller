@@ -549,6 +549,7 @@ const DEFAULT_SAVE = {
   bossLootHistory:[],     // [{type, amount, date}] last 20 drops
   skillPoints:0,          // earned via XP milestones, spent in skill tree
   skills:{},              // { skillId: level }
+  adaptiveDifficulty:false, // auto-adjusts spawn rate to keep player challenged
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -2707,6 +2708,8 @@ export default function NexusTap(){
     hit.dying=performance.now();
     gs.streak++;
     gs.lastTapTime=Date.now();
+    // Log hit for adaptive difficulty
+    if(gs._hitLog){gs._hitLog.push({t:Date.now(),hit:true});if(gs._hitLog.length>80)gs._hitLog.shift();}
     setStreakDecaying(false);
     const combo=Math.min(10,1+Math.floor(gs.streak/5));
     const isDouble=activePwrRef.current.some(p=>p.type==="DOUBLE"&&p.endsAt>Date.now());
@@ -2938,6 +2941,9 @@ export default function NexusTap(){
       streak:0, feverActive:false, feverTimeLeft:0, startTime:Date.now(),
       lastTapTime:Date.now(),
       sessionStats:{tapsTotal:0,rareHits:0,bestCombo:0,score:0,feverCount:0,powerupCollected:0,bossKills:0,perfectTaps:0},
+      _hitLog:[], // [{t:timestamp, hit:bool}] for adaptive difficulty
+      _adaptNextEval:Date.now()+4000, // first eval after 4 seconds
+      _adaptMult:1.0, // current adaptive multiplier (0.7-1.3)
     };
     if(hasStreakShield&&!isRescue){streakShRef.current=true;setStreakShieldActive(true);}
     if(shieldStart)activePwrRef.current=[{type:"SHIELD",endsAt:Date.now()+25000}];
@@ -3103,6 +3109,8 @@ export default function NexusTap(){
           setScreenShake(true);setTimeout(()=>setScreenShake(false),280);
           // Red flash at target position
           spawnParticles(t.x,t.y,"#ef4444",8,"spark");
+          // Log miss for adaptive difficulty
+          if(gs._hitLog){gs._hitLog.push({t:Date.now(),hit:false});if(gs._hitLog.length>80)gs._hitLog.shift();}
           // no_miss modifier: instant fail
           if(cfg?.modifier?.type==="no_miss"){endLevel(false);return false;}
         }
@@ -3124,6 +3132,29 @@ export default function NexusTap(){
 
     // Fever
     if(gs.feverActive){gs.feverTimeLeft-=dt;if(gs.feverTimeLeft<=0){gs.feverActive=false;setFeverBorder(false);sfx("feverEnd");audioRef.current?.setBgMusicFever?.(false);setMascotMood("idle");}}
+
+    // Adaptive difficulty — every 4s, adjust spawnInterval and targetLifetime
+    if(saveRef.current.adaptiveDifficulty&&gs._hitLog&&gs._adaptNextEval&&now>=gs._adaptNextEval){
+      gs._adaptNextEval=now+4000;
+      const windowMs=12000;
+      const recent=gs._hitLog.filter(e=>now-e.t<windowMs);
+      if(recent.length>=6){
+        const hitRate=recent.filter(e=>e.hit).length/recent.length;
+        // Target ~72% hit rate as "just right"
+        let newMult=gs._adaptMult||1.0;
+        if(hitRate>0.88)newMult=Math.min(1.35,newMult+0.07); // too easy → harder
+        else if(hitRate>0.78)newMult=Math.min(1.35,newMult+0.03);
+        else if(hitRate<0.45)newMult=Math.max(0.65,newMult-0.10); // too hard → easier
+        else if(hitRate<0.60)newMult=Math.max(0.65,newMult-0.05);
+        if(Math.abs(newMult-(gs._adaptMult||1.0))>0.01){
+          gs._adaptMult=newMult;
+          const base=getLevelConfig(cfg.id||1);
+          const sm=saveRef.current.speedMode||1.0;
+          levelCfgRef.current.spawnInterval=Math.max(200,Math.round(base.spawnInterval/sm/newMult));
+          levelCfgRef.current.targetLifetime=Math.max(600,Math.round(base.targetLifetime/sm/newMult));
+        }
+      }
+    }
 
     // Spawn — rage boss speeds up spawn
     const rageSpawn=cfg._rageSpawn&&targetsRef.current.some(t=>t.rage);
@@ -4142,6 +4173,12 @@ export default function NexusTap(){
             <div style={{padding:"3px 8px",borderRadius:8,background:`${wc}33`,border:`1px solid ${wc}66`,
               color:"#fff",fontSize:10,fontWeight:"bold",letterSpacing:"0.04em"}}>
               ♛ CB
+            </div>
+          )}
+          {sv.adaptiveDifficulty&&(
+            <div style={{padding:"3px 8px",borderRadius:8,background:"#06b6d433",border:"1px solid #06b6d466",
+              color:"#fff",fontSize:10,fontWeight:"bold",letterSpacing:"0.04em"}}>
+              🎯 AUTO
             </div>
           )}
         </div>
@@ -5235,6 +5272,17 @@ export default function NexusTap(){
             border:`1px solid ${sv.colorblindMode?theme.accent:"#ffffff22"}`,
             color:sv.colorblindMode?theme.accent:"#888"}}>
           {sv.colorblindMode?"♛  Colorblind Symbols ON":"♛  Colorblind Symbols OFF"}
+        </NeonButton>
+      </div>
+      {/* Adaptive difficulty */}
+      <div>
+        <p className="text-xs font-bold opacity-40 mb-2 uppercase tracking-widest" style={{color:theme.accent}}>Adaptive Difficulty</p>
+        <NeonButton onClick={()=>{sv.adaptiveDifficulty=!sv.adaptiveDifficulty;debounceSave();}}
+          className="px-6 py-3"
+          style={{background:sv.adaptiveDifficulty?`${theme.accent}22`:"#ffffff0a",
+            border:`1px solid ${sv.adaptiveDifficulty?theme.accent:"#ffffff22"}`,
+            color:sv.adaptiveDifficulty?theme.accent:"#888"}}>
+          {sv.adaptiveDifficulty?"🎯  Auto-Adjust ON  — speed adapts to your skill":"🎯  Auto-Adjust OFF — fixed speed mode"}
         </NeonButton>
       </div>
       {/* Speed mode */}
