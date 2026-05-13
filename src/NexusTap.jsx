@@ -3638,34 +3638,54 @@ export default function NexusTap(){
             const levels=ALL_LEVELS.slice(levelStart-1,levelStart+9);
             const doneLevels=levels.filter(l=>(sv.levelStars[l.id]||0)>0).length;
             const worldFullyDone=doneLevels===10;
+            // Total stars in this world (max 30)
+            const worldStars=levels.reduce((s,lv)=>s+(sv.levelStars[lv.id]||0),0);
+            // Is this the "current" world? (player is unlocking levels here)
+            const isCurrentWorld=unlockedTo>=levelStart&&unlockedTo<=levelStart+9;
             return(
               <div key={world.id} className="mb-2">
                 {/* World banner — immersive, tappable for story */}
                 <div className="flex items-center gap-3 px-4 py-3 mx-2 mt-3 rounded-2xl relative overflow-hidden"
                   onClick={()=>{
-                    const seen=saveRef.current.seenWorldStories||[];
-                    if(!seen.includes(world.id)){
-                      setStoryData({type:"world",worldId:world.id,panelIndex:0,onDone:()=>{}});
-                    } else {
-                      setStoryData({type:"world",worldId:world.id,panelIndex:0,onDone:()=>{}});
-                    }
+                    setStoryData({type:"world",worldId:world.id,panelIndex:0,onDone:()=>{}});
                   }}
-                  style={{background:`${world.color}15`,border:`1px solid ${world.color}55`,backdropFilter:"blur(6px)",
-                    boxShadow:worldFullyDone?`0 0 20px ${world.color}44`:"none",cursor:"pointer"}}>
-                  {/* Subtle world-color gradient bg */}
-                  <div style={{position:"absolute",inset:0,background:`linear-gradient(120deg,${world.color}12 0%,transparent 60%)`,pointerEvents:"none"}}/>
-                  <span style={{fontSize:28,lineHeight:1,zIndex:1}}>{world.emoji}</span>
-                  <div style={{zIndex:1}}>
+                  style={{background:`${world.color}15`,border:`1px solid ${world.color}${isCurrentWorld?"99":"55"}`,backdropFilter:"blur(6px)",
+                    boxShadow:worldFullyDone?`0 0 24px ${world.color}66`:isCurrentWorld?`0 0 16px ${world.color}55`:"none",
+                    cursor:"pointer"}}>
+                  {/* World-color gradient bg */}
+                  <div style={{position:"absolute",inset:0,background:`linear-gradient(120deg,${world.color}18 0%,transparent 65%)`,pointerEvents:"none"}}/>
+                  {/* Shimmer sweep — only for fully-done worlds */}
+                  {worldFullyDone&&(
+                    <div style={{position:"absolute",inset:0,pointerEvents:"none",
+                      background:`linear-gradient(120deg,transparent 35%,${world.color}33 50%,transparent 65%)`,
+                      backgroundSize:"200% 100%",animation:"shimmer 4s linear infinite"}}/>
+                  )}
+                  <span style={{fontSize:32,lineHeight:1,zIndex:1,
+                    filter:`drop-shadow(0 0 ${worldFullyDone?12:6}px ${world.color})`,
+                    animation:isCurrentWorld?"floatGlow 2.4s ease-in-out infinite":"none"}}>{world.emoji}</span>
+                  <div style={{zIndex:1,flex:1}}>
                     <div className="font-black text-base leading-tight" style={{color:world.color}}>{world.name}</div>
-                    <div className="text-xs opacity-50" style={{color:world.color}}>World {world.id} · {doneLevels}/10 cleared · 📖 Story</div>
+                    <div className="text-xs opacity-60 flex items-center gap-2" style={{color:world.color}}>
+                      <span>World {world.id}</span>
+                      <span style={{opacity:0.5}}>·</span>
+                      <span>⭐ {worldStars}/30</span>
+                      <span style={{opacity:0.5}}>·</span>
+                      <span>📖 Story</span>
+                    </div>
                   </div>
-                  {worldFullyDone&&<span style={{marginLeft:"auto",fontSize:20,zIndex:1}}>🏆</span>}
-                  {!worldFullyDone&&<div className="ml-auto flex gap-0.5" style={{zIndex:1}}>
-                    {Array.from({length:10},(_,i)=>(
-                      <div key={i} style={{width:5,height:14,borderRadius:2,
-                        background:i<doneLevels?world.color:`${world.color}25`,
-                        boxShadow:i<doneLevels?`0 0 4px ${world.color}`:"none"}}/>
-                    ))}
+                  {worldFullyDone&&<span style={{marginLeft:"auto",fontSize:22,zIndex:1,animation:"heartbeat 1.6s ease-in-out infinite",
+                    filter:`drop-shadow(0 0 6px ${world.color})`}}>🏆</span>}
+                  {!worldFullyDone&&<div className="ml-auto flex flex-col items-end gap-0.5" style={{zIndex:1}}>
+                    {isCurrentWorld&&<span style={{fontSize:8,fontWeight:"black",letterSpacing:"0.06em",
+                      color:world.color,background:`${world.color}22`,padding:"1px 5px",borderRadius:6,
+                      border:`1px solid ${world.color}66`}}>📍 HERE</span>}
+                    <div className="flex gap-0.5">
+                      {Array.from({length:10},(_,i)=>(
+                        <div key={i} style={{width:5,height:14,borderRadius:2,
+                          background:i<doneLevels?world.color:`${world.color}25`,
+                          boxShadow:i<doneLevels?`0 0 4px ${world.color}`:"none"}}/>
+                      ))}
+                    </div>
                   </div>}
                 </div>
                 {/* Level nodes in zigzag */}
