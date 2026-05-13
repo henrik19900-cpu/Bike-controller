@@ -319,6 +319,16 @@ const FEVER_STREAK = 15;
 const FEVER_DUR    = 8000;
 const XP_PER_LVL   = 150;
 
+// Skill tree — 6 skills × 3 levels, costs 1 skill point per upgrade
+const SKILL_TREE = [
+  { id:"coin_magnet",  icon:"🪙", name:"Coin Magnet",  desc:"Earn more coins per tap",       levels:["+5% coins","+10% coins","+20% coins"],  cost:[1,2,3] },
+  { id:"target_sense", icon:"👁", name:"Target Sense", desc:"Targets stay longer",            levels:["+0.5s life","+1s life","+2s life"],      cost:[1,2,3] },
+  { id:"fever_rush",   icon:"🔥", name:"Fever Rush",   desc:"Fever lasts longer & fills faster",levels:["+20% fever","+40% fever","+60% fever"],cost:[1,2,3] },
+  { id:"critical_eye", icon:"🎯", name:"Critical Eye", desc:"Perfect-tap zone is wider",       levels:["+10% zone","+20% zone","+35% zone"],   cost:[1,2,3] },
+  { id:"combo_guard",  icon:"🛡", name:"Combo Guard",  desc:"Streak survives more misses",     levels:["1st miss kept","2nd miss kept","3rd miss kept"],cost:[2,3,4]},
+  { id:"xp_boost",     icon:"⚡", name:"XP Boost",     desc:"Earn more XP from levels",        levels:["+10% XP","+20% XP","+30% XP"],         cost:[1,2,3] },
+];
+
 const RARITY = {
   COMMON:    { name:"common",    chance:0.55, color:"#a78bfa", glow:"#7c3aed", mult:1,  size:1.0,  label:""            },
   UNCOMMON:  { name:"uncommon",  chance:0.23, color:"#34d399", glow:"#059669", mult:2,  size:1.15, label:"LUCKY ×2"    },
@@ -2294,6 +2304,9 @@ export default function NexusTap(){
     if(cfg.world===6)lifetime*=0.92;
     if(activePwrRef.current.some(p=>p.type==="SLOW"&&p.endsAt>Date.now()))lifetime*=1.6;
     if(activePwrRef.current.some(p=>p.type==="FREEZE"&&p.endsAt>Date.now())){vx=0;vy=0;}
+    // Skill: target_sense — extra lifetime
+    const tsk=(saveRef.current.skills||{}).target_sense||0;
+    if(tsk>=1)lifetime+=500;if(tsk>=2)lifetime+=500;if(tsk>=3)lifetime+=1000;
     // Normal targets telegraph their position 260ms before becoming active
     const anticipateMs=type==="normal"?260:0;
     // Boss pattern: 4 patterns based on worldId, advances phases as HP drops
@@ -2333,7 +2346,9 @@ export default function NexusTap(){
       // Unlock next
       if(cfg.id>=sv.unlockedLevel) sv.unlockedLevel=Math.min(100,cfg.id+1);
       // XP + coins
-      let xpEarned=Math.floor(score/6)+gs.sessionStats.rareHits*8+gs.sessionStats.bossKills*30+(stars-1)*40;
+      const _xpBoostLvl=(sv.skills||{}).xp_boost||0;
+      const _xpBoostMult=_xpBoostLvl===3?1.3:_xpBoostLvl===2?1.2:_xpBoostLvl===1?1.1:1.0;
+      let xpEarned=Math.round((Math.floor(score/6)+gs.sessionStats.rareHits*8+gs.sessionStats.bossKills*30+(stars-1)*40)*_xpBoostMult);
       let coinsEarned=Math.floor(score*0.14)+gs.sessionStats.bossKills*20+stars*15;
       // Weekly Challenge bonus
       const wk=getWeekKey();
@@ -2369,7 +2384,11 @@ export default function NexusTap(){
         if(score/(cfg.scoreGoal||1)>=2.2)unlock("tournament_top");
       }
       const prevLvl=getLvl(sv.xp);sv.xp+=xpEarned;
-      if(getLvl(sv.xp)>prevLvl){sfx("levelUp");setNotif(`Level Up! Lv ${getLvl(sv.xp)} 🎉`);}
+      if(getLvl(sv.xp)>prevLvl){
+        const gained=getLvl(sv.xp)-prevLvl;
+        sv.skillPoints=(sv.skillPoints||0)+gained;
+        sfx("levelUp");setNotif(`Level Up! Lv ${getLvl(sv.xp)} 🎉  +${gained} Skill Point${gained>1?"s":""}!`);
+      }
       sv.coins=(sv.coins||0)+coinsEarned;sv.totalCoins=(sv.totalCoins||0)+coinsEarned;
       if(score>sv.highScore)sv.highScore=score;
       // Timestamped score entry — normalise legacy plain-number entries on read
@@ -2717,7 +2736,9 @@ export default function NexusTap(){
     const isDouble=activePwrRef.current.some(p=>p.type==="DOUBLE"&&p.endsAt>Date.now());
     const feverMult=gs.feverActive?2:1;
     const timeLeft=1-(Date.now()-hit.spawnedAt)/hit.lifetime;
-    const isPerfect=hitDist<hit.radius*0.38&&timeLeft>0.36&&timeLeft<0.67;
+    const ceLevel=(saveRef.current.skills||{}).critical_eye||0;
+    const perfectZone=0.38*(ceLevel===3?1.35:ceLevel===2?1.20:ceLevel===1?1.10:1.0);
+    const isPerfect=hitDist<hit.radius*perfectZone&&timeLeft>0.36&&timeLeft<0.67;
     // Prestige score multiplier (+5% per prestige level, max 5 prestiges = +25%)
     const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
     const shardMult=hit._isShard?0.5:1; // splitter shards award half points
@@ -2749,7 +2770,10 @@ export default function NexusTap(){
       saveRef.current.ownedAccessories=owned;
       saveRef.current.mascotAccessories=equipped;
     }
-    const coinMult=mLvlNow>=5?1.05:1;
+    const _skl=saveRef.current.skills||{};
+    const coinSkill=_skl.coin_magnet||0;
+    const coinSkillMult=coinSkill===3?1.2:coinSkill===2?1.1:coinSkill===1?1.05:1;
+    const coinMult=(mLvlNow>=5?1.05:1)*coinSkillMult;
     saveRef.current.coins=(saveRef.current.coins||0)+Math.max(1,Math.floor(pts*0.09*coinMult));
     saveRef.current.totalCoins=(saveRef.current.totalCoins||0)+Math.max(1,Math.floor(pts*0.09*coinMult));
     gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;
@@ -2861,7 +2885,9 @@ export default function NexusTap(){
     if(gs.score>=2000)unlock("score_2000");
     // Fever
     if(gs.streak>=FEVER_STREAK&&!gs.feverActive){
-      gs.feverActive=true;gs.feverTimeLeft=FEVER_DUR;setFeverBorder(true);sfx("feverStart");vibrate([35,20,35,20,65]);
+      const frLvl=(saveRef.current.skills||{}).fever_rush||0;
+      const feverMult2=frLvl===3?1.6:frLvl===2?1.4:frLvl===1?1.2:1.0;
+      gs.feverActive=true;gs.feverTimeLeft=Math.round(FEVER_DUR*feverMult2);setFeverBorder(true);sfx("feverStart");vibrate([35,20,35,20,65]);
       audioRef.current?.setBgMusicFever?.(true);
       spawnPopup(hit.x,hit.y-45,"🌡 FEVER!","#fbbf24",21);unlock("fever_mode");setMascotMood("fever");showMascotSpeech("fever");
       gs.sessionStats.feverCount=(gs.sessionStats.feverCount||0)+1;
@@ -2981,7 +3007,7 @@ export default function NexusTap(){
 
   // Menu canvas loop
   useEffect(()=>{
-    if(screen!=="menu"&&screen!=="levelmap"&&screen!=="shop"&&screen!=="levelcomplete"&&screen!=="gameover"&&screen!=="spinwheel"&&screen!=="missions"&&screen!=="achievements"&&screen!=="leaderboard"&&screen!=="settings"&&screen!=="infinity"&&screen!=="gauntlet"&&screen!=="mascotcollection"&&screen!=="weekly"&&screen!=="tournament")return;
+    if(screen!=="menu"&&screen!=="levelmap"&&screen!=="shop"&&screen!=="levelcomplete"&&screen!=="gameover"&&screen!=="spinwheel"&&screen!=="missions"&&screen!=="achievements"&&screen!=="leaderboard"&&screen!=="settings"&&screen!=="infinity"&&screen!=="gauntlet"&&screen!=="mascotcollection"&&screen!=="weekly"&&screen!=="tournament"&&screen!=="skilltree")return;
     let raf;
     const loop=(ts)=>{
       const canvas=canvasRef.current;if(!canvas)return;
@@ -3104,9 +3130,18 @@ export default function NexusTap(){
           streakShRef.current=false;setStreakShieldActive(false);sfx("shieldBreak");vibrate([8,12,8]);
         } else{
           gs.lives--;sfx("miss");vibrate(42);lostLife=true;
-          gs.streak=0;streakShRef.current=false;setStreakShieldActive(false);setMascotMood("sad");
-          showMascotSpeech("miss");
-          setTimeout(()=>setMascotMood("idle"),1200);
+          // Skill: combo_guard — absorb N misses before clearing streak
+          const cgLvl=(saveRef.current.skills||{}).combo_guard||0;
+          gs._comboGuardCount=gs._comboGuardCount||0;
+          if(cgLvl>0&&gs.streak>0&&gs._comboGuardCount<cgLvl){
+            gs._comboGuardCount++;
+            spawnParticles(t.x,t.y,"#fbbf24",6,"spark");
+          } else {
+            gs._comboGuardCount=0;
+            gs.streak=0;streakShRef.current=false;setStreakShieldActive(false);setMascotMood("sad");
+            showMascotSpeech("miss");
+            setTimeout(()=>setMascotMood("idle"),1200);
+          }
           // Screen shake on miss
           setScreenShake(true);setTimeout(()=>setScreenShake(false),280);
           // Red flash at target position
@@ -3600,6 +3635,13 @@ export default function NexusTap(){
             <div className="h-full rounded-full" style={{width:`${(sv.xp%XP_PER_LVL)/XP_PER_LVL*100}%`,background:theme.accent,boxShadow:`0 0 8px ${theme.accent}`}}/>
           </div>
           <span className="text-xs opacity-35" style={{color:theme.accent}}>{xpToNext(sv.xp)}xp</span>
+          {(sv.skillPoints||0)>0&&(
+            <button onClick={()=>setScreen("skilltree")}
+              className="ml-2 px-2 py-0.5 rounded-lg font-black text-xs"
+              style={{background:`${theme.accent}33`,border:`1px solid ${theme.accent}88`,color:theme.accent,animation:"heartbeat 1.5s ease-in-out infinite",outline:"none"}}>
+              ✨ {sv.skillPoints}
+            </button>
+          )}
         </div>
       </div>
 
@@ -3756,7 +3798,7 @@ export default function NexusTap(){
       })()}
       {/* Quick links */}
       <div className="grid grid-cols-2 gap-3 w-full">
-        {[{label:"🎯 Daily Quests",sc:"missions"},{label:"🏆 High Scores",sc:"leaderboard"},{label:"🏅 Trophies",sc:"achievements"},{label:"⚙️ Settings",sc:"settings"}].map(b=>(
+        {[{label:"🎯 Daily Quests",sc:"missions"},{label:"🏆 High Scores",sc:"leaderboard"},{label:"🏅 Trophies",sc:"achievements"},{label:"🌿 Skill Tree",sc:"skilltree"},{label:"⚙️ Settings",sc:"settings"}].map(b=>(
           <NeonButton key={b.sc} onClick={()=>setScreen(b.sc)} className="py-3 text-sm"
             style={{background:"#ffffff0d",border:`1px solid ${theme.accent}30`}}>{b.label}</NeonButton>
         ))}
@@ -4889,6 +4931,82 @@ export default function NexusTap(){
     );
   };
 
+  // ── Skill Tree ──
+  const renderSkillTree=()=>{
+    const skills=sv.skills||{};
+    const pts=sv.skillPoints||0;
+    return(
+      <div className="flex flex-col h-full px-4 py-5 gap-4 overflow-y-auto relative z-10">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <NeonButton onClick={()=>go("menu")} className="px-3 py-2 text-sm" style={{background:"#ffffff10"}}>← Back</NeonButton>
+            <h2 className="text-xl font-black" style={{color:theme.accent}}>Skill Tree</h2>
+          </div>
+          <div className="px-3 py-1.5 rounded-xl font-black text-sm" style={{background:`${theme.accent}22`,border:`1px solid ${theme.accent}66`,color:theme.accent}}>
+            ✨ {pts} pt{pts!==1?"s":""}
+          </div>
+        </div>
+        <p className="text-xs opacity-40 -mt-2">Earn skill points by leveling up. Permanent bonuses for all future runs.</p>
+        <div className="flex flex-col gap-3">
+          {SKILL_TREE.map(skill=>{
+            const lvl=skills[skill.id]||0;
+            const maxed=lvl>=3;
+            const cost=maxed?0:skill.cost[lvl];
+            const canAfford=pts>=cost&&!maxed;
+            return(
+              <div key={skill.id} className="rounded-2xl p-4" style={{background:"#ffffff07",border:`1px solid ${maxed?"#ffd70066":theme.accent+"22"}`}}>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span style={{fontSize:22}}>{skill.icon}</span>
+                    <div>
+                      <div className="font-black text-sm" style={{color:maxed?"#ffd700":theme.accent}}>{skill.name}{maxed?" ★ MAX":""}</div>
+                      <div style={{fontSize:10,color:"#ffffff44"}}>{skill.desc}</div>
+                    </div>
+                  </div>
+                  {!maxed&&(
+                    <NeonButton
+                      onClick={()=>{
+                        if(!canAfford)return;
+                        sv.skills={...skills,[skill.id]:lvl+1};
+                        sv.skillPoints=pts-cost;
+                        flushSave();
+                        setNotif(`${skill.icon} ${skill.name} → Lv ${lvl+1}!`);
+                      }}
+                      className="px-4 py-2 text-xs font-black"
+                      disabled={!canAfford}
+                      style={{
+                        background:canAfford?`${theme.accent}25`:"#ffffff08",
+                        border:`1px solid ${canAfford?theme.accent+"88":"#ffffff15"}`,
+                        color:canAfford?theme.accent:"#666",
+                        opacity:canAfford?1:0.5,
+                      }}>
+                      ✨{cost} → Lv{lvl+1}
+                    </NeonButton>
+                  )}
+                </div>
+                {/* Level pips */}
+                <div className="flex gap-1.5 mb-1.5">
+                  {[0,1,2].map(i=>(
+                    <div key={i} className="h-2 flex-1 rounded-full" style={{
+                      background:i<lvl?theme.accent:(i===lvl&&!maxed?"#ffffff18":"#ffffff0a"),
+                      boxShadow:i<lvl?`0 0 6px ${theme.accent}88`:"none",
+                    }}/>
+                  ))}
+                </div>
+                {/* Current effect label */}
+                <div style={{fontSize:11,color:lvl>0?theme.accent:"#ffffff33"}}>
+                  {lvl>0?`Active: ${skill.levels[lvl-1]}`:`Inactive — upgrade to unlock`}
+                  {!maxed&&<span style={{color:"#ffffff33",marginLeft:6}}>Next: {skill.levels[lvl]}</span>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div className="text-center text-xs opacity-30 pb-4">Skill points earned by leveling up (every {XP_PER_LVL} XP)</div>
+      </div>
+    );
+  };
+
   // ── Achievements ──
   const renderAchievements=()=>(
     <div className="flex flex-col h-full px-4 py-5 gap-4 overflow-y-auto relative z-10">
@@ -5727,6 +5845,7 @@ export default function NexusTap(){
       {screen==="missions"      &&renderMissions()}
       {screen==="achievements"  &&renderAchievements()}
       {screen==="leaderboard"   &&renderLeaderboard()}
+      {screen==="skilltree"     &&renderSkillTree()}
       {screen==="settings"         &&renderSettings()}
       {screen==="mascotcollection" &&renderMascotCollection()}
       {screen==="spinwheel"     &&renderSpinWheel()}
