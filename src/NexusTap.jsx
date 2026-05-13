@@ -1241,6 +1241,72 @@ function drawMystery(ctx, r, ts) {
   ctx.restore();
 }
 
+function drawAnchor(ctx, r, ts) {
+  const pulse=0.5+0.5*Math.sin(ts*0.0035);
+  const spin=ts*0.0008;
+  ctx.save();
+  // Outer glow
+  const grd=ctx.createRadialGradient(0,0,r*0.2,0,0,r*2);
+  grd.addColorStop(0,"#06b6d466");grd.addColorStop(0.6,"#06b6d422");grd.addColorStop(1,"transparent");
+  ctx.fillStyle=grd;ctx.beginPath();ctx.arc(0,0,r*2,0,Math.PI*2);ctx.fill();
+  // Rotating ring
+  ctx.save();ctx.rotate(spin);
+  ctx.strokeStyle=`rgba(6,182,212,${0.5+pulse*0.4})`;ctx.lineWidth=2.5;
+  ctx.shadowColor="#06b6d4";ctx.shadowBlur=12;
+  ctx.setLineDash([6,5]);ctx.beginPath();ctx.arc(0,0,r*1.2,0,Math.PI*2);ctx.stroke();
+  ctx.setLineDash([]);ctx.restore();
+  // Body
+  ctx.shadowColor="#06b6d4";ctx.shadowBlur=r*(0.5+pulse*0.5);
+  const body=ctx.createRadialGradient(-r*0.3,-r*0.3,0,0,0,r);
+  body.addColorStop(0,"#67e8f9");body.addColorStop(0.5,"#06b6d4");body.addColorStop(1,"#0e7490");
+  ctx.fillStyle=body;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  // Anchor symbol
+  ctx.strokeStyle="#ffffff";ctx.lineWidth=r*0.13;ctx.lineCap="round";ctx.lineJoin="round";
+  ctx.shadowColor="#ffffff";ctx.shadowBlur=6;
+  // Ring at top
+  ctx.beginPath();ctx.arc(0,-r*0.52,r*0.2,0,Math.PI*2);ctx.stroke();
+  // Vertical stem
+  ctx.beginPath();ctx.moveTo(0,-r*0.32);ctx.lineTo(0,r*0.52);ctx.stroke();
+  // Crossbar
+  ctx.beginPath();ctx.moveTo(-r*0.38,-r*0.05);ctx.lineTo(r*0.38,-r*0.05);ctx.stroke();
+  // Flukes
+  ctx.beginPath();ctx.moveTo(-r*0.38,r*0.52);ctx.quadraticCurveTo(-r*0.5,r*0.72,0,r*0.62);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(r*0.38,r*0.52);ctx.quadraticCurveTo(r*0.5,r*0.72,0,r*0.62);ctx.stroke();
+  ctx.restore();
+}
+
+function drawSplitter(ctx, r, ts) {
+  const pulse=0.5+0.5*Math.sin(ts*0.005);
+  const spin=ts*0.0022;
+  ctx.save();
+  // Outer glow
+  const grd=ctx.createRadialGradient(0,0,r*0.2,0,0,r*2);
+  grd.addColorStop(0,"#f97316aa");grd.addColorStop(0.6,"#f9731633");grd.addColorStop(1,"transparent");
+  ctx.fillStyle=grd;ctx.beginPath();ctx.arc(0,0,r*2,0,Math.PI*2);ctx.fill();
+  // Spinning triangular ring
+  ctx.save();ctx.rotate(spin);
+  ctx.strokeStyle=`rgba(251,146,60,${0.6+pulse*0.4})`;ctx.lineWidth=2.5;
+  ctx.shadowColor="#fb923c";ctx.shadowBlur=14;
+  ctx.beginPath();
+  for(let i=0;i<3;i++){const a=i*Math.PI*2/3;ctx.lineTo(Math.cos(a)*r*1.25,Math.sin(a)*r*1.25);}
+  ctx.closePath();ctx.stroke();ctx.restore();
+  // Body — hexagonal-ish glow
+  ctx.shadowColor="#f97316";ctx.shadowBlur=r*(0.7+pulse*0.4);
+  const body=ctx.createRadialGradient(-r*0.3,-r*0.3,0,0,0,r);
+  body.addColorStop(0,"#fed7aa");body.addColorStop(0.5,"#f97316");body.addColorStop(1,"#c2410c");
+  ctx.fillStyle=body;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  // Split arrows (3 outward arrows suggesting the split)
+  for(let i=0;i<3;i++){
+    const a=i*Math.PI*2/3+Math.PI/6;
+    ctx.save();ctx.rotate(a);
+    ctx.strokeStyle="#ffffff";ctx.lineWidth=r*0.1;ctx.lineCap="round";ctx.shadowColor="#fff";ctx.shadowBlur=4;
+    ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(0,-r*0.55);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(-r*0.15,-r*0.35);ctx.lineTo(0,-r*0.55);ctx.lineTo(r*0.15,-r*0.35);ctx.stroke();
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
 // ── Motion trail for moving targets ──
 function drawTrail(ctx, t) {
   if(!t.trail||t.trail.length<2) return;
@@ -1329,6 +1395,8 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="treasure") drawTreasure(ctx,t.radius,ts);
   else if(t.type==="mystery")  drawMystery(ctx,t.radius,ts);
   else if(t.type==="mimic")    drawMimic(ctx,t.radius,ts);
+  else if(t.type==="anchor")   drawAnchor(ctx,t.radius,ts);
+  else if(t.type==="splitter") drawSplitter(ctx,t.radius,ts);
   else{
     const nm=t.rarity?.name;
     if     (nm==="common")    drawCommon(ctx,t.radius,t.color,t.glow,ts,timeLeft);
@@ -2197,6 +2265,12 @@ export default function NexusTap(){
     } else if((cfg.id||0)>=15&&Math.random()<0.04&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 4% Mimic — copies the last tapped rarity for its score
       type="mimic";color="#c8c8c8";glow="#ffffff";
+    } else if((cfg.id||0)>=8&&Math.random()<0.03&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 3% Anchor — freezes all targets for 3s when tapped
+      type="anchor";color="#06b6d4";glow="#0e7490";
+    } else if((cfg.id||0)>=12&&Math.random()<0.025&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 2.5% Splitter — splits into 3 small targets when tapped
+      type="splitter";color="#f97316";glow="#c2410c";
     } else if(Math.random()<0.035&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")&&!gs.mysteryPause){
       // 3.5% Mystery Box — Las Vegas variable-ratio slot machine
       type="mystery";color="#ffd700";glow="#b8860b";
@@ -2209,7 +2283,7 @@ export default function NexusTap(){
       }
       if(!moving&&Math.random()<effGhost)ghost=true;
     }
-    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
+    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
     // World modifiers: Ocean Deep (8) — slower targets (calmer waters), longer lifetimes
@@ -2383,6 +2457,61 @@ export default function NexusTap(){
       // Win check
       const cfg2=levelCfgRef.current;
       if(cfg2){const scoreWin=gs.score>=cfg2.scoreGoal;if(scoreWin&&(!cfg2.modifier||checkModGoal(cfg2.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
+    // ANCHOR — freezes all current targets for 3 seconds
+    if(hit.type==="anchor"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const pts=Math.round(120*(gs.feverActive?2:1));
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;
+      // Freeze all current targets
+      const freezeUntil=Date.now()+3000;
+      targetsRef.current.forEach(t=>{t._anchorFrozenVx=t.vx;t._anchorFrozenVy=t.vy;t.vx=0;t.vy=0;t._frozenUntil=freezeUntil;});
+      gs._anchorFreezeUntil=freezeUntil;
+      sfx("powerUp");vibrate([10,8,20,8,10]);
+      spawnParticles(hit.x,hit.y,"#06b6d4",22,"dot");
+      spawnParticles(hit.x,hit.y,"#67e8f9",10,"spark");
+      spawnPopup(hit.x,hit.y-24,"⚓ FROZEN! +"+pts,"#06b6d4",20);
+      setScreenShake(false); // not shake — calm freeze effect
+      sfx("comboNote",gs.streak);
+      const cfg=levelCfgRef.current;
+      if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
+    // SPLITTER — splits into 3 small targets
+    if(hit.type==="splitter"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const pts=Math.round(80*(gs.feverActive?2:1));
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;
+      sfx("tap");vibrate([5,5,15]);
+      spawnParticles(hit.x,hit.y,"#f97316",18,"spark");
+      spawnPopup(hit.x,hit.y-24,"💥 SPLIT! +"+pts,"#f97316",18);
+      // Spawn 3 small normal targets radiating outward
+      const cfg=levelCfgRef.current;
+      for(let i=0;i<3;i++){
+        const ang=i*Math.PI*2/3+Math.random()*0.4;
+        const sr=BASE_R*0.75;
+        const sx=Math.max(sr+8,Math.min((canvasRef.current?.width||360)-sr-8,hit.x+Math.cos(ang)*55));
+        const sy=Math.max(sr+8,Math.min((canvasRef.current?.height||720)-sr-8,hit.y+Math.sin(ang)*55));
+        const shard={
+          id:Math.random().toString(36).slice(2),type:"normal",
+          rarity:RARITY.UNCOMMON,color:RARITY.UNCOMMON.color,glow:RARITY.UNCOMMON.glow,
+          x:sx,y:sy,radius:sr,
+          lifetime:Math.max(1500,(cfg?.targetLifetime||2500)*0.7),
+          spawnedAt:Date.now(),born:performance.now(),
+          moving:true,vx:Math.cos(ang)*1.2,vy:Math.sin(ang)*1.2,
+          ghost:false,hitsLeft:1,maxHits:1,trail:[],
+          worldId:cfg?.world||1,worldColor:cfg?.worldColor||"#ff6030",
+          _isShard:true, // reward is halved for shards
+        };
+        targetsRef.current.push(shard);
+      }
+      sfx("comboNote",gs.streak);
+      if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
       return;
     }
 
@@ -2586,7 +2715,8 @@ export default function NexusTap(){
     const isPerfect=hitDist<hit.radius*0.38&&timeLeft>0.36&&timeLeft<0.67;
     // Prestige score multiplier (+5% per prestige level, max 5 prestiges = +25%)
     const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
-    const pts=Math.round(hit.rarity.mult*combo*feverMult*(isDouble?2:1)*(isPerfect?1.5:1)*prestigeMult);
+    const shardMult=hit._isShard?0.5:1; // splitter shards award half points
+    const pts=Math.round(hit.rarity.mult*combo*feverMult*(isDouble?2:1)*(isPerfect?1.5:1)*prestigeMult*shardMult);
     gs.score+=pts;
     // Track last rarity for Mimic targets
     gs.lastRarityMult=hit.rarity.mult;
@@ -2889,8 +3019,19 @@ export default function NexusTap(){
 
     // Targets
     const now=Date.now();let lostLife=false;
+    // Restore anchor-frozen target velocities when freeze expires
+    const anchorFreezeActive=gsRef.current&&gsRef.current._anchorFreezeUntil&&gsRef.current._anchorFreezeUntil>now;
+    if(!anchorFreezeActive){
+      targetsRef.current.forEach(t=>{
+        if(t._frozenUntil&&t._frozenUntil<=now){
+          t.vx=t._anchorFrozenVx||0;t.vy=t._anchorFrozenVy||0;
+          delete t._anchorFrozenVx;delete t._anchorFrozenVy;delete t._frozenUntil;
+        }
+      });
+    }
     targetsRef.current=targetsRef.current.filter(t=>{
-      // Move
+      // Move (skip if anchor-frozen)
+      if(t._frozenUntil&&t._frozenUntil>now){drawTarget(ctx,t,ts);return true;}
       if(t.moving&&!activePwrRef.current.some(p=>p.type==="FREEZE"&&p.endsAt>now)){
         if(t.type==="boss"&&t.bossPattern!=null){
           // Boss-specific movement patterns, scaled by phase speed
