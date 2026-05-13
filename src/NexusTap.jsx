@@ -2056,6 +2056,7 @@ export default function NexusTap(){
   const [gauntletState,  setGauntletState]  = useState(null); // null | {bossIndex, lives, score}
   const [prestigeAnim,   setPrestigeAnim]   = useState(false);
   const [chainFlash,     setChainFlash]     = useState(null); // null | {label, at}
+  const [lbTab,          setLbTab]          = useState("all"); // "today"|"week"|"all"
 
   // Canvas & game refs
   const canvasRef    = useRef(null);
@@ -2371,7 +2372,8 @@ export default function NexusTap(){
       if(getLvl(sv.xp)>prevLvl){sfx("levelUp");setNotif(`Level Up! Lv ${getLvl(sv.xp)} 🎉`);}
       sv.coins=(sv.coins||0)+coinsEarned;sv.totalCoins=(sv.totalCoins||0)+coinsEarned;
       if(score>sv.highScore)sv.highScore=score;
-      sv.scores=[score,...sv.scores].slice(0,15).sort((a,b)=>b-a);
+      // Timestamped score entry — normalise legacy plain-number entries on read
+      sv.scores=[{score,date:getTodayKey(),week:getWeekKey()},...(sv.scores||[]).map(e=>typeof e==="number"?{score:e,date:"2000-0-0",week:"2000-W0"}:e)].slice(0,50);
       if(gs.streak>sv.bestStreak)sv.bestStreak=gs.streak;
       if(stars===3&&cfg.isBoss)unlock("five_star");
       if(cfg.id>=10)unlock("level_10");if(cfg.id>=25)unlock("level_25");if(cfg.id>=50)unlock("level_50");if(cfg.id>=100)unlock("level_100");
@@ -4016,7 +4018,7 @@ export default function NexusTap(){
       {replayModal&&(()=>{
         const rlv=getLevelConfig(replayModal);
         const rstars=sv.levelStars[replayModal]||0;
-        const prevBest=sv.levelScores?.[replayModal]||sv.scores?.[0]||0;
+        const _s0=sv.scores?.[0];const prevBest=sv.levelScores?.[replayModal]||(typeof _s0==="number"?_s0:_s0?.score)||0;
         return(
           <div className="absolute inset-0 flex items-center justify-center z-50 px-6"
             style={{background:"rgba(0,0,0,0.88)",backdropFilter:"blur(12px)"}}>
@@ -4914,7 +4916,13 @@ export default function NexusTap(){
 
   // ── Leaderboard ──
   const renderLeaderboard=()=>{
-    const all=[...sv.scores].sort((a,b)=>b-a).slice(0,10);
+    const todayKey=getTodayKey(),weekKey=getWeekKey();
+    // Normalise scores — entries may be numbers (legacy) or {score,date,week}
+    const normScores=(sv.scores||[]).map(e=>typeof e==="number"?{score:e,date:"2000-0-0",week:"2000-W0"}:e);
+    const todayScores=normScores.filter(e=>e.date===todayKey).sort((a,b)=>b.score-a.score).slice(0,10);
+    const weekScores=normScores.filter(e=>e.week===weekKey).sort((a,b)=>b.score-a.score).slice(0,10);
+    const allScores=normScores.sort((a,b)=>b.score-a.score).slice(0,10);
+    const activeScores=lbTab==="today"?todayScores:lbTab==="week"?weekScores:allScores;
     const infAll=[...(sv.infinityScores||[])].sort((a,b)=>b-a).slice(0,5);
     const hasInfinity=(sv.unlockedLevel||1)>100||(sv.infinityScores||[]).length>0;
     // Compute world-by-world star progress
@@ -4973,20 +4981,40 @@ export default function NexusTap(){
             ))}
           </div>
         </div>
-        {/* ── TOP 10 SCORES ── */}
-        <div className="text-xs font-bold opacity-40 uppercase tracking-widest" style={{color:theme.accent}}>Top 10 Scores</div>
-        {all.length===0
-          ?<p className="text-center opacity-40 text-sm" style={{color:theme.accent}}>No scores yet!</p>
-          :all.map((s,i)=>(
-            <div key={i} className="flex items-center justify-between px-4 py-3 rounded-2xl"
-              style={{background:i===0?`${theme.accent}18`:"#ffffff05",border:`1px solid ${i<3?theme.accent+"44":"#ffffff0d"}`}}>
-              <span className="font-black text-xl" style={{color:i===0?"#fbbf24":i===1?"#d1d5db":i===2?"#d97706":theme.accent,minWidth:32}}>
-                {i===0?"🥇":i===1?"🥈":i===2?"🥉":`#${i+1}`}
-              </span>
-              <span className="font-bold text-xl tabular-nums" style={{color:theme.accent}}>{s.toLocaleString()}</span>
-            </div>
-          ))
-        }
+        {/* ── TIME-TABBED SCORES ── */}
+        <div>
+          {/* Tab row */}
+          <div className="flex gap-1 mb-3 rounded-2xl p-1" style={{background:"#ffffff08"}}>
+            {[["today","Today","📅"],["week","This Week","📆"],["all","All Time","🏆"]].map(([key,label,icon])=>(
+              <button key={key} onClick={()=>setLbTab(key)}
+                className="flex-1 text-xs font-bold py-2 rounded-xl transition-all"
+                style={{
+                  background:lbTab===key?`${theme.accent}28`:"transparent",
+                  border:`1px solid ${lbTab===key?theme.accent+"88":"transparent"}`,
+                  color:lbTab===key?theme.accent:"#888",
+                  outline:"none",letterSpacing:"0.03em",
+                }}>
+                {icon} {label}
+              </button>
+            ))}
+          </div>
+          {/* Score list for active tab */}
+          {activeScores.length===0
+            ?<p className="text-center opacity-40 text-sm py-4" style={{color:theme.accent}}>
+                {lbTab==="today"?"No runs today yet!":lbTab==="week"?"No runs this week yet!":"No scores yet!"}
+              </p>
+            :activeScores.map((e,i)=>(
+              <div key={i} className="flex items-center justify-between px-4 py-3 mb-1.5 rounded-2xl"
+                style={{background:i===0?`${theme.accent}18`:"#ffffff05",border:`1px solid ${i<3?theme.accent+"44":"#ffffff0d"}`}}>
+                <span className="font-black text-xl" style={{color:i===0?"#fbbf24":i===1?"#d1d5db":i===2?"#d97706":theme.accent,minWidth:32}}>
+                  {i===0?"🥇":i===1?"🥈":i===2?"🥉":`#${i+1}`}
+                </span>
+                <span className="font-bold text-xl tabular-nums" style={{color:theme.accent}}>{(e.score||e).toLocaleString()}</span>
+                {lbTab!=="all"&&<span style={{fontSize:9,color:"#ffffff33"}}>{e.date||""}</span>}
+              </div>
+            ))
+          }
+        </div>
         {hasInfinity&&<>
           <div className="text-xs font-bold opacity-40 uppercase tracking-widest mt-2" style={{color:"#a78bfa"}}>∞ Infinity Mode</div>
           {infAll.length===0
