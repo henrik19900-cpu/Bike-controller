@@ -395,10 +395,13 @@ const MISSION_TEMPLATES = [
 ];
 
 const SHOP_ITEMS = [
-  { id:"extra_life",   name:"Magic Potion 🧪",  desc:"Start with +1 extra life",       cost:60,  icon:"🧪" },
-  { id:"head_start",   name:"Lucky Start ⭐",    desc:"+300 bonus points at the start", cost:80,  icon:"⭐" },
-  { id:"shield_start", name:"Magic Shield 🛡️",  desc:"Begin with a Magic Shield",      cost:100, icon:"🛡️" },
-  { id:"power_pack",   name:"Power Pack 🔮",     desc:"Start with a random power-up",   cost:120, icon:"🔮" },
+  { id:"extra_life",   name:"Magic Potion 🧪",  desc:"Start with +1 extra life",            cost:60,  icon:"🧪" },
+  { id:"head_start",   name:"Lucky Start ⭐",    desc:"+300 bonus points at the start",      cost:80,  icon:"⭐" },
+  { id:"shield_start", name:"Magic Shield 🛡️",  desc:"Begin with a Magic Shield",           cost:100, icon:"🛡️" },
+  { id:"power_pack",   name:"Power Pack 🔮",     desc:"Start with a random power-up",        cost:120, icon:"🔮" },
+  { id:"fever_potion", name:"Fever Potion 🌡️",  desc:"Start in instant Fever Mode!",        cost:90,  icon:"🌡️" },
+  { id:"xp_bomb",      name:"XP Bomb ⚡",        desc:"2× XP reward from this level",        cost:70,  icon:"⚡" },
+  { id:"streak_saver", name:"Streak Saver 💛",   desc:"Keep streak on next miss (once)",     cost:50,  icon:"💛" },
 ];
 
 // ═══════════════════════════════════════════════════════════════
@@ -2061,6 +2064,7 @@ export default function NexusTap(){
   // New features
   const [streakDecaying, setStreakDecaying] = useState(false);
   const decayTimerRef                       = useRef(null);
+  const [achPopup, setAchPopup]             = useState(null); // {icon, label, xp}
   const [replayModal,    setReplayModal]    = useState(null); // null | levelId
   const [infinityRound,  setInfinityRound]  = useState(1);
   const [gauntletState,  setGauntletState]  = useState(null); // null | {bossIndex, lives, score}
@@ -2120,7 +2124,16 @@ export default function NexusTap(){
     if(sv.unlockedAchievements.includes(id))return;
     sv.unlockedAchievements=[...sv.unlockedAchievements,id];
     const ach=ACHIEVEMENTS.find(a=>a.id===id);
-    if(ach){setNotif(`${ach.icon} ${ach.label}!`);sv.xp+=ach.xp||0;}
+    if(ach){
+      sv.xp+=ach.xp||0;
+      // Mid-game: show rich popup; out of game: use notif toast
+      if(gsRef.current){
+        setAchPopup({icon:ach.icon,label:ach.label,xp:ach.xp||0});
+        setTimeout(()=>setAchPopup(null),2200);
+      } else {
+        setNotif(`${ach.icon} ${ach.label}!`);
+      }
+    }
     debounceSave();
   },[debounceSave]);
 
@@ -2348,7 +2361,11 @@ export default function NexusTap(){
       // XP + coins
       const _xpBoostLvl=(sv.skills||{}).xp_boost||0;
       const _xpBoostMult=_xpBoostLvl===3?1.3:_xpBoostLvl===2?1.2:_xpBoostLvl===1?1.1:1.0;
-      let xpEarned=Math.round((Math.floor(score/6)+gs.sessionStats.rareHits*8+gs.sessionStats.bossKills*30+(stars-1)*40)*_xpBoostMult);
+      const _xpBombMult=gs._xpBombActive?2.0:1.0;
+      const _challengeMult=cfg._challengeBonus?1.5:1.0;
+      let xpEarned=Math.round((Math.floor(score/6)+gs.sessionStats.rareHits*8+gs.sessionStats.bossKills*30+(stars-1)*40)*_xpBoostMult*_xpBombMult*_challengeMult);
+      if(gs._xpBombActive)setTimeout(()=>setNotif(`⚡ XP Bomb: ×2 XP! +${xpEarned}xp`),500);
+      if(cfg._challengeBonus&&won)setTimeout(()=>setNotif(`⚡ Challenge Bonus: +50% XP!`),400);
       let coinsEarned=Math.floor(score*0.14)+gs.sessionStats.bossKills*20+stars*15;
       // Weekly Challenge bonus
       const wk=getWeekKey();
@@ -2699,7 +2716,19 @@ export default function NexusTap(){
                 const key=(sv2.mascotId||"dragon")+":"+pick;
                 sv2.ownedAccessories={...owned,[key]:true};
                 sv2.bossFragments-=10;
-                setTimeout(()=>setNotif("🎁 Fragment reward: "+pick+" accessory unlocked!"),600);
+                // Celebration — rainbow flash + particles + notification
+                setLegendaryFlash(true);setTimeout(()=>setLegendaryFlash(false),1000);
+                sfx("jackpot");vibrate([20,10,20,10,40,10,60]);
+                const cx=canvasRef.current?canvasRef.current.width/2:180;
+                const cy=canvasRef.current?canvasRef.current.height/2:360;
+                ["#c084fc","#ffd700","#ff6030","#34d399","#60a5fa","#f472b6"].forEach(c=>spawnParticles(cx,cy,c,14,"spark"));
+                spawnParticles(cx,cy,"#ffffff",20,"dot");
+                setTimeout(()=>setNotif(`🎁 ACCESSORY UNLOCKED: ${pick}! 💜`),400);
+              } else {
+                // No more accessories to unlock — convert to coins
+                sv2.coins=(sv2.coins||0)+150;sv2.totalCoins=(sv2.totalCoins||0)+150;
+                sv2.bossFragments-=10;
+                setTimeout(()=>setNotif("💰 Fragments → +150 coins! (all accessories owned)"),400);
               }
             }
           }
@@ -2953,6 +2982,9 @@ export default function NexusTap(){
     const headStart=shopCart.includes("head_start");
     const shieldStart=shopCart.includes("shield_start");
     const powerPack=shopCart.includes("power_pack");
+    const feverPotion=shopCart.includes("fever_potion");
+    const xpBomb=shopCart.includes("xp_bomb");
+    const streakSaver=shopCart.includes("streak_saver");
 
     const isRescue=rescuedRef.current;rescuedRef.current=false;
     tensionRef.current=0;setTensionLevel(0);setBonusRound(false);setMysteryReveal(null);
@@ -2963,19 +2995,25 @@ export default function NexusTap(){
     const mLevel=Math.min(20,Math.floor((mascotXP[mascotId]||0)/500));
     const hasStreakShield=mLevel>=10;
     const headStartBonus=(mLevel>=15?100:0)+(headStart?300:0);
+    const frLvl2=(saveRef.current.skills||{}).fever_rush||0;
+    const feverMult2=frLvl2===3?1.6:frLvl2===2?1.4:frLvl2===1?1.2:1.0;
     gsRef.current={
       score:isRescue?400:headStartBonus>0?headStartBonus:0,
       lives:isRescue?MAX_LIVES:Math.min(MAX_LIVES,cfg.lives+(extraLife?1:0)),
-      streak:0, feverActive:false, feverTimeLeft:0, startTime:Date.now(),
-      lastTapTime:Date.now(),
-      sessionStats:{tapsTotal:0,rareHits:0,bestCombo:0,score:0,feverCount:0,powerupCollected:0,bossKills:0,perfectTaps:0},
+      streak:feverPotion?FEVER_STREAK:0,
+      feverActive:!!feverPotion, feverTimeLeft:feverPotion?Math.round(FEVER_DUR*feverMult2*1.5):0,
+      startTime:Date.now(), lastTapTime:Date.now(),
+      sessionStats:{tapsTotal:0,rareHits:0,bestCombo:0,score:0,feverCount:feverPotion?1:0,powerupCollected:0,bossKills:0,perfectTaps:0},
       _hitLog:[], // [{t:timestamp, hit:bool}] for adaptive difficulty
       _adaptNextEval:Date.now()+4000, // first eval after 4 seconds
       _adaptMult:1.0, // current adaptive multiplier (0.7-1.3)
+      _xpBombActive:!!xpBomb, // doubles XP at level end
+      _streakSaverActive:!!streakSaver, // saves streak once on miss
     };
     if(hasStreakShield&&!isRescue){streakShRef.current=true;setStreakShieldActive(true);}
     if(shieldStart)activePwrRef.current=[{type:"SHIELD",endsAt:Date.now()+25000}];
     if(powerPack){const pt=["SLOW","DOUBLE","SHIELD","FREEZE"];const ty=pt[Math.floor(Math.random()*pt.length)];if(!activePwrRef.current.find(p=>p.type===ty))activePwrRef.current.push({type:ty,endsAt:Date.now()+12000});}
+    if(feverPotion){setFeverBorder(true);sfx("feverStart");}
     setActivePwrDisp([...activePwrRef.current]);
     setHud({score:headStart?300:0,lives:gsRef.current.lives,streak:0,fever:false,coins:saveRef.current.coins,timeLeft:null,modGoal:cfg.modifier?.desc||null});
     setLevelCompleteData(null);setGameOverData(null);setEpicFlash(false);setFeverBorder(false);setComboLabel("");
@@ -3128,6 +3166,12 @@ export default function NexusTap(){
         else if(streakShRef.current){
           // Streak Shield — absorbs one miss, preserves streak!
           streakShRef.current=false;setStreakShieldActive(false);sfx("shieldBreak");vibrate([8,12,8]);
+        } else if(gs._streakSaverActive&&(gs.streak||0)>0){
+          // Streak Saver shop item — save streak on first miss
+          gs._streakSaverActive=false;gs.lives--;lostLife=true;
+          sfx("shieldBreak");vibrate([8,5,8]);
+          spawnParticles(t.x,t.y,"#fbbf24",6,"spark");
+          spawnPopup(t.x,t.y-18,"💛 STREAK SAVED!","#fbbf24",14);
         } else{
           gs.lives--;sfx("miss");vibrate(42);lostLife=true;
           // Skill: combo_guard — absorb N misses before clearing streak
@@ -3230,8 +3274,10 @@ export default function NexusTap(){
     // HUD update 20fps
     if(ts-hudRef.current>50){
       hudRef.current=ts;
+      const decayMs2=cfg?.world===5?1500:2500;
+      const decayPct=gs.streak>0&&gs.lastTapTime?Math.max(0,1-(Date.now()-gs.lastTapTime)/decayMs2):1;
       setHud({score:gs.score,lives:gs.lives,streak:gs.streak,fever:gs.feverActive,coins:saveRef.current.coins,
-        timeLeft:null,modGoal:cfg?.modifier?.desc||null});
+        timeLeft:null,modGoal:cfg?.modifier?.desc||null,decayPct});
     }
 
     rafRef.current=requestAnimationFrame(gl=>gameLoopFn(gl));
@@ -3965,8 +4011,16 @@ export default function NexusTap(){
                       <span>📖 Story</span>
                     </div>
                   </div>
-                  {worldFullyDone&&<span style={{marginLeft:"auto",fontSize:22,zIndex:1,animation:"heartbeat 1.6s ease-in-out infinite",
-                    filter:`drop-shadow(0 0 6px ${world.color})`}}>🏆</span>}
+                  {worldFullyDone&&<div className="ml-auto flex flex-col items-center gap-0.5" style={{zIndex:1}}>
+                    <span style={{fontSize:22,animation:"heartbeat 1.6s ease-in-out infinite",
+                      filter:`drop-shadow(0 0 8px ${world.color})`}}>🏆</span>
+                    {worldStars>=30
+                      ?<span style={{fontSize:8,fontWeight:"black",letterSpacing:"0.06em",
+                          color:"#ffd700",background:"#ffd70022",padding:"1px 6px",borderRadius:6,
+                          border:"1px solid #ffd70066",animation:"shimmer 2s linear infinite",whiteSpace:"nowrap"}}>⭐ PERFECT</span>
+                      :<span style={{fontSize:8,color:world.color,opacity:0.7}}>⭐ {worldStars}/30</span>
+                    }
+                  </div>}
                   {!worldFullyDone&&<div className="ml-auto flex flex-col items-end gap-0.5" style={{zIndex:1}}>
                     {isCurrentWorld&&<span style={{fontSize:8,fontWeight:"black",letterSpacing:"0.06em",
                       color:world.color,background:`${world.color}22`,padding:"1px 5px",borderRadius:6,
@@ -4078,6 +4132,32 @@ export default function NexusTap(){
                 style={{background:`linear-gradient(135deg,${rlv.worldColor}33,${rlv.worldColor}55)`,border:`2px solid ${rlv.worldColor}`,color:rlv.worldColor}}>
                 🎮 Play Again
               </NeonButton>
+              {rstars>0&&(
+                <NeonButton onClick={()=>{
+                  // Pick a random challenge modifier (not boss_kill or final_boss)
+                  const challengeMods=[
+                    {type:"combo_20",desc:"20× combo challenge ⭐"},
+                    {type:"no_miss",desc:"Perfect run — no misses! 🎯"},
+                    {type:"moving_only",desc:"Moving targets only! 💨"},
+                    {type:"ghost_rush",desc:"Find the ghosts! 👻"},
+                    {type:"fever_2",desc:"Activate Fever twice! ✨"},
+                  ];
+                  const mod=challengeMods[Math.floor(Math.random()*challengeMods.length)];
+                  const challengeCfg=getLevelConfig(replayModal);
+                  // Apply modifier and +50% XP bonus flag
+                  challengeCfg.modifier=mod;
+                  challengeCfg._challengeBonus=true; // endLevel checks this for +50% XP
+                  setReplayModal(null);
+                  // Start directly (no shop)
+                  startGame(replayModal,[],null);
+                  // Override the config after startGame sets it
+                  setTimeout(()=>{if(levelCfgRef.current){levelCfgRef.current.modifier=mod;levelCfgRef.current._challengeBonus=true;}},50);
+                }}
+                  className="w-full py-3 font-black"
+                  style={{background:"linear-gradient(135deg,#fbbf2422,#f9780433)",border:"2px solid #fbbf2488",color:"#fbbf24"}}>
+                  ⚡ Challenge Mode <span style={{fontSize:10,opacity:0.7}}>+50% XP</span>
+                </NeonButton>
+              )}
               <NeonButton onClick={()=>setReplayModal(null)}
                 className="w-full py-3 text-sm" style={{background:"#ffffff08",border:"1px solid #ffffff15"}}>
                 Cancel
@@ -4250,6 +4330,17 @@ export default function NexusTap(){
               }}>
               {hud.streak}×{streakDecaying&&hud.streak>0?"⚠️":""}
             </div>
+            {/* Streak decay bar — only visible when streak > 0 */}
+            {hud.streak>0&&(
+              <div style={{width:44,height:3,background:"#ffffff18",borderRadius:2,marginTop:2,overflow:"hidden"}}>
+                <div style={{
+                  width:`${Math.max(0,(hud.decayPct??1))*100}%`,height:"100%",borderRadius:2,
+                  background:streakDecaying?"#ef4444":streakColor(),
+                  boxShadow:streakDecaying?`0 0 4px #ef4444`:`0 0 4px ${streakColor()}`,
+                  transition:"width 0.12s linear",
+                }}/>
+              </div>
+            )}
           </div>
           <button onTouchStart={e=>{e.stopPropagation();togglePause();}} onClick={e=>{e.stopPropagation();togglePause();}}
             className="flex items-center justify-center px-4"
@@ -4257,6 +4348,19 @@ export default function NexusTap(){
             {paused?"▶":"⏸"}
           </button>
         </div>
+        {/* Fragment progress chip — shown when boss fragments collected */}
+        {(sv.bossFragments||0)>0&&(
+          <div className="absolute z-20 pointer-events-none"
+            style={{top:78,right:8}}>
+            <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg"
+              style={{background:"#c084fc22",border:"1px solid #c084fc66",fontSize:9,fontWeight:"bold",color:"#c084fc"}}>
+              💎 {sv.bossFragments}/10
+              <div style={{width:28,height:4,background:"#ffffff15",borderRadius:2,overflow:"hidden",display:"inline-block",verticalAlign:"middle",marginLeft:2}}>
+                <div style={{width:`${(sv.bossFragments/10)*100}%`,height:"100%",background:"#c084fc",boxShadow:"0 0 4px #c084fc"}}/>
+              </div>
+            </div>
+          </div>
+        )}
         {/* Modifier goal hint */}
         {hud.modGoal&&(
           <div className="absolute left-0 right-0 flex justify-center z-20" style={{top:76}}>
@@ -5832,6 +5936,22 @@ export default function NexusTap(){
             boxShadow:`0 0 28px ${activeWorldColor}55,0 4px 24px rgba(0,0,0,0.6)`,maxWidth:"85vw",whiteSpace:"nowrap",textAlign:"center",
             backdropFilter:"blur(12px)",animation:"notifSlide 2.6s ease-in-out forwards",letterSpacing:"0.04em"}}>
           {notif}
+        </div>
+      )}
+      {/* Mid-game achievement popup — richer display with icon + XP */}
+      {achPopup&&(
+        <div className="absolute z-50 pointer-events-none"
+          style={{bottom:"22%",left:"50%",transform:"translateX(-50%)",animation:"perfectPop 2.2s cubic-bezier(0.34,1.4,0.64,1) forwards",textAlign:"center",whiteSpace:"nowrap"}}>
+          <div className="flex items-center gap-2 px-4 py-3 rounded-2xl"
+            style={{background:"rgba(0,0,0,0.92)",border:"1px solid #ffd70088",
+              boxShadow:"0 0 32px #ffd70044,0 4px 20px rgba(0,0,0,0.6)",backdropFilter:"blur(12px)"}}>
+            <span style={{fontSize:28}}>{achPopup.icon}</span>
+            <div className="flex flex-col items-start">
+              <div style={{fontSize:11,color:"#ffd700",fontWeight:"black",letterSpacing:"0.08em",textTransform:"uppercase"}}>Achievement!</div>
+              <div style={{fontSize:13,color:"#fff",fontWeight:"bold"}}>{achPopup.label}</div>
+              <div style={{fontSize:10,color:"#fbbf24",opacity:0.8}}>+{achPopup.xp} XP</div>
+            </div>
+          </div>
         </div>
       )}
 
