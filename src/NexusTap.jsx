@@ -403,6 +403,8 @@ const ACHIEVEMENTS = [
   { id:"speed_demon",     label:"Speed Demon",       desc:"Complete a level with a speed bonus", icon:"⚡", xp:30 },
   { id:"phantom_catch",   label:"Ghost Hunter",      desc:"Catch a Phantom target",              icon:"👻", xp:40 },
   { id:"volatile_defuse", label:"Bomb Squad",        desc:"Defuse a Volatile target",            icon:"💣", xp:35 },
+  { id:"healer_catch",    label:"First Aid",         desc:"Tap a Healer to restore a life",      icon:"❤️", xp:25 },
+  { id:"overkill_5x",    label:"OVERKILL",          desc:"Score 5× the level goal",             icon:"🌟", xp:80 },
 ];
 
 const MISSION_TEMPLATES = [
@@ -1414,6 +1416,33 @@ function drawMagnet(ctx, r, ts) {
   ctx.restore();
 }
 
+// ── Healer target — glowing green cross, restores 1 life when tapped ──
+function drawHealer(ctx, r, ts) {
+  const pulse=0.5+0.5*Math.sin(ts*0.005);
+  ctx.save();
+  // Outer healing glow
+  const grad=ctx.createRadialGradient(0,0,r*0.4,0,0,r*1.6);
+  grad.addColorStop(0,"#34d39944");grad.addColorStop(1,"transparent");
+  ctx.fillStyle=grad;ctx.beginPath();ctx.arc(0,0,r*1.6,0,Math.PI*2);ctx.fill();
+  // Body
+  const bg=ctx.createRadialGradient(0,0,0,0,0,r);
+  bg.addColorStop(0,"#6ee7b7");bg.addColorStop(0.55,"#34d399");bg.addColorStop(1,"#059669");
+  ctx.fillStyle=bg;ctx.shadowColor="#34d399";ctx.shadowBlur=18+pulse*10;
+  ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  // Cross symbol
+  ctx.fillStyle="#ffffff";ctx.shadowBlur=0;
+  const arm=r*0.45,thick=r*0.22;
+  ctx.beginPath();ctx.roundRect(-thick/2,-arm,thick,arm*2,thick/4);ctx.fill();
+  ctx.beginPath();ctx.roundRect(-arm,-thick/2,arm*2,thick,thick/4);ctx.fill();
+  // Sparkle particles around it
+  for(let i=0;i<4;i++){
+    const a=(i/4)*Math.PI*2+ts*0.002;const d=r*1.2;
+    ctx.fillStyle="#a7f3d0";ctx.globalAlpha=0.6+0.4*Math.sin(ts*0.008+i);
+    ctx.beginPath();ctx.arc(Math.cos(a)*d,Math.sin(a)*d,2.5,0,Math.PI*2);ctx.fill();
+  }
+  ctx.restore();
+}
+
 // ── Volatile target — pulsing bomb-like, explodes on expiry ──
 function drawVolatile(ctx, r, ts, lifeRatio) {
   const urgency=1-lifeRatio; // 0=fresh, 1=about to explode
@@ -1607,6 +1636,7 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="magnet")   drawMagnet(ctx,t.radius,ts);
   else if(t.type==="phantom")  drawPhantom(ctx,t.radius,ts,timeLeft);
   else if(t.type==="volatile") drawVolatile(ctx,t.radius,ts,timeLeft);
+  else if(t.type==="healer")   drawHealer(ctx,t.radius,ts);
   else{
     const nm=t.rarity?.name;
     if     (nm==="common")    drawCommon(ctx,t.radius,t.color,t.glow,ts,timeLeft);
@@ -2587,6 +2617,9 @@ export default function NexusTap(){
     } else if((cfg.id||0)>=20&&Math.random()<0.022&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 2.2% Phantom — ultra-short lifetime (1.1s), huge points, ghostly appearance
       type="phantom";color="#e879f9";glow="#a21caf";
+    } else if((cfg.id||0)>=18&&Math.random()<0.015&&gs.lives<cfg.lives&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.5% Healer — only spawns if player has lost lives; restores 1 life when tapped
+      type="healer";color="#34d399";glow="#059669";
     } else if((cfg.id||0)>=25&&Math.random()<0.018&&!gs.bonusRoundActive&&effBomb>0&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1.8% Volatile — tap to defuse (scores 250pts), or it explodes on expiry (costs a life)
       type="volatile";color="#ff4500";glow="#dc2626";
@@ -2602,7 +2635,7 @@ export default function NexusTap(){
       }
       if(!moving&&Math.random()<effGhost)ghost=true;
     }
-    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
+    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
     // World modifiers: Ocean Deep (8) — slower targets (calmer waters), longer lifetimes
@@ -2697,6 +2730,13 @@ export default function NexusTap(){
         setTimeout(()=>setNotif(`🏆 Tournament! 2× coins: +${coinsEarned}🪙`),700);
         // Tournament Top achievement — Top 15% requires ratio >= 2.2
         if(score/(cfg.scoreGoal||1)>=2.2)unlock("tournament_top");
+      }
+      // 5× Score Goal OVERKILL bonus — legendary achievement, extra coins
+      if(!cfg.isInfinity&&!cfg.isZen&&cfg.scoreGoal&&score>=cfg.scoreGoal*5){
+        const overkillBonus=Math.floor(coinsEarned*0.75);
+        coinsEarned+=overkillBonus;
+        setTimeout(()=>setNotif(`🌟 OVERKILL × 5! +${overkillBonus}🪙 LEGENDARY!`),1000);
+        unlock("overkill_5x");
       }
       // Day-of-week bonuses
       const dayOfWeek=new Date().getDay();
@@ -2885,6 +2925,31 @@ export default function NexusTap(){
       unlock("shielded_hit");
       const cfg=levelCfgRef.current;
       if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
+    // HEALER — restores 1 life when tapped
+    if(hit.type==="healer"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const cfg=levelCfgRef.current;
+      const maxLvs=cfg?cfg.lives:5;
+      if(gs.lives<maxLvs){
+        gs.lives++;
+        spawnParticles(hit.x,hit.y,"#34d399",20,"spark");
+        spawnParticles(hit.x,hit.y,"#6ee7b7",8,"dot");
+        spawnPopup(hit.x,hit.y-30,"+1 ❤️ HEALED!","#34d399",20);
+        sfx("coin");vibrate([12,6,12,6,24]);
+        setEpicFlash(true);setTimeout(()=>setEpicFlash(false),400);
+        unlock("healer_catch");
+      } else {
+        // Already full HP — convert to bonus coins
+        const coinGift=20;
+        saveRef.current.coins=(saveRef.current.coins||0)+coinGift;
+        saveRef.current.totalCoins=(saveRef.current.totalCoins||0)+coinGift;
+        spawnPopup(hit.x,hit.y-28,`✨ Full HP! +${coinGift}🪙`,"#34d399",16);
+        sfx("coin");
+      }
+      gs.streak++;gs.lastTapTime=Date.now();gs.sessionStats.tapsTotal++;mascotHappyRef.current++;
       return;
     }
 
@@ -6233,6 +6298,15 @@ export default function NexusTap(){
                       </div>}
                     </div>
                   );
+                })()}
+                {/* Personal best with this mascot */}
+                {isUnlocked&&(()=>{
+                  const mBest=(sv2.mascotScores||{})[m.id]||0;
+                  return mBest>0?(
+                    <div style={{fontSize:8,color:rs.border,opacity:0.75,letterSpacing:"0.03em"}}>
+                      🏆 {mBest.toLocaleString()} pts
+                    </div>
+                  ):null;
                 })()}
                 {/* SELECT button for unlocked-but-not-active */}
                 {isUnlocked&&!isActive&&(
