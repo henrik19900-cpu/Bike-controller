@@ -1179,7 +1179,7 @@ function drawPowerup(ctx, r, pwrType, ts) {
   ctx.setLineDash([r*0.35,r*0.18]); ctx.beginPath(); ctx.arc(0,0,r-4,0,Math.PI*2); ctx.stroke();
   ctx.setLineDash([]); ctx.restore();
   // Icon
-  const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",LIFE:"❤️",FREEZE:"❄️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐",CHAIN_LIGHTNING:"⚡",TIME_WARP:"⏱️",SCORE_BOOST:"×5",LIFE_SURGE:"❤️+2"};
+  const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",LIFE:"❤️",FREEZE:"❄️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐",CHAIN_LIGHTNING:"⚡",TIME_WARP:"⏱️",SCORE_BOOST:"×5",LIFE_SURGE:"❤️+2",MAGNET_FIELD:"🧲"};
   if(pwrType==="LUCKY"){ctx.shadowColor="#ffd700";ctx.shadowBlur=r*(1.2+pulse*0.8);}
   const label=icons[pwrType]||"⚡";
   ctx.font=`bold ${r*0.9}px serif`; ctx.textAlign="center"; ctx.textBaseline="middle";
@@ -3560,17 +3560,25 @@ function drawRipples(ctx,ripples){
   }
 }
 
-function drawTapTrail(ctx,trail,themeAccent){
+function drawTapTrail(ctx,trail,themeAccent,streak){
   const now=performance.now();
+  // Combo intensity: higher streak = thicker, brighter, longer trail
+  const comboLevel=Math.min(10,Math.floor((streak||0)/5));
+  const trailDur=350+comboLevel*40; // up to 750ms at max combo
+  const baseAlpha=0.45+comboLevel*0.04;
+  const baseSz=2.5+comboLevel*0.5;
   for(let i=trail.length-1;i>=0;i--){
     const p=trail[i];
     const age=now-p.ts;
-    if(age>350){trail.splice(i,1);continue;}
-    const alpha=(1-age/350)*0.55;
-    const sz=3*(1-age/350);
+    if(age>trailDur){trail.splice(i,1);continue;}
+    const ratio=1-age/trailDur;
+    const alpha=ratio*baseAlpha;
+    const sz=baseSz*ratio;
     ctx.save();ctx.globalAlpha=alpha;
-    ctx.fillStyle=themeAccent||"#a78bfa";
-    ctx.shadowColor=themeAccent||"#a78bfa";ctx.shadowBlur=8;
+    // Fever/high combo: rainbow trail
+    const trailColor=streak>=20?`hsl(${(now*0.18+i*15)%360},100%,70%)`:themeAccent||"#a78bfa";
+    ctx.fillStyle=trailColor;
+    ctx.shadowColor=trailColor;ctx.shadowBlur=6+comboLevel*2;
     ctx.beginPath();ctx.arc(p.x,p.y,sz,0,Math.PI*2);ctx.fill();
     ctx.restore();
   }
@@ -4002,6 +4010,17 @@ export default function NexusTap(){
       setScreenShake(true);setTimeout(()=>setScreenShake(false),300);
       setNotif("⏱️ TIME Warp! Everything slowed to 20%!");
       unlock("time_warp_use");
+    } else if(ptype==="MAGNET_FIELD"){
+      // MAGNET FIELD — all targets drift toward your last tap for 5s
+      gs._magnetFieldEndsAt=Date.now()+5000;
+      gs._magnetFieldX=x;gs._magnetFieldY=y;
+      activePwrRef.current=activePwrRef.current.filter(p=>p.type!=="MAGNET_FIELD");
+      activePwrRef.current.push({type:"MAGNET_FIELD",endsAt:Date.now()+5000});
+      setActivePwrDisp([...activePwrRef.current]);
+      spawnPopup(x,y,"🧲 MAGNET FIELD!","#ec4899",20);
+      spawnParticles(x,y,"#ec4899",18,"spark");
+      sfx("powerUp");vibrate([12,8,20,8,12]);
+      setNotif("🧲 Magnet Field! Targets pulled toward you!");
     } else {
       const dur=ptype==="SLOW"?7000:ptype==="FREEZE"?5000:9000;
       activePwrRef.current=activePwrRef.current.filter(p=>p.type!==ptype);
@@ -4039,7 +4058,7 @@ export default function NexusTap(){
       type="bomb";color="#ef4444";glow="#dc2626";sfx("bombSpawn");
     } else if(r<(bossRate||0)+effBomb+0.07){
       type="powerup";color="#60a5fa";glow="#3b82f6";
-      const pt=["SHIELD","SLOW","DOUBLE","LIFE","FREEZE","LUCKY","MIRROR","MULTIPLIER","COMBO_FREEZE","GRAVITY","CHAIN_LIGHTNING","TIME_WARP","SCORE_BOOST","LIFE_SURGE"];
+      const pt=["SHIELD","SLOW","DOUBLE","LIFE","FREEZE","LUCKY","MIRROR","MULTIPLIER","COMBO_FREEZE","GRAVITY","CHAIN_LIGHTNING","TIME_WARP","SCORE_BOOST","LIFE_SURGE","MAGNET_FIELD"];
       pwrType=pt[Math.floor(Math.random()*pt.length)];
     } else if(r<(bossRate||0)+effBomb+0.07+0.045&&(gs.score>0||Math.random()<0.3)&&luckyRef.current!=="active"){
       // 4.5% treasure chest — the variable reward slot machine
@@ -5900,6 +5919,7 @@ export default function NexusTap(){
       }
     }
     gs._lastTapX=hit.x;gs._lastTapY=hit.y;gs._lastTapMs=nowMs;
+    if(gs._magnetFieldEndsAt&&Date.now()<gs._magnetFieldEndsAt){gs._magnetFieldX=hit.x;gs._magnetFieldY=hit.y;}
     // Tap Frenzy — 5 hits within 2s triggers bonus
     if(!gs._recentTaps)gs._recentTaps=[];
     gs._recentTaps.push(nowMs);
@@ -6348,7 +6368,7 @@ export default function NexusTap(){
     drawBg(ctx,w,h,accentColor,gridColor,ts,fever,cfg?cfg.world:0);
     drawBgParticles(ctx,bgPartsRef.current,accentColor,fever,cfg?cfg.world:0);
     drawRipples(ctx,ripplesRef.current);
-    drawTapTrail(ctx,tapTrailRef.current,accentColor);
+    drawTapTrail(ctx,tapTrailRef.current,accentColor,gsRef.current?.streak||0);
 
     // Particles
     const pnow=performance.now();
@@ -6431,6 +6451,17 @@ export default function NexusTap(){
             t.x+=t.vx*dt*0.056*timeWarpMult;t.y+=t.vy*dt*0.056*timeWarpMult;
           } else {
             t.x+=t.vx*dt*0.056*timeWarpMult;t.y+=t.vy*dt*0.056*timeWarpMult;
+          }
+          // MAGNET FIELD — all non-boss targets drift toward last tap position
+          if(gs._magnetFieldEndsAt&&Date.now()<gs._magnetFieldEndsAt&&t.type!=="boss"&&t.type!=="bomb"&&t.type!=="siphon"){
+            const mfx=gs._magnetFieldX||w/2,mfy=gs._magnetFieldY||h/2;
+            const mdx=mfx-t.x,mdy=mfy-t.y;
+            const mDist=Math.hypot(mdx,mdy)||1;
+            if(mDist>30){
+              const pull=0.012;
+              t.vx+=mdx/mDist*pull;t.vy+=mdy/mDist*pull;
+              const spd=Math.hypot(t.vx,t.vy);if(spd>1.8){t.vx=t.vx/spd*1.8;t.vy=t.vy/spd*1.8;}
+            }
           }
           const margin=t.radius+5;
           if(t.x<margin||t.x>w-margin){t.vx*=-1;t.x=Math.max(margin,Math.min(w-margin,t.x));}
@@ -8199,7 +8230,7 @@ export default function NexusTap(){
               const totalSecs=p.type==="SHIELD"?25:p.type==="SLOW"?8:p.type==="DOUBLE"?10:p.type==="FREEZE"?4:p.type==="MULTIPLIER"?8:p.type==="COMBO_FREEZE"?10:p.type==="TIME_WARP"?6:12;
               const pct=Math.min(100,Math.round(secsLeft/totalSecs*100));
               const colors={SHIELD:"#fbbf24",SLOW:"#60a5fa",DOUBLE:"#f97316",FREEZE:"#06b6d4",LIFE:"#4ade80",LUCKY:"#ffd700",MIRROR:"#c084fc",MULTIPLIER:"#f43f5e",COMBO_FREEZE:"#67e8f9",GRAVITY:"#a78bfa",TIME_WARP:"#818cf8",SCORE_BOOST:"#f43f5e",LIFE_SURGE:"#4ade80"};
-              const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",FREEZE:"❄️",LIFE:"❤️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐",TIME_WARP:"⏱️",SCORE_BOOST:"×5",LIFE_SURGE:"💚"};
+              const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",FREEZE:"❄️",LIFE:"❤️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐",TIME_WARP:"⏱️",SCORE_BOOST:"×5",LIFE_SURGE:"💚",MAGNET_FIELD:"🧲"};
               const c=colors[p.type]||"#60a5fa";
               return(
                 <div key={p.type} className="flex flex-col items-center gap-0.5"
