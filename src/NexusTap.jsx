@@ -396,8 +396,11 @@ const ACHIEVEMENTS = [
   { id:"zen_master",   label:"Zen Master",       desc:"Complete a Zen Mode session",         icon:"☯",  xp:40  },
   { id:"streak_50",    label:"Streak Legend",    desc:"Achieve a 50× streak",                icon:"🔥", xp:75  },
   { id:"coins_500",    label:"Coin Hoarder",     desc:"Collect 500 coins total",             icon:"💰", xp:35  },
-  { id:"offline_earn", label:"Passive Earner",   desc:"Earn coins while offline",            icon:"🌙", xp:20  },
-  { id:"all_worlds",   label:"World Traveler",   desc:"Play in all 10 worlds",               icon:"🌍", xp:100 },
+  { id:"offline_earn",    label:"Passive Earner",    desc:"Earn coins while offline",          icon:"🌙", xp:20  },
+  { id:"all_worlds",      label:"World Traveler",    desc:"Play in all 10 worlds",             icon:"🌍", xp:100 },
+  { id:"friday_fever",    label:"Friday Fever",      desc:"Play on a Friday for 2× XP",       icon:"🔥", xp:25  },
+  { id:"weekend_warrior", label:"Weekend Warrior",   desc:"Play on a weekend for bonus coins", icon:"🎉", xp:25  },
+  { id:"speed_demon",     label:"Speed Demon",       desc:"Complete a level with a speed bonus", icon:"⚡", xp:30 },
 ];
 
 const MISSION_TEMPLATES = [
@@ -447,6 +450,12 @@ const MAIN_STORY = {
     "One stormy night a mischievous wizard zapped the crystals away — sending one into each magical world! 🌩️",
     "Now YOU must travel through all 10 worlds, tap your way past creatures and bosses, and bring the crystals home! 🌈",
   ],
+};
+
+const BOSS_TAUNTS = {
+  phase2: ["You dare challenge me?!","Is that all you've got?","My power grows stronger!","You can't stop me now!","Feel my wrath, tapper!"],
+  phase3: ["IMPOSSIBLE! I'm invincible!","You'll regret this!!!","MAXIMUM POWER UNLEASHED!","I won't go down easily!","THIS IS MY FINAL FORM!!!"],
+  dying:  ["No... this can't be...","You're... stronger than I thought...","Take the crystal... you earned it...","I'll be back... stronger...","Well played, young tapper..."],
 };
 
 const WORLD_STORIES = [
@@ -2096,6 +2105,22 @@ function drawRipples(ctx,ripples){
   }
 }
 
+function drawTapTrail(ctx,trail,themeAccent){
+  const now=performance.now();
+  for(let i=trail.length-1;i>=0;i--){
+    const p=trail[i];
+    const age=now-p.ts;
+    if(age>350){trail.splice(i,1);continue;}
+    const alpha=(1-age/350)*0.55;
+    const sz=3*(1-age/350);
+    ctx.save();ctx.globalAlpha=alpha;
+    ctx.fillStyle=themeAccent||"#a78bfa";
+    ctx.shadowColor=themeAccent||"#a78bfa";ctx.shadowBlur=8;
+    ctx.beginPath();ctx.arc(p.x,p.y,sz,0,Math.PI*2);ctx.fill();
+    ctx.restore();
+  }
+}
+
 
 // ═══════════════════════════════════════════════════════════════
 // NEON BUTTON
@@ -2216,6 +2241,7 @@ export default function NexusTap(){
   const spawnTimer   = useRef(0);
   const bgPartsRef   = useRef([]);
   const ripplesRef   = useRef([]);
+  const tapTrailRef  = useRef([]); // finger trail {x,y,ts,alpha}
   const missionProg  = useRef({});
   const pausedRef    = useRef(false);
   const levelCfgRef  = useRef(null); // current level config
@@ -2589,6 +2615,19 @@ export default function NexusTap(){
         // Tournament Top achievement — Top 15% requires ratio >= 2.2
         if(score/(cfg.scoreGoal||1)>=2.2)unlock("tournament_top");
       }
+      // Day-of-week bonuses
+      const dayOfWeek=new Date().getDay();
+      if(dayOfWeek===5&&!cfg.isZen){ // Friday — double XP (Friday Fever)
+        xpEarned=Math.ceil(xpEarned*2);
+        setTimeout(()=>setNotif(`🔥 FRIDAY FEVER! 2× XP: +${xpEarned}xp`),900);
+        unlock("friday_fever");
+      }
+      if((dayOfWeek===0||dayOfWeek===6)&&!cfg.isZen){ // Weekend — +50% coins (Weekend Warrior)
+        const weekendBonus=Math.floor(coinsEarned*0.5);
+        coinsEarned+=weekendBonus;
+        setTimeout(()=>setNotif(`🎉 WEEKEND WARRIOR! +${weekendBonus}🪙 bonus!`),900);
+        unlock("weekend_warrior");
+      }
       const prevLvl=getLvl(sv.xp);sv.xp+=xpEarned;
       if(getLvl(sv.xp)>prevLvl){
         const gained=getLvl(sv.xp)-prevLvl;
@@ -2640,6 +2679,18 @@ export default function NexusTap(){
         sv.totalCoins=(sv.totalCoins||0)+perfectBonus;
         sfx("flawless");
         setTimeout(()=>setNotif(`🎯 PERFECT LEVEL! +${perfectBonus}🪙 bonus!`),800);
+      }
+      // Speed bonus — finish a level quickly relative to expected time
+      if(!cfg.isInfinity&&!cfg.isZen&&!cfg.isGauntlet&&won){
+        const expectedTime=Math.max(15,(cfg.spawnInterval||800)*6/1000); // rough expected seconds
+        if(timeSurvived>0&&timeSurvived<expectedTime*0.7){ // finished in top 70% of expected time
+          const speedBonus=Math.floor(coinsEarned*0.3);
+          if(speedBonus>0){
+            coinsEarned+=speedBonus;
+            setTimeout(()=>setNotif(`⚡ SPEED BONUS! +${speedBonus}🪙`),1200);
+            unlock("speed_demon");
+          }
+        }
       }
       flushSave();
       const canPrestige=cfg.id===100&&(sv.prestigeLevel||0)<5;
@@ -2935,6 +2986,8 @@ export default function NexusTap(){
         hit.bossPhase=2;
         sfx("bossPhase");vibrate([20,10,20]);
         spawnPopup(hit.x,hit.y-50,"💨 PHASE 2!",hit.color||"#ff6030",18);
+        const taunt2=BOSS_TAUNTS.phase2[Math.floor(Math.random()*BOSS_TAUNTS.phase2.length)];
+        setTimeout(()=>setNotif(`👹 "${taunt2}"`),600);
         setScreenShake(true);setTimeout(()=>setScreenShake(false),350);
         // New random direction, also remember new anchor for orbit pattern
         const a2=Math.random()*Math.PI*2;
@@ -2963,6 +3016,8 @@ export default function NexusTap(){
         hit.cx=hit.x;hit.cy=hit.y;
         sfx("bossPhase");vibrate([30,15,30,15,60]);
         spawnPopup(hit.x,hit.y-50,"⚠️ RAGE MODE!","#ff0000",20);
+        const taunt3=BOSS_TAUNTS.phase3[Math.floor(Math.random()*BOSS_TAUNTS.phase3.length)];
+        setTimeout(()=>setNotif(`😡 "${taunt3}"`),600);
         setScreenShake(true);setTimeout(()=>setScreenShake(false),500);
         // Speed up spawning
         if(levelCfgRef.current)levelCfgRef.current._rageSpawn=true;
@@ -2981,6 +3036,8 @@ export default function NexusTap(){
         gs.score+=pts;gs.sessionStats.bossKills=(gs.sessionStats.bossKills||0)+1;
         _bgBlast={x:hit.x,y:hit.y,at:performance.now()}; // explode bg particles
         spawnPopup(hit.x,hit.y-28,`🏆 BOSS! +${pts}`,"#ffd700",24);
+        const dyingTaunt=BOSS_TAUNTS.dying[Math.floor(Math.random()*BOSS_TAUNTS.dying.length)];
+        setTimeout(()=>setNotif(`💀 "${dyingTaunt}"`),400);
         unlock("boss_kill");
         // Boss loot drop — guaranteed rare reward
         {
@@ -3284,7 +3341,7 @@ export default function NexusTap(){
     _colorblindOn=!!saveRef.current.colorblindMode;
     initMissions();
     initBgParts(cfg.world);
-    targetsRef.current=[];particlesRef.current=[];activePwrRef.current=[];ripplesRef.current=[];
+    targetsRef.current=[];particlesRef.current=[];activePwrRef.current=[];ripplesRef.current=[];tapTrailRef.current=[];
     spawnTimer.current=0;pausedRef.current=false;setPaused(false);
     mascotHappyRef.current=0; // reset session happiness
     streakShRef.current=false;setStreakShieldActive(false);setNewRecord(false);setCloseBanner(false);
@@ -3399,6 +3456,7 @@ export default function NexusTap(){
     drawBg(ctx,w,h,accentColor,gridColor,ts,fever,cfg?cfg.world:0);
     drawBgParticles(ctx,bgPartsRef.current,accentColor,fever,cfg?cfg.world:0);
     drawRipples(ctx,ripplesRef.current);
+    drawTapTrail(ctx,tapTrailRef.current,accentColor);
 
     // Particles
     const pnow=performance.now();
@@ -3577,6 +3635,18 @@ export default function NexusTap(){
     const rageSpawn=cfg._rageSpawn&&targetsRef.current.some(t=>t.rage);
     spawnTimer.current+=dt;
     if(spawnTimer.current>=(rageSpawn?cfg.spawnInterval*0.5:cfg.spawnInterval)){spawnTimer.current=0;spawnTarget();}
+
+    // Wave Surge — every 18-24s, spawn 3-5 targets at once (not in boss/zen/bonus rounds)
+    if(!cfg.isBoss&&!cfg.isZen&&!gs.bonusRoundActive&&!cfg.isGauntlet){
+      if(!gs.waveAt) gs.waveAt=Date.now()+18000+Math.random()*6000;
+      if(Date.now()>=gs.waveAt){
+        const waveCount=3+Math.floor(Math.random()*3);
+        for(let i=0;i<waveCount;i++) setTimeout(()=>spawnTarget(),i*60);
+        spawnPopup(cw/2,ch/3,`🌊 WAVE × ${waveCount}`,"#60a5fa",16);
+        sfx("chainBonus");
+        gs.waveAt=Date.now()+18000+Math.random()*8000;
+      }
+    }
 
     // World modifier: Dragon's Lair (W1) — small ground tremors every ~7-10s
     if(cfg.world===1){
@@ -4664,7 +4734,10 @@ export default function NexusTap(){
     const speedMode=sv.speedMode||1.0;
     const speedLabel=speedMode<=0.75?"🐢":speedMode>=1.5?"🔥":speedMode>=1.2?"⚡":speedMode>=1?"":"";
     return(
-      <div className="absolute inset-0" onTouchStart={handleTap} onClick={handleTap} style={{touchAction:"none",zIndex:10}}>
+      <div className="absolute inset-0" onTouchStart={handleTap} onClick={handleTap}
+        onTouchMove={e=>{const r=e.currentTarget.getBoundingClientRect();const t=e.touches[0];if(t)tapTrailRef.current.push({x:t.clientX-r.left,y:t.clientY-r.top,ts:performance.now()});}}
+        onMouseMove={e=>{const r=e.currentTarget.getBoundingClientRect();tapTrailRef.current.push({x:e.clientX-r.left,y:e.clientY-r.top,ts:performance.now()});}}
+        style={{touchAction:"none",zIndex:10}}>
         {/* Mode indicators (top corners, non-default modes only) */}
         <div className="absolute top-2 right-2 z-30 flex flex-col gap-1 items-end pointer-events-none">
           {speedMode!==1.0&&(
@@ -5651,9 +5724,9 @@ export default function NexusTap(){
   // Achievement tab state — "all" | "gameplay" | "progression" | "social"
   const [achTab, setAchTab] = React.useState("all");
   const ACH_CATS = {
-    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit"],
+    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon"],
     progression: ["level_10","level_50","level_100","prestige_1","three_stars_5","mascot_lv10"],
-    social:      ["missions_all","daily_7","score_2000"],
+    social:      ["missions_all","daily_7","score_2000","friday_fever","weekend_warrior","all_worlds"],
   };
   const renderAchievements=()=>{
     const filtered=achTab==="all"?ACHIEVEMENTS:ACHIEVEMENTS.filter(a=>ACH_CATS[achTab]?.includes(a.id));
