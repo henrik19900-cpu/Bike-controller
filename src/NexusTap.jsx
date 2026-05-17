@@ -5373,6 +5373,28 @@ export default function NexusTap(){
             </div>
           </div>
         )}
+        {/* Mission mini-tracker — compact 3-dot indicator showing daily quest progress */}
+        {!hud.boss&&!sv.missionCompleted&&(()=>{
+          const missions=getDailyMissions();
+          const prog=sv.missionProgress||{};
+          const dots=missions.map(m=>({done:(prog[m.id]||0)>=m.goal,pct:Math.min(1,(prog[m.id]||0)/m.goal)}));
+          const anyProgress=dots.some(d=>d.pct>0);
+          if(!anyProgress)return null;
+          return(
+            <div className="absolute z-20 pointer-events-none flex items-center gap-1"
+              style={{top:76,left:"50%",transform:"translateX(-50%)",background:"rgba(0,0,0,0.5)",
+                borderRadius:12,padding:"3px 8px",border:"1px solid #ffffff10"}}>
+              {dots.map((d,i)=>(
+                <div key={i} style={{width:22,height:4,borderRadius:2,background:"#ffffff18",overflow:"hidden"}}>
+                  <div style={{width:`${d.pct*100}%`,height:"100%",borderRadius:2,
+                    background:d.done?"#34d399":"#fbbf24",boxShadow:d.done?"0 0 4px #34d399":"none",
+                    transition:"width 0.3s ease"}}/>
+                </div>
+              ))}
+              <span style={{fontSize:8,color:"#fbbf24",fontWeight:"bold"}}>{dots.filter(d=>d.done).length}/3</span>
+            </div>
+          );
+        })()}
         {/* Boss HP Bar */}
         {hud.boss&&(
           <div className="absolute left-0 right-0 z-20 pointer-events-none flex flex-col items-center gap-0.5" style={{top:76}}>
@@ -5405,6 +5427,22 @@ export default function NexusTap(){
             </div>
           </div>
         )}
+        {/* Stacked multiplier banner — show when DOUBLE + MULTIPLIER both active */}
+        {(()=>{
+          const hasDouble=activePwrDisp.some(p=>p.type==="DOUBLE"&&p.endsAt>Date.now());
+          const hasMultiplier=activePwrDisp.some(p=>p.type==="MULTIPLIER"&&p.endsAt>Date.now());
+          const hasFever=hud.fever;
+          const totalMult=(hasDouble?2:1)*(hasMultiplier?3:1)*(hasFever?2:1);
+          if(totalMult<=1)return null;
+          return(
+            <div className="absolute z-30 pointer-events-none" style={{top:72,left:"50%",transform:"translateX(-50%)",
+              background:"linear-gradient(90deg,#f43f5e,#f97316)",borderRadius:20,padding:"2px 10px",
+              fontSize:11,fontWeight:"black",color:"#fff",letterSpacing:"0.08em",
+              boxShadow:"0 0 16px #f43f5e66",animation:"heartbeat 0.8s ease-in-out infinite",whiteSpace:"nowrap"}}>
+              ×{totalMult} SUPER MULT!
+            </div>
+          );
+        })()}
         {/* Power-ups */}
         {/* 9D — Power-up queue visual with time bars */}
         {activePwrDisp.length>0&&(
