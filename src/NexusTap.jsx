@@ -5135,8 +5135,27 @@ export default function NexusTap(){
         <div className="flex items-center gap-1 px-3 py-1.5 rounded-xl" style={{background:"#fbbf2415",border:"1px solid #fbbf2430"}}>
           <span>🪙</span><span className="font-bold text-sm" style={{color:"#fbbf24"}}>{sv.coins||0}</span>
         </div>
-        <div className="flex items-center gap-1 px-3 py-1.5 rounded-xl" style={{background:theme.accent+"15",border:`1px solid ${theme.accent}30`}}>
-          <span className="text-xs" style={{color:theme.accent}}>Day {sv.loginStreak||1} 🔥</span>
+        {/* 7-day login streak calendar */}
+        <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl" style={{background:theme.accent+"12",border:`1px solid ${theme.accent}28`}}>
+          {Array.from({length:7},(_,i)=>{
+            const dayPos=i+1;
+            const streak=sv.loginStreak||0;
+            const dayInCycle=((streak-1)%7)+1;
+            const filled=streak>=7?true:dayPos<=dayInCycle;
+            const isToday=dayPos===dayInCycle;
+            return(
+              <div key={i} style={{
+                width:16,height:16,borderRadius:4,
+                background:filled?"#fbbf24":"#ffffff12",
+                border:isToday?`2px solid ${theme.accent}`:`1px solid ${filled?"#fbbf2444":"#ffffff10"}`,
+                display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,
+                boxShadow:filled?"0 0 6px #fbbf2455":"none",
+              }}>
+                {filled?"✓":""}
+              </div>
+            );
+          })}
+          <span style={{fontSize:10,color:theme.accent,fontWeight:"bold",marginLeft:3}}>🔥 {sv.loginStreak||1}</span>
         </div>
         {(sv.unlockedAchievements||[]).length>0&&(
           <div className="flex items-center gap-1 px-3 py-1.5 rounded-xl" style={{background:"#ffffff08",border:"1px solid #ffffff15"}}>
@@ -7960,19 +7979,31 @@ export default function NexusTap(){
       )}
       {/* Mid-game achievement popup — richer display with icon + XP */}
       {achPopup&&(
-        <div className="absolute z-50 pointer-events-none"
-          style={{bottom:"22%",left:"50%",transform:"translateX(-50%)",animation:"perfectPop 2.2s cubic-bezier(0.34,1.4,0.64,1) forwards",textAlign:"center",whiteSpace:"nowrap"}}>
-          <div className="flex items-center gap-2 px-4 py-3 rounded-2xl"
-            style={{background:"rgba(0,0,0,0.92)",border:"1px solid #ffd70088",
-              boxShadow:"0 0 32px #ffd70044,0 4px 20px rgba(0,0,0,0.6)",backdropFilter:"blur(12px)"}}>
-            <span style={{fontSize:28}}>{achPopup.icon}</span>
-            <div className="flex flex-col items-start">
-              <div style={{fontSize:11,color:"#ffd700",fontWeight:"black",letterSpacing:"0.08em",textTransform:"uppercase"}}>Achievement!</div>
-              <div style={{fontSize:13,color:"#fff",fontWeight:"bold"}}>{achPopup.label}</div>
-              <div style={{fontSize:10,color:"#fbbf24",opacity:0.8}}>+{achPopup.xp} XP</div>
+        <>
+          {/* Background flash for high-XP achievements */}
+          {achPopup.xp>=60&&<div className="absolute inset-0 z-49 pointer-events-none"
+            style={{background:"radial-gradient(circle at 50% 78%,#ffd70033 0%,transparent 70%)",
+              animation:"epicFlash 0.6s ease-out forwards"}}/>}
+          <div className="absolute z-50 pointer-events-none"
+            style={{bottom:"22%",left:"50%",transform:"translateX(-50%)",animation:"perfectPop 2.2s cubic-bezier(0.34,1.4,0.64,1) forwards",textAlign:"center",whiteSpace:"nowrap"}}>
+            <div className="flex items-center gap-2 px-4 py-3 rounded-2xl"
+              style={{background:"rgba(0,0,0,0.92)",
+                border:`2px solid ${achPopup.xp>=75?"#ffd700":achPopup.xp>=50?"#f97316":"#ffd70066"}`,
+                boxShadow:`0 0 ${achPopup.xp>=75?"48px #ffd700aa":"28px #ffd70044"},0 4px 20px rgba(0,0,0,0.6)`,
+                backdropFilter:"blur(12px)",
+                animation:achPopup.xp>=75?"perfectPop 2.2s cubic-bezier(0.34,1.4,0.64,1) forwards,legendaryRainbow 1.5s linear infinite":"perfectPop 2.2s cubic-bezier(0.34,1.4,0.64,1) forwards",
+              }}>
+              <span style={{fontSize:32,filter:achPopup.xp>=75?"drop-shadow(0 0 12px #ffd700)":"none"}}>{achPopup.icon}</span>
+              <div className="flex flex-col items-start">
+                <div style={{fontSize:11,color:achPopup.xp>=75?"#ffd700":"#ffd700",fontWeight:"black",letterSpacing:"0.08em",textTransform:"uppercase"}}>
+                  {achPopup.xp>=75?"⭐ EPIC ACHIEVEMENT!":achPopup.xp>=50?"🏆 ACHIEVEMENT!":"Achievement!"}
+                </div>
+                <div style={{fontSize:14,color:"#fff",fontWeight:"bold"}}>{achPopup.label}</div>
+                <div style={{fontSize:10,color:"#fbbf24",opacity:0.9}}>+{achPopup.xp} XP ✨</div>
+              </div>
             </div>
           </div>
-        </div>
+        </>
       )}
 
       <div className="screen-root" style={{position:"absolute",inset:0}}>
