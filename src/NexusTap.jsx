@@ -498,6 +498,10 @@ const ACHIEVEMENTS = [
   { id:"quantum_tap",        label:"Quantum Mechanic", desc:"Hit a Quantum target twice",              icon:"⚛️",xp:30 },
   { id:"quantum_stable",     label:"Wave Collapse",    desc:"Stabilize a Quantum target (3rd hit)",   icon:"🌀",xp:100 },
   { id:"clockwork_tap",      label:"Timekeeper",       desc:"Tap a Clockwork target to slow time",    icon:"⏰",xp:35 },
+  { id:"bloom_tap",          label:"Flower Power",     desc:"Tap a Bloom and release the petals",     icon:"🌸",xp:25 },
+  { id:"bloom_harvest",      label:"Full Bloom",       desc:"Catch all 5 petals from one Bloom",      icon:"💐",xp:90 },
+  { id:"reflector_tap",      label:"Mirror Match",     desc:"Tap a Reflector target",                 icon:"🪞",xp:30 },
+  { id:"reflector_chaos",    label:"Chaos Mirror",     desc:"Reverse 5+ targets with one Reflector",  icon:"🌀",xp:85 },
 ];
 
 const MISSION_TEMPLATES = [
@@ -1206,7 +1210,7 @@ function drawPowerup(ctx, r, pwrType, ts) {
   ctx.setLineDash([r*0.35,r*0.18]); ctx.beginPath(); ctx.arc(0,0,r-4,0,Math.PI*2); ctx.stroke();
   ctx.setLineDash([]); ctx.restore();
   // Icon
-  const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",LIFE:"❤️",FREEZE:"❄️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐",CHAIN_LIGHTNING:"⚡",TIME_WARP:"⏱️",SCORE_BOOST:"×5",LIFE_SURGE:"❤️+2",MAGNET_FIELD:"🧲",OVERCLOCK:"⚡",SHIELD_WALL:"🏰"};
+  const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",LIFE:"❤️",FREEZE:"❄️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐",CHAIN_LIGHTNING:"⚡",TIME_WARP:"⏱️",SCORE_BOOST:"×5",LIFE_SURGE:"❤️+2",MAGNET_FIELD:"🧲",OVERCLOCK:"⚡",SHIELD_WALL:"🏰",PHANTOM_TOUCH:"👻"};
   if(pwrType==="LUCKY"){ctx.shadowColor="#ffd700";ctx.shadowBlur=r*(1.2+pulse*0.8);}
   const label=icons[pwrType]||"⚡";
   ctx.font=`bold ${r*0.9}px serif`; ctx.textAlign="center"; ctx.textBaseline="middle";
@@ -2657,6 +2661,45 @@ function drawVoid(ctx, r, ts) {
   ctx.fillText("🌀",0,1);ctx.restore();
 }
 
+// ── Bloom — flower that splits into 5 scoreable petals on tap ──
+function drawBloom(ctx,r,ts){
+  const sway=Math.sin(ts*0.006)*0.12;
+  ctx.save();
+  ctx.rotate(sway);
+  const petalColors=["#ff6b9d","#ff9e9e","#ffd1dc","#ffb347","#ff85c1"];
+  // Petals
+  for(let i=0;i<5;i++){
+    const a=(i/5)*Math.PI*2-Math.PI/2;
+    ctx.save();ctx.rotate(a);ctx.translate(0,-r*0.42);
+    ctx.fillStyle=petalColors[i];ctx.shadowColor=petalColors[i];ctx.shadowBlur=8;
+    ctx.beginPath();ctx.ellipse(0,0,r*0.36,r*0.5,0,0,Math.PI*2);ctx.fill();
+    ctx.restore();
+  }
+  // Center
+  ctx.shadowBlur=12;ctx.shadowColor="#ffd700";
+  ctx.fillStyle="#ffd700";ctx.beginPath();ctx.arc(0,0,r*0.32,0,Math.PI*2);ctx.fill();
+  ctx.globalAlpha=1;ctx.font=`${Math.round(r*0.55)}px serif`;ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.fillText("🌸",0,0);ctx.restore();
+}
+// ── Reflector — reverses all moving targets' direction on tap ──
+function drawReflector(ctx,r,ts){
+  const rot=ts*0.001;
+  ctx.save();ctx.rotate(rot);
+  ctx.shadowBlur=14;ctx.shadowColor="#67e8f9";
+  const grad=ctx.createRadialGradient(0,0,0,0,0,r);
+  grad.addColorStop(0,"#e0f7ff");grad.addColorStop(0.5,"#22d3ee");grad.addColorStop(1,"#0e7490");
+  ctx.fillStyle=grad;
+  // Hexagon shape
+  ctx.beginPath();
+  for(let i=0;i<6;i++){const a=(i/6)*Math.PI*2-Math.PI/6;ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r);}
+  ctx.closePath();ctx.fill();
+  // Mirror lines
+  ctx.strokeStyle="#ffffff";ctx.lineWidth=1.5;ctx.globalAlpha=0.6;
+  ctx.beginPath();ctx.moveTo(-r*0.55,0);ctx.lineTo(r*0.55,0);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(-r*0.28,-r*0.48);ctx.lineTo(r*0.28,r*0.48);ctx.stroke();
+  ctx.globalAlpha=1;ctx.font=`${Math.round(r*0.75)}px serif`;ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.fillText("🪞",0,0);ctx.restore();
+}
 // ── Quantum — flickers between positions; needs 3 taps to stabilize and score ──
 function drawQuantum(ctx,r,ts,hitsLeft,maxHits){
   const flicker=0.4+0.6*Math.abs(Math.sin(ts*0.025));
@@ -3239,6 +3282,9 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="crystalball") drawCrystalBall(ctx,t.radius,ts);
   else if(t.type==="quantum")     drawQuantum(ctx,t.radius,ts,t.hitsLeft,t.maxHits);
   else if(t.type==="clockwork")   drawClockwork(ctx,t.radius,ts);
+  else if(t.type==="bloom")       drawBloom(ctx,t.radius,ts);
+  else if(t.type==="petal")       {ctx.save();ctx.shadowBlur=8;ctx.shadowColor="#ff6b9d";ctx.fillStyle="#ff6b9d";ctx.beginPath();ctx.arc(0,0,t.radius,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;ctx.font=`${Math.round(t.radius*0.9)}px serif`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("🌸",0,0);ctx.restore();}
+  else if(t.type==="reflector")   drawReflector(ctx,t.radius,ts);
   else{
     const nm=t.rarity?.name;
     if     (nm==="common")    drawCommon(ctx,t.radius,t.color,t.glow,ts,timeLeft);
@@ -4456,6 +4502,16 @@ export default function NexusTap(){
       spawnParticles(x,y,"#a78bfa",18,"spark");
       sfx("lucky");vibrate([12,8,12,8,12]);
       setNotif("🏰 Shield Wall! Absorbs 3 hits!");
+    } else if(ptype==="PHANTOM_TOUCH"){
+      // PHANTOM_TOUCH — bombs pass through you harmlessly for 5s
+      gs._phantomTouchEndsAt=Date.now()+5000;
+      activePwrRef.current=activePwrRef.current.filter(p=>p.type!=="PHANTOM_TOUCH");
+      activePwrRef.current.push({type:"PHANTOM_TOUCH",endsAt:Date.now()+5000});
+      setActivePwrDisp([...activePwrRef.current]);
+      spawnPopup(x,y,"👻 PHANTOM TOUCH!","#818cf8",20);
+      spawnParticles(x,y,"#818cf8",16,"spark");
+      sfx("lucky");vibrate([10,6,10,6,14]);
+      setNotif("👻 Phantom Touch! Bombs are harmless for 5s!");
     } else {
       const dur=ptype==="SLOW"?7000:ptype==="FREEZE"?5000:9000;
       activePwrRef.current=activePwrRef.current.filter(p=>p.type!==ptype);
@@ -4493,7 +4549,7 @@ export default function NexusTap(){
       type="bomb";color="#ef4444";glow="#dc2626";sfx("bombSpawn");
     } else if(r<(bossRate||0)+effBomb+0.07){
       type="powerup";color="#60a5fa";glow="#3b82f6";
-      const pt=["SHIELD","SLOW","DOUBLE","LIFE","FREEZE","LUCKY","MIRROR","MULTIPLIER","COMBO_FREEZE","GRAVITY","CHAIN_LIGHTNING","TIME_WARP","SCORE_BOOST","LIFE_SURGE","MAGNET_FIELD","OVERCLOCK","SHIELD_WALL"];
+      const pt=["SHIELD","SLOW","DOUBLE","LIFE","FREEZE","LUCKY","MIRROR","MULTIPLIER","COMBO_FREEZE","GRAVITY","CHAIN_LIGHTNING","TIME_WARP","SCORE_BOOST","LIFE_SURGE","MAGNET_FIELD","OVERCLOCK","SHIELD_WALL","PHANTOM_TOUCH"];
       pwrType=pt[Math.floor(Math.random()*pt.length)];
     } else if(r<(bossRate||0)+effBomb+0.07+0.045&&(gs.score>0||Math.random()<0.3)&&luckyRef.current!=="active"){
       // 4.5% treasure chest — the variable reward slot machine
@@ -4667,6 +4723,12 @@ export default function NexusTap(){
     } else if((cfg.id||0)>=35&&Math.random()<0.01&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1% Void — absorbs up to 5 nearby targets for massive bonus score
       type="void";color="#7c3aed";glow="#4c1d95";
+    } else if((cfg.id||0)>=15&&Math.random()<0.018&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.8% Bloom — flower that explodes into 5 petal targets on tap
+      type="bloom";color="#ff6b9d";glow="#ffd1dc";
+    } else if((cfg.id||0)>=20&&Math.random()<0.016&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.6% Reflector — hex mirror; reverses all moving targets + 600pts
+      type="reflector";color="#22d3ee";glow="#67e8f9";
     } else if((cfg.id||0)>=32&&Math.random()<0.012&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1.2% Quantum — requires 3 taps; teleports on each hit until stabilized
       type="quantum";color="#a78bfa";glow="#7c3aed";hitsLeft=3;maxHits=3;
@@ -4708,7 +4770,7 @@ export default function NexusTap(){
       }
       if(!moving&&Math.random()<effGhost)ghost=true;
     }
-    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="divider"?BASE_R*1.65:type==="vanishing"?BASE_R*1.1:type==="homing"?BASE_R*1.2:type==="gemstone"?BASE_R*1.1:type==="poison"?BASE_R*1.15:type==="morph"?BASE_R*1.2:type==="conductor"?BASE_R*1.25:type==="siphon"?BASE_R*1.3:type==="glitch"?BASE_R*1.1:type==="prism"?BASE_R*1.2:type==="comet"?BASE_R*1.15:type==="mirrorball"?BASE_R*1.45:type==="nexus"?BASE_R*1.8:type==="phoenix"?BASE_R*1.25:type==="phoenix2"?BASE_R*1.4:type==="icecomet"?BASE_R*1.2:type==="voltage"?BASE_R*1.2:type==="void"?BASE_R*1.5:type==="clover"?BASE_R*1.1:type==="ricochet"?BASE_R*1.15:type==="aurora"?BASE_R*1.35:type==="portal"?BASE_R*1.4:type==="particlebomb"?BASE_R*1.25:type==="beacon"?BASE_R*1.3:type==="shadow"?BASE_R*1.1:type==="shadow_clone"?BASE_R*0.9:type==="spectral"?BASE_R*1.1:type==="heart"?BASE_R*1.2:type==="nova"?BASE_R*1.4:type==="firefly"?BASE_R*0.78:type==="geode"?BASE_R*1.3:type==="timebomb"?BASE_R*1.25:type==="thunderbolt"?BASE_R*1.1:type==="gravityorb"?BASE_R*1.5:type==="crystalball"?BASE_R*1.35:type==="quantum"?BASE_R*1.2:type==="clockwork"?BASE_R*1.3:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
+    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="divider"?BASE_R*1.65:type==="vanishing"?BASE_R*1.1:type==="homing"?BASE_R*1.2:type==="gemstone"?BASE_R*1.1:type==="poison"?BASE_R*1.15:type==="morph"?BASE_R*1.2:type==="conductor"?BASE_R*1.25:type==="siphon"?BASE_R*1.3:type==="glitch"?BASE_R*1.1:type==="prism"?BASE_R*1.2:type==="comet"?BASE_R*1.15:type==="mirrorball"?BASE_R*1.45:type==="nexus"?BASE_R*1.8:type==="phoenix"?BASE_R*1.25:type==="phoenix2"?BASE_R*1.4:type==="icecomet"?BASE_R*1.2:type==="voltage"?BASE_R*1.2:type==="void"?BASE_R*1.5:type==="clover"?BASE_R*1.1:type==="ricochet"?BASE_R*1.15:type==="aurora"?BASE_R*1.35:type==="portal"?BASE_R*1.4:type==="particlebomb"?BASE_R*1.25:type==="beacon"?BASE_R*1.3:type==="shadow"?BASE_R*1.1:type==="shadow_clone"?BASE_R*0.9:type==="spectral"?BASE_R*1.1:type==="heart"?BASE_R*1.2:type==="nova"?BASE_R*1.4:type==="firefly"?BASE_R*0.78:type==="geode"?BASE_R*1.3:type==="timebomb"?BASE_R*1.25:type==="thunderbolt"?BASE_R*1.1:type==="gravityorb"?BASE_R*1.5:type==="crystalball"?BASE_R*1.35:type==="quantum"?BASE_R*1.2:type==="clockwork"?BASE_R*1.3:type==="bloom"?BASE_R*1.4:type==="petal"?BASE_R*0.55:type==="reflector"?BASE_R*1.25:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
     // World modifiers: Ocean Deep (8) — slower targets (calmer waters), longer lifetimes
@@ -4737,6 +4799,12 @@ export default function NexusTap(){
     if(type==="thunderbolt")lifetime=Math.min(lifetime,2000);
     // Quantum: medium lifetime — 3 taps needed before it vanishes
     if(type==="quantum")lifetime=Math.max(lifetime,4500);
+    // Bloom: medium lifetime
+    if(type==="bloom")lifetime=Math.max(lifetime,3000);
+    // Petal: short — catch petals quickly!
+    if(type==="petal")lifetime=1800;
+    // Reflector: medium
+    if(type==="reflector")lifetime=Math.max(lifetime,3200);
     // Clockwork: medium-long so player can catch it
     if(type==="clockwork")lifetime=Math.max(lifetime,3600);
     // Gravity Orb: medium lifetime (allows it to pull targets for a while)
@@ -5856,6 +5924,78 @@ export default function NexusTap(){
       return;
     }
 
+    // BLOOM — explodes into 5 petal targets; catch each petal for 100pts
+    if(hit.type==="bloom"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const canvas=canvasRef.current;const cw5=canvas?.width||390,ch5=canvas?.height||700;
+      // Spawn 5 flying petals
+      const petalColors=["#ff6b9d","#ff9e9e","#ffd1dc","#ffb347","#ff85c1"];
+      for(let i=0;i<5;i++){
+        const a=(i/5)*Math.PI*2-Math.PI/2;const spd=1.8+Math.random()*1.2;
+        const px=Math.max(30,Math.min(cw5-30,hit.x+Math.cos(a)*40));
+        const py=Math.max(120,Math.min(ch5-30,hit.y+Math.sin(a)*40));
+        targetsRef.current.push({
+          id:Math.random().toString(36).slice(2),type:"petal",
+          x:px,y:py,radius:BASE_R*0.55,color:petalColors[i],glow:petalColors[i],
+          rarity:RARITY.RARE,lifetime:1800,spawnedAt:Date.now(),born:performance.now(),
+          moving:true,ghost:false,vx:Math.cos(a)*spd,vy:Math.sin(a)*spd,trail:[],
+          hitsLeft:1,maxHits:1,dying:null,_bloomId:hit.id
+        });
+      }
+      spawnParticles(hit.x,hit.y,"#ff6b9d",18,"spark");spawnParticles(hit.x,hit.y,"#ffd700",8,"dot");
+      spawnPopup(hit.x,hit.y-28,"🌸 BLOOM! Catch petals!","#ff6b9d",18);
+      sfx("chainBonus");vibrate([10,5,12]);
+      unlock("bloom_tap");
+      gs.streak++;gs.lastTapTime=Date.now();
+      updateMissions(gs.sessionStats);
+      const cfgBl=levelCfgRef.current;
+      if(cfgBl){if(gs.score>=cfgBl.scoreGoal&&(!cfgBl.modifier||checkModGoal(cfgBl.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+    // PETAL — mini target from Bloom; 100 pts each
+    if(hit.type==="petal"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(8,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const pts=Math.round(100*combo*feverMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      spawnPopup(hit.x,hit.y-20,`🌸 +${pts}`,"#ff6b9d",13);
+      spawnParticles(hit.x,hit.y,"#ff6b9d",8,"spark");
+      sfx("tap");vibrate(6);
+      // Check if player caught all petals from same bloom
+      const sibling=targetsRef.current.filter(t=>!t.dying&&t.type==="petal"&&t._bloomId===hit._bloomId).length;
+      if(sibling===0)unlock("bloom_harvest");
+      updateMissions(gs.sessionStats);
+      const cfgPt=levelCfgRef.current;
+      if(cfgPt){if(gs.score>=cfgPt.scoreGoal&&(!cfgPt.modifier||checkModGoal(cfgPt.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+    // REFLECTOR — reverses all moving targets' velocity + 600pts + bonus per reversed
+    if(hit.type==="reflector"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      let reversedCount=0;
+      targetsRef.current.forEach(t=>{
+        if(!t.dying&&t.moving&&t.type!=="boss"){
+          t.vx*=-1;t.vy*=-1;reversedCount++;
+          spawnParticles(t.x,t.y,"#22d3ee",4,"spark");
+        }
+      });
+      const pts=Math.round((600+reversedCount*80)*combo*feverMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      particlesRef.current.push({type:"shockwave",x:hit.x,y:hit.y,color:"#22d3ee",size:300,born:performance.now(),duration:700,alpha:0.7});
+      spawnPopup(hit.x,hit.y-34,`🪞 REFLECT! +${pts} (${reversedCount}×)`,"#22d3ee",20);
+      spawnParticles(hit.x,hit.y,"#67e8f9",16,"spark");
+      sfx(reversedCount>=5?"legendary":"bossKill");vibrate([12,6,16]);
+      unlock("reflector_tap");
+      if(reversedCount>=5)unlock("reflector_chaos");
+      mascotHappyRef.current+=3;
+      updateMissions(gs.sessionStats);
+      const cfgRf=levelCfgRef.current;
+      if(cfgRf){if(gs.score>=cfgRf.scoreGoal&&(!cfgRf.modifier||checkModGoal(cfgRf.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
     // QUANTUM — 3-tap target; teleports to random pos on each hit, big score on 3rd tap
     if(hit.type==="quantum"){
       const canvas=canvasRef.current;const cw2=canvas?.width||390,ch2=canvas?.height||700;
@@ -6682,6 +6822,12 @@ export default function NexusTap(){
     }
     // BOMB
     if(hit.type==="bomb"){
+      // PHANTOM_TOUCH — bombs are intangible; just flash and stay
+      if(activePwrRef.current.some(p=>p.type==="PHANTOM_TOUCH"&&p.endsAt>Date.now())){
+        spawnParticles(hit.x,hit.y,"#818cf8",6,"spark");
+        spawnPopup(hit.x,hit.y-18,"👻 PHANTOM!","#818cf8",13);
+        sfx("tap");return;
+      }
       // Double-tap defuse: tapping same bomb twice within 200ms defuses it for 25pts
       const nowBomb=Date.now();
       if(hit._firstTap&&(nowBomb-hit._firstTap)<200){
@@ -9313,8 +9459,8 @@ export default function NexusTap(){
               const totalSecs=p.type==="SHIELD"?25:p.type==="SLOW"?8:p.type==="DOUBLE"?10:p.type==="FREEZE"?4:p.type==="MULTIPLIER"?8:p.type==="COMBO_FREEZE"?10:p.type==="TIME_WARP"?6:12;
               const pct=Math.min(100,Math.round(secsLeft/totalSecs*100));
               const isExpiring=secsLeft<=2&&secsLeft>0;
-              const colors={SHIELD:"#fbbf24",SLOW:"#60a5fa",DOUBLE:"#f97316",FREEZE:"#06b6d4",LIFE:"#4ade80",LUCKY:"#ffd700",MIRROR:"#c084fc",MULTIPLIER:"#f43f5e",COMBO_FREEZE:"#67e8f9",GRAVITY:"#a78bfa",TIME_WARP:"#818cf8",SCORE_BOOST:"#f43f5e",LIFE_SURGE:"#4ade80",MAGNET_FIELD:"#ec4899",OVERCLOCK:"#fbbf24",SHIELD_WALL:"#a78bfa"};
-              const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",FREEZE:"❄️",LIFE:"❤️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐",TIME_WARP:"⏱️",SCORE_BOOST:"×5",LIFE_SURGE:"💚",MAGNET_FIELD:"🧲",OVERCLOCK:"⚡",SHIELD_WALL:"🏰"};
+              const colors={SHIELD:"#fbbf24",SLOW:"#60a5fa",DOUBLE:"#f97316",FREEZE:"#06b6d4",LIFE:"#4ade80",LUCKY:"#ffd700",MIRROR:"#c084fc",MULTIPLIER:"#f43f5e",COMBO_FREEZE:"#67e8f9",GRAVITY:"#a78bfa",TIME_WARP:"#818cf8",SCORE_BOOST:"#f43f5e",LIFE_SURGE:"#4ade80",MAGNET_FIELD:"#ec4899",OVERCLOCK:"#fbbf24",SHIELD_WALL:"#a78bfa",PHANTOM_TOUCH:"#818cf8"};
+              const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",FREEZE:"❄️",LIFE:"❤️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐",TIME_WARP:"⏱️",SCORE_BOOST:"×5",LIFE_SURGE:"💚",MAGNET_FIELD:"🧲",OVERCLOCK:"⚡",SHIELD_WALL:"🏰",PHANTOM_TOUCH:"👻"};
               const c=colors[p.type]||"#60a5fa";
               return(
                 <div key={p.type} className="flex flex-col items-center gap-0.5"
@@ -10306,7 +10452,7 @@ export default function NexusTap(){
   // Achievement tab state — "all" | "gameplay" | "progression" | "social"
   const [achTab, setAchTab] = React.useState("all");
   const ACH_CATS = {
-    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect","prism_tap","comet_tap","comet_early","mirrorball_tap","nexus_tap","phoenix_tap","phoenix_risen","icecomet_tap","voltage_tap","void_tap","void_master","clover_tap","clover_jackpot","ricochet_tap","ricochet_double","aurora_tap","aurora_perfect","fury_mode","score_10k","portal_tap","portal_chaos","particlebomb_tap","beacon_tap","beacon_surge","shadow_tap","shadow_clone_catch","spectral_tap","spectral_perfect","heart_tap","nova_tap","firefly_tap","firefly_swift","geode_crack","geode_gem","timebomb_defuse","timebomb_clutch","thunderbolt_tap","thunderbolt_clutch","gravityorb_tap","gravityorb_cluster","crystalball_tap","quantum_tap","quantum_stable","clockwork_tap"],
+    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect","prism_tap","comet_tap","comet_early","mirrorball_tap","nexus_tap","phoenix_tap","phoenix_risen","icecomet_tap","voltage_tap","void_tap","void_master","clover_tap","clover_jackpot","ricochet_tap","ricochet_double","aurora_tap","aurora_perfect","fury_mode","score_10k","portal_tap","portal_chaos","particlebomb_tap","beacon_tap","beacon_surge","shadow_tap","shadow_clone_catch","spectral_tap","spectral_perfect","heart_tap","nova_tap","firefly_tap","firefly_swift","geode_crack","geode_gem","timebomb_defuse","timebomb_clutch","thunderbolt_tap","thunderbolt_clutch","gravityorb_tap","gravityorb_cluster","crystalball_tap","quantum_tap","quantum_stable","clockwork_tap","bloom_tap","bloom_harvest","reflector_tap","reflector_chaos"],
     progression: ["level_10","level_50","level_100","prestige_1","three_stars_5","mascot_lv10","streak_25","streak_50","streak_10","streak_5","score_2000","world_complete"],
     social:      ["missions_all","daily_7","friday_fever","weekend_warrior","all_worlds","streak_saver","loot_chest"],
   };
