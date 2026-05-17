@@ -4693,6 +4693,9 @@ export default function NexusTap(){
               }}>
               {hud.streak}×{streakDecaying&&hud.streak>0?"⚠️":""}
             </div>
+            {hud.streak>=5&&<div style={{fontSize:9,fontWeight:"black",color:streakColor(),opacity:0.8,letterSpacing:"0.04em"}}>
+              ×{Math.min(10,1+Math.floor(hud.streak/5))} MULT
+            </div>}
             {/* Streak decay bar — only visible when streak > 0 */}
             {hud.streak>0&&(
               <div style={{width:44,height:3,background:"#ffffff18",borderRadius:2,marginTop:2,overflow:"hidden"}}>
@@ -5003,11 +5006,16 @@ export default function NexusTap(){
           </div>
         )}
         {countdownVal!==null&&(
-          <div className="absolute inset-0 flex items-center justify-center z-50 pointer-events-none" style={{background:"rgba(0,0,0,0.55)"}}>
+          <div className="absolute inset-0 flex flex-col items-center justify-center z-50 pointer-events-none" style={{background:"rgba(0,0,0,0.55)"}}>
             <div className="font-black text-9xl" key={countdownVal}
               style={{color:countdownVal==="GO!"?"#34d399":wc,textShadow:`0 0 70px ${countdownVal==="GO!"?"#34d399":wc}`,animation:"countAnim 0.5s ease-out"}}>
               {countdownVal}
             </div>
+            {countdownVal!=="GO!"&&(()=>{
+              const tips=["Tap targets before they vanish! ⚡","🛡 Shielded targets need 2 taps!","Build streaks for fever mode! 🔥","🧲 Magnet targets pull others!","Rare targets = more points! ✨","Perfect timing = Perfect tap bonus! 🎯"];
+              const tip=tips[Math.floor((Date.now()/1000)%tips.length)];
+              return <div style={{fontSize:12,color:"#ffffff66",marginTop:16,textAlign:"center",maxWidth:220,padding:"0 20px"}}>{currentMascot.e.idle} {tip}</div>;
+            })()}
           </div>
         )}
         {paused&&(
