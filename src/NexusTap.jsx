@@ -473,6 +473,9 @@ const ACHIEVEMENTS = [
   { id:"aurora_perfect",     label:"Perfect Rhythm",   desc:"Tap Aurora with perfect timing rhythm",   icon:"✨",xp:100 },
   { id:"fury_mode",          label:"Fury Mode",        desc:"Reach a 35× streak — unleash the fury!",  icon:"🌑",xp:90 },
   { id:"score_10k",          label:"Ten Thousand",     desc:"Score 10,000 points in a single session", icon:"💎",xp:100 },
+  { id:"portal_tap",         label:"Warp Tapper",      desc:"Tap a Portal target",                     icon:"🌀",xp:40 },
+  { id:"portal_chaos",       label:"Chaos Agent",      desc:"Teleport 5+ targets with one Portal tap", icon:"🎲",xp:90 },
+  { id:"particlebomb_tap",   label:"Boom!",            desc:"Tap a Particle Bomb target",              icon:"💥",xp:35 },
 ];
 
 const MISSION_TEMPLATES = [
@@ -2633,6 +2636,63 @@ function drawVoid(ctx, r, ts) {
 }
 
 // ── Motion trail + ghost afterimages for moving targets ──
+// ── Portal target — swirling warp gate; teleports all targets when tapped ──
+function drawPortal(ctx, r, ts) {
+  const pulse=0.5+0.5*Math.sin(ts*0.008);
+  // Outer ring of portal energy
+  for(let ring=3;ring>0;ring--){
+    const ringR=r*(0.7+ring*0.22);
+    const hue=(ts*0.06+ring*60)%360;
+    ctx.save();ctx.globalAlpha=(0.1+ring*0.08)*pulse;
+    ctx.strokeStyle=`hsl(${hue},85%,65%)`;ctx.lineWidth=3-ring*0.5;
+    ctx.shadowColor=`hsl(${hue},85%,65%)`;ctx.shadowBlur=10;
+    ctx.setLineDash([5,4]);ctx.beginPath();ctx.arc(0,0,ringR,0,Math.PI*2);ctx.stroke();
+    ctx.setLineDash([]);ctx.restore();
+  }
+  // Spinning inner warp ring
+  const spinAngle=ts*0.005;
+  for(let i=0;i<8;i++){
+    const a=spinAngle+(i/8)*Math.PI*2;
+    const hue2=(i*45+ts*0.08)%360;
+    ctx.save();ctx.globalAlpha=0.7*pulse;
+    ctx.fillStyle=`hsl(${hue2},90%,65%)`;ctx.shadowColor=`hsl(${hue2},90%,65%)`;ctx.shadowBlur=8;
+    ctx.beginPath();ctx.arc(Math.cos(a)*r*0.58,Math.sin(a)*r*0.58,3,0,Math.PI*2);ctx.fill();
+    ctx.restore();
+  }
+  // Dark core with ∞ symbol
+  const coreGrd=ctx.createRadialGradient(0,0,0,0,0,r*0.7);
+  coreGrd.addColorStop(0,"#0f0f2a");coreGrd.addColorStop(0.6,"#1e1b4b");coreGrd.addColorStop(1,"#312e81cc");
+  ctx.save();ctx.fillStyle=coreGrd;ctx.shadowColor="#818cf8";ctx.shadowBlur=16*pulse;
+  ctx.beginPath();ctx.arc(0,0,r*0.7,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle="#818cf8";ctx.font=`bold ${Math.round(r*0.7)}px sans-serif`;
+  ctx.textAlign="center";ctx.textBaseline="middle";ctx.globalAlpha=0.9;
+  ctx.fillText("🌀",0,1);ctx.restore();
+}
+
+// ── Particle Bomb target — explodes into scoreable spark particles on tap ──
+function drawParticleBomb(ctx, r, ts) {
+  const pulse=0.5+0.5*Math.sin(ts*0.009);
+  // Pulsing danger ring
+  ctx.save();ctx.strokeStyle="#ff4500";ctx.lineWidth=2.5+pulse;ctx.globalAlpha=0.5+0.4*pulse;
+  ctx.shadowColor="#ff4500";ctx.shadowBlur=18;
+  ctx.beginPath();ctx.arc(0,0,r*1.3+pulse*4,0,Math.PI*2);ctx.stroke();
+  // Core orange-red gradient
+  const grd=ctx.createRadialGradient(0,0,0,0,0,r);
+  grd.addColorStop(0,"#ffed4a");grd.addColorStop(0.4,"#ff8c00");grd.addColorStop(0.8,"#ff4500");grd.addColorStop(1,"#dc2626");
+  ctx.globalAlpha=1;ctx.fillStyle=grd;ctx.shadowColor="#ff4500";ctx.shadowBlur=20+pulse*8;
+  ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  // Particle sparks orbiting
+  for(let i=0;i<5;i++){
+    const a=(i/5)*Math.PI*2+ts*0.006;
+    const osc=r*(1.0+0.15*Math.sin(ts*0.012+i));
+    ctx.fillStyle=i%2===0?"#ffed4a":"#ff8c00";ctx.globalAlpha=0.8*pulse;
+    ctx.beginPath();ctx.arc(Math.cos(a)*osc,Math.sin(a)*osc,3,0,Math.PI*2);ctx.fill();
+  }
+  ctx.fillStyle="#fff";ctx.font=`bold ${Math.round(r*0.8)}px sans-serif`;
+  ctx.textAlign="center";ctx.textBaseline="middle";ctx.globalAlpha=0.95;
+  ctx.fillText("💥",0,1);ctx.restore();
+}
+
 // ── Ricochet target — bouncing silver orb; tap to ricochet-kill 2 nearby targets ──
 function drawRicochet(ctx, r, ts) {
   const pulse=0.7+0.3*Math.sin(ts*0.01);
@@ -2830,6 +2890,8 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="clover")     drawLuckyClover(ctx,t.radius,ts);
   else if(t.type==="ricochet")   drawRicochet(ctx,t.radius,ts);
   else if(t.type==="aurora")     drawAurora(ctx,t.radius,ts);
+  else if(t.type==="portal")     drawPortal(ctx,t.radius,ts);
+  else if(t.type==="particlebomb") drawParticleBomb(ctx,t.radius,ts);
   else{
     const nm=t.rarity?.name;
     if     (nm==="common")    drawCommon(ctx,t.radius,t.color,t.glow,ts,timeLeft);
@@ -4194,6 +4256,12 @@ export default function NexusTap(){
       vx=Math.cos(homingAngle)*0.4;vy=Math.sin(homingAngle)*0.4;
       const initSpd=0.6+Math.random()*0.4;const angle=Math.random()*Math.PI*2;
       vx=Math.cos(angle)*initSpd;vy=Math.sin(angle)*initSpd;
+    } else if((cfg.id||0)>=20&&Math.random()<0.016&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.6% Portal — teleports all targets to new positions on tap
+      type="portal";color="#818cf8";glow="#4f46e5";
+    } else if((cfg.id||0)>=15&&Math.random()<0.018&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&effBomb>0&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.8% Particle Bomb — explodes into scoreable sparks when tapped
+      type="particlebomb";color="#ff8c00";glow="#ff4500";
     } else if((cfg.id||0)>=12&&Math.random()<0.019&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1.9% Ricochet — tap to ricochet-kill 2 nearby targets
       type="ricochet";color="#94a3b8";glow="#cbd5e1";moving=Math.random()<0.4;
@@ -4223,7 +4291,7 @@ export default function NexusTap(){
       }
       if(!moving&&Math.random()<effGhost)ghost=true;
     }
-    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="divider"?BASE_R*1.65:type==="vanishing"?BASE_R*1.1:type==="homing"?BASE_R*1.2:type==="gemstone"?BASE_R*1.1:type==="poison"?BASE_R*1.15:type==="morph"?BASE_R*1.2:type==="conductor"?BASE_R*1.25:type==="siphon"?BASE_R*1.3:type==="glitch"?BASE_R*1.1:type==="prism"?BASE_R*1.2:type==="comet"?BASE_R*1.15:type==="mirrorball"?BASE_R*1.45:type==="nexus"?BASE_R*1.8:type==="phoenix"?BASE_R*1.25:type==="phoenix2"?BASE_R*1.4:type==="icecomet"?BASE_R*1.2:type==="voltage"?BASE_R*1.2:type==="void"?BASE_R*1.5:type==="clover"?BASE_R*1.1:type==="ricochet"?BASE_R*1.15:type==="aurora"?BASE_R*1.35:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
+    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="divider"?BASE_R*1.65:type==="vanishing"?BASE_R*1.1:type==="homing"?BASE_R*1.2:type==="gemstone"?BASE_R*1.1:type==="poison"?BASE_R*1.15:type==="morph"?BASE_R*1.2:type==="conductor"?BASE_R*1.25:type==="siphon"?BASE_R*1.3:type==="glitch"?BASE_R*1.1:type==="prism"?BASE_R*1.2:type==="comet"?BASE_R*1.15:type==="mirrorball"?BASE_R*1.45:type==="nexus"?BASE_R*1.8:type==="phoenix"?BASE_R*1.25:type==="phoenix2"?BASE_R*1.4:type==="icecomet"?BASE_R*1.2:type==="voltage"?BASE_R*1.2:type==="void"?BASE_R*1.5:type==="clover"?BASE_R*1.1:type==="ricochet"?BASE_R*1.15:type==="aurora"?BASE_R*1.35:type==="portal"?BASE_R*1.4:type==="particlebomb"?BASE_R*1.25:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
     // World modifiers: Ocean Deep (8) — slower targets (calmer waters), longer lifetimes
@@ -5252,6 +5320,84 @@ export default function NexusTap(){
       mascotHappyRef.current+=rhythmMult;
       const cfgA=levelCfgRef.current;
       if(cfgA){if(gs.score>=cfgA.scoreGoal&&(!cfgA.modifier||checkModGoal(cfgA.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
+    // PORTAL — teleports all targets to random new positions; base score + chaos bonus
+    if(hit.type==="portal"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      const canvas=canvasRef.current;const cw=canvas?.width||390,ch=canvas?.height||700;
+      const teleported=targetsRef.current.filter(t=>!t.dying&&t.type!=="boss"&&t.type!=="bomb").length;
+      const basePts=Math.round((100+teleported*30)*combo*feverMult*prestigeMult);
+      gs.score+=basePts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;
+      // Teleport all non-boss targets
+      targetsRef.current.forEach(t=>{
+        if(t.dying||t.type==="boss"||t.type==="bomb")return;
+        const newX=t.radius+Math.random()*(cw-t.radius*2);
+        const newY=t.radius+95+Math.random()*(ch-t.radius-100);
+        spawnParticles(t.x,t.y,"#818cf8",6,"spark");
+        t.x=newX;t.y=newY;
+        if(t.trail)t.trail=[];
+      });
+      spawnParticles(hit.x,hit.y,"#818cf8",20,"spark");
+      particlesRef.current.push({type:"shockwave",x:hit.x,y:hit.y,color:"#818cf8",size:hit.radius*3.5,born:performance.now(),duration:800,alpha:0.7});
+      spawnPopup(hit.x,hit.y-48,`🌀 PORTAL! ×${teleported} teleported! +${basePts}`,"#818cf8",teleported>5?24:20);
+      sfx("legendary");setEpicFlash(true);setTimeout(()=>setEpicFlash(false),500);
+      setScreenShake(true);setTimeout(()=>setScreenShake(false),350);
+      vibrate([18,8,18,8,35]);
+      unlock("portal_tap");
+      if(teleported>=5)unlock("portal_chaos");
+      mascotHappyRef.current+=2+Math.floor(teleported/2);
+      const cfgP=levelCfgRef.current;
+      if(cfgP){if(gs.score>=cfgP.scoreGoal&&(!cfgP.modifier||checkModGoal(cfgP.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
+    // PARTICLE BOMB — explodes into 12 scoreable spark particles on tap
+    if(hit.type==="particlebomb"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      const basePts=Math.round(80*combo*feverMult*prestigeMult);
+      gs.score+=basePts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;
+      const canvas=canvasRef.current;const cw=canvas?.width||390,ch=canvas?.height||700;
+      // Explosion of spark particles that fly outward and give points when they expire
+      const BOMB_SPARKS=12;
+      let sparkPts=0;
+      for(let i=0;i<BOMB_SPARKS;i++){
+        const angle=(i/BOMB_SPARKS)*Math.PI*2+Math.random()*0.3;
+        const speed=2+Math.random()*3;
+        const sparkColor=i%3===0?"#ffed4a":i%3===1?"#ff8c00":"#f43f5e";
+        const travelTime=600+Math.random()*400;
+        const landX=Math.max(30,Math.min(cw-30,hit.x+Math.cos(angle)*speed*travelTime*0.05));
+        const landY=Math.max(100,Math.min(ch-30,hit.y+Math.sin(angle)*speed*travelTime*0.05));
+        particlesRef.current.push({
+          type:"dot",x:hit.x,y:hit.y,
+          vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,
+          color:sparkColor,alpha:1,scale:1.5,born:performance.now(),duration:travelTime
+        });
+        setTimeout(()=>{
+          const spts=Math.round(20*combo*feverMult*prestigeMult);
+          sparkPts+=spts;gs.score+=spts;gs.sessionStats.score=gs.score;
+          spawnParticles(landX,landY,sparkColor,4,"spark");
+          spawnPopup(landX,landY-16,`+${spts}`,"#ff8c00",10);
+        },travelTime);
+      }
+      particlesRef.current.push({type:"shockwave",x:hit.x,y:hit.y,color:"#ff4500",size:hit.radius*2.5,born:performance.now(),duration:600,alpha:0.8});
+      spawnParticles(hit.x,hit.y,"#ffed4a",16,"spark");
+      spawnPopup(hit.x,hit.y-42,`💥 BOMB! +${basePts} +sparks!`,"#ff8c00",20);
+      sfx("bossKill");setEpicFlash(true);setTimeout(()=>setEpicFlash(false),500);
+      vibrate([20,8,20,8,40]);
+      unlock("particlebomb_tap");
+      mascotHappyRef.current+=3;
+      const cfgBomb=levelCfgRef.current;
+      if(cfgBomb){if(gs.score>=cfgBomb.scoreGoal&&(!cfgBomb.modifier||checkModGoal(cfgBomb.modifier,gs))){endLevel(true);return;}}
       return;
     }
 
@@ -7894,6 +8040,8 @@ export default function NexusTap(){
           if(id>=10) previews.push({icon:"🍀",label:"Clover",desc:"Random ×1-10 multiplier!"});
           if(id>=12) previews.push({icon:"🎯",label:"Ricochet",desc:"Kills 2 nearby targets!"});
           if(id>=15) previews.push({icon:"⚡",label:"Voltage",desc:"Chain zaps 3 targets!"});
+          if(id>=15) previews.push({icon:"💥",label:"Particle Bomb",desc:"Explodes into sparks!"});
+          if(id>=20) previews.push({icon:"🌀",label:"Portal",desc:"Teleports all targets!"});
           if(id>=28) previews.push({icon:"🌌",label:"Aurora",desc:"Rhythm tap multiplier"});
           if(id>=35) previews.push({icon:"🌀",label:"Void",desc:"Absorbs nearby targets"});
           if(cfg.isBoss) previews.push({icon:WORLDS[cfg.world-1].emoji,label:"BOSS",desc:"Multi-hit epic fight!"});
@@ -9198,7 +9346,7 @@ export default function NexusTap(){
   // Achievement tab state — "all" | "gameplay" | "progression" | "social"
   const [achTab, setAchTab] = React.useState("all");
   const ACH_CATS = {
-    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect","prism_tap","comet_tap","comet_early","mirrorball_tap","nexus_tap","phoenix_tap","phoenix_risen","icecomet_tap","voltage_tap","void_tap","void_master","clover_tap","clover_jackpot","ricochet_tap","ricochet_double","aurora_tap","aurora_perfect","fury_mode","score_10k"],
+    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect","prism_tap","comet_tap","comet_early","mirrorball_tap","nexus_tap","phoenix_tap","phoenix_risen","icecomet_tap","voltage_tap","void_tap","void_master","clover_tap","clover_jackpot","ricochet_tap","ricochet_double","aurora_tap","aurora_perfect","fury_mode","score_10k","portal_tap","portal_chaos","particlebomb_tap"],
     progression: ["level_10","level_50","level_100","prestige_1","three_stars_5","mascot_lv10","streak_25","streak_50","streak_10","streak_5","score_2000","world_complete"],
     social:      ["missions_all","daily_7","friday_fever","weekend_warrior","all_worlds","streak_saver","loot_chest"],
   };
