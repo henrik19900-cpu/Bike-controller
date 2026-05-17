@@ -3210,6 +3210,14 @@ export default function NexusTap(){
     if(gs.streak>=10)unlock("streak_10");if(gs.streak>=25)unlock("streak_25");if(gs.streak>=50)unlock("streak_50");
     if(gs.streak>=15)unlock("combo_15");
     if(gs.score>=2000)unlock("score_2000");
+    // Score milestone celebration — every 500 points
+    const prevM=Math.floor((gs.score-pts)/500);
+    const newM=Math.floor(gs.score/500);
+    if(newM>prevM&&newM>0){
+      const milestoneScore=newM*500;
+      spawnParticles(hit.x,hit.y,"#ffd700",20,"spark");
+      spawnPopup(hit.x,hit.y-50,`🏅 ${milestoneScore.toLocaleString()}!`,"#ffd700",17);
+    }
     // Fever
     if(gs.streak>=FEVER_STREAK&&!gs.feverActive){
       const frLvl=(saveRef.current.skills||{}).fever_rush||0;
@@ -5124,6 +5132,23 @@ export default function NexusTap(){
           </div>
           {newStars>stars&&<div className="text-center text-xs" style={{color:"#fbbf24",opacity:0.7}}>Personal best: {newStars}★</div>}
           {isPerfectRun&&<div className="text-center text-xs font-black mt-1" style={{color:"#4ade80",textShadow:"0 0 12px #4ade80",animation:"floatGlow 1s ease-in-out infinite",letterSpacing:"0.06em"}}>🎯 PERFECT RUN! 3× COIN BONUS!</div>}
+          {/* Letter grade rank */}
+          {(()=>{
+            const ratio=score/(cfg.scoreGoal||1);
+            const rank=ratio>=3.5?"S+":ratio>=2.8?"S":ratio>=2?"A+":ratio>=1.5?"A":ratio>=1.2?"B+":ratio>=1?"B":"C";
+            const rColors={"S+":"#ffd700","S":"#ffd700","A+":"#f97316","A":"#f97316","B+":"#60a5fa","B":"#60a5fa","C":"#94a3b8"};
+            const rColor=rColors[rank]||"#94a3b8";
+            return(
+              <div className="absolute top-3 right-3 flex flex-col items-center">
+                <div style={{fontSize:28,fontWeight:"black",color:rColor,
+                  textShadow:`0 0 16px ${rColor}`,lineHeight:1,
+                  animation:rank.startsWith("S")?"legendaryRainbow 1.5s linear infinite":"none"}}>
+                  {rank}
+                </div>
+                <div style={{fontSize:8,color:rColor,opacity:0.7,letterSpacing:"0.05em"}}>RANK</div>
+              </div>
+            );
+          })()}
           {/* Score */}
           <div className="text-center mt-2">
             <div className="text-xs uppercase opacity-40 tracking-widest mb-0.5" style={{color:wld.color}}>Score</div>
@@ -5398,9 +5423,15 @@ export default function NexusTap(){
           </div>
         )}
         {/* Score + progress */}
-        <div className="w-full rounded-3xl p-4" style={{
+        <div className="w-full rounded-3xl p-4 relative" style={{
           background:`linear-gradient(160deg,${cfg.worldColor}14 0%,rgba(0,0,0,0.4) 100%)`,
           border:`1px solid ${cfg.worldColor}44`,backdropFilter:"blur(10px)"}}>
+          {/* Letter grade on game over */}
+          {(()=>{
+            const grade=pct>=90?"A":pct>=70?"B":pct>=50?"C":"D";
+            const gc=pct>=90?"#fbbf24":pct>=70?"#60a5fa":pct>=50?"#94a3b8":"#ef4444";
+            return <div style={{position:"absolute",top:8,right:10,fontSize:24,fontWeight:"black",color:gc,textShadow:`0 0 12px ${gc}`}}>{grade}</div>;
+          })()}
           <div className="text-center mb-3">
             <div className="text-xs uppercase tracking-widest opacity-40 mb-1" style={{color:cfg.worldColor}}>Score</div>
             <div className="font-black tabular-nums" style={{fontSize:"clamp(1.8rem,9vw,2.8rem)",color:cfg.worldColor,
