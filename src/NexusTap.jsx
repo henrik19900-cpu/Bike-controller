@@ -484,6 +484,12 @@ const ACHIEVEMENTS = [
   { id:"spectral_perfect",   label:"Perfect Apparition",desc:"Catch Spectral in its visible phase",   icon:"💛",xp:90 },
   { id:"heart_tap",          label:"Heartbreaker",     desc:"Tap a Heart target",                      icon:"❤️",xp:25 },
   { id:"nova_tap",           label:"Supernova!",       desc:"Tap a Nova target to freeze all enemies", icon:"💫",xp:60 },
+  { id:"firefly_tap",        label:"Firefly Catcher",  desc:"Tap a Firefly target",                   icon:"✨",xp:25 },
+  { id:"firefly_swift",      label:"Swift Fingers",    desc:"Catch a Firefly within 0.8s of spawn",   icon:"⚡",xp:80 },
+  { id:"geode_crack",        label:"Rock Breaker",     desc:"Crack open a Geode target",              icon:"🪨",xp:20 },
+  { id:"geode_gem",          label:"Gem Collector",    desc:"Collect the gem from a cracked Geode",   icon:"💎",xp:75 },
+  { id:"timebomb_defuse",    label:"Bomb Squad",       desc:"Defuse a Time Bomb before detonation",   icon:"💣",xp:40 },
+  { id:"timebomb_clutch",    label:"Clutch Defuse",    desc:"Defuse a Time Bomb in the last 0.4s",    icon:"🔥",xp:120 },
 ];
 
 const MISSION_TEMPLATES = [
@@ -1192,7 +1198,7 @@ function drawPowerup(ctx, r, pwrType, ts) {
   ctx.setLineDash([r*0.35,r*0.18]); ctx.beginPath(); ctx.arc(0,0,r-4,0,Math.PI*2); ctx.stroke();
   ctx.setLineDash([]); ctx.restore();
   // Icon
-  const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",LIFE:"❤️",FREEZE:"❄️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐",CHAIN_LIGHTNING:"⚡",TIME_WARP:"⏱️",SCORE_BOOST:"×5",LIFE_SURGE:"❤️+2",MAGNET_FIELD:"🧲"};
+  const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",LIFE:"❤️",FREEZE:"❄️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐",CHAIN_LIGHTNING:"⚡",TIME_WARP:"⏱️",SCORE_BOOST:"×5",LIFE_SURGE:"❤️+2",MAGNET_FIELD:"🧲",OVERCLOCK:"⚡",SHIELD_WALL:"🏰"};
   if(pwrType==="LUCKY"){ctx.shadowColor="#ffd700";ctx.shadowBlur=r*(1.2+pulse*0.8);}
   const label=icons[pwrType]||"⚡";
   ctx.font=`bold ${r*0.9}px serif`; ctx.textAlign="center"; ctx.textBaseline="middle";
@@ -2643,6 +2649,74 @@ function drawVoid(ctx, r, ts) {
   ctx.fillText("🌀",0,1);ctx.restore();
 }
 
+// ── Firefly — tiny, fast, flickering; hard to hit, big points ──
+function drawFirefly(ctx,r,ts){
+  const flicker=0.65+0.35*Math.sin(ts*0.012);
+  ctx.save();
+  ctx.shadowBlur=18*flicker;ctx.shadowColor="#84ef63";
+  const grad=ctx.createRadialGradient(0,0,0,0,0,r);
+  grad.addColorStop(0,"#ffffff");grad.addColorStop(0.3,"#bbf7d0");grad.addColorStop(1,"#22c55e00");
+  ctx.globalAlpha=flicker;ctx.fillStyle=grad;
+  ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  const wf=Math.sin(ts*0.018)*0.35;
+  ctx.globalAlpha=0.35*flicker;ctx.fillStyle="#bbf7d0";
+  ctx.beginPath();ctx.ellipse(-r*0.55,-r*0.1,r*0.65,r*0.25+wf*r*0.15,-0.4,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(r*0.55,-r*0.1,r*0.65,r*0.25+wf*r*0.15,0.4,0,Math.PI*2);ctx.fill();
+  ctx.globalAlpha=1;ctx.font=`${Math.round(r*0.88)}px serif`;ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.fillText("✨",0,0);ctx.restore();
+}
+// ── Geode — rocky shell; first tap cracks open, second collects the gem ──
+function drawGeode(ctx,r,ts,cracked){
+  ctx.save();
+  if(!cracked){
+    ctx.shadowBlur=8;ctx.shadowColor="#94a3b8";ctx.fillStyle="#475569";
+    ctx.beginPath();
+    const sides=7;
+    for(let i=0;i<sides;i++){
+      const a=(i/sides)*Math.PI*2;const j=0.78+0.22*Math.sin(i*3.7+ts*0.001);
+      const px=Math.cos(a)*r*j,py=Math.sin(a)*r*j;
+      i===0?ctx.moveTo(px,py):ctx.lineTo(px,py);
+    }
+    ctx.closePath();ctx.fill();
+    ctx.strokeStyle="#94a3b8";ctx.lineWidth=1.5;ctx.globalAlpha=0.6;
+    ctx.beginPath();ctx.moveTo(-r*0.3,-r*0.5);ctx.lineTo(r*0.1,r*0.2);ctx.lineTo(-r*0.1,r*0.6);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(r*0.2,-r*0.4);ctx.lineTo(-r*0.1,r*0.1);ctx.stroke();
+    ctx.globalAlpha=1;ctx.font=`${Math.round(r*0.78)}px serif`;ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.fillText("🪨",0,0);
+  } else {
+    const hue=(ts*0.08)%360;
+    ctx.shadowBlur=22;ctx.shadowColor=`hsl(${hue},100%,70%)`;
+    const grad=ctx.createRadialGradient(0,0,0,0,0,r);
+    grad.addColorStop(0,"#ffffff");grad.addColorStop(0.4,`hsl(${hue},100%,75%)`);
+    grad.addColorStop(1,`hsl(${(hue+120)%360},100%,40%)`);
+    ctx.fillStyle=grad;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle="#ffffff";ctx.lineWidth=1;ctx.globalAlpha=0.45;
+    for(let i=0;i<6;i++){const a=(i/6)*Math.PI*2;ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r);ctx.stroke();}
+    ctx.globalAlpha=1;ctx.font=`${Math.round(r*0.88)}px serif`;ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.fillText("💎",0,0);
+  }
+  ctx.restore();
+}
+// ── Time Bomb — ticking target; tap to defuse or it detonates (−2 lives) ──
+function drawTimeBomb(ctx,r,ts,secondsLeft){
+  const urgency=secondsLeft!==undefined?Math.max(0,Math.min(1,1-secondsLeft/3)):0.5;
+  const pulse=0.85+0.15*Math.sin(ts*(0.008+urgency*0.025));
+  ctx.save();
+  ctx.shadowBlur=12+urgency*22;ctx.shadowColor=urgency>0.6?"#ef4444":"#f97316";
+  const grad=ctx.createRadialGradient(0,0,0,0,0,r*pulse);
+  grad.addColorStop(0,urgency>0.6?"#fca5a5":"#fed7aa");
+  grad.addColorStop(0.5,urgency>0.6?"#ef4444":"#f97316");
+  grad.addColorStop(1,"#111111");
+  ctx.fillStyle=grad;ctx.beginPath();ctx.arc(0,0,r*pulse,0,Math.PI*2);ctx.fill();
+  const segs=Math.max(1,Math.round(secondsLeft!==undefined?secondsLeft*3:8));
+  ctx.strokeStyle=urgency>0.6?"#ef4444":"#fbbf24";ctx.lineWidth=2.5;ctx.globalAlpha=0.8;
+  for(let i=0;i<segs;i++){
+    const a=(i/9)*Math.PI*2-Math.PI/2;const a2=((i+0.72)/9)*Math.PI*2-Math.PI/2;
+    ctx.beginPath();ctx.arc(0,0,r*0.82,a,a2);ctx.stroke();
+  }
+  ctx.globalAlpha=1;ctx.font=`${Math.round(r*0.88)}px serif`;ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.fillText("💣",0,0);ctx.restore();
+}
 // ── Motion trail + ghost afterimages for moving targets ──
 // ── Spectral target — phasing ghost orb; massive pts if caught while visible ──
 function drawSpectral(ctx, r, ts) {
@@ -3038,6 +3112,9 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="spectral")   drawSpectral(ctx,t.radius,ts);
   else if(t.type==="heart")      drawHeart(ctx,t.radius,ts);
   else if(t.type==="nova")       drawNova(ctx,t.radius,ts);
+  else if(t.type==="firefly")    drawFirefly(ctx,t.radius,ts);
+  else if(t.type==="geode")      drawGeode(ctx,t.radius,ts,t._geodeCracked);
+  else if(t.type==="timebomb"){const secsLeft=Math.max(0,(t.spawnedAt+t.lifetime-Date.now())/1000);drawTimeBomb(ctx,t.radius,ts,secsLeft);}
   else{
     const nm=t.rarity?.name;
     if     (nm==="common")    drawCommon(ctx,t.radius,t.color,t.glow,ts,timeLeft);
@@ -4231,6 +4308,26 @@ export default function NexusTap(){
       spawnParticles(x,y,"#ec4899",18,"spark");
       sfx("powerUp");vibrate([12,8,20,8,12]);
       setNotif("🧲 Magnet Field! Targets pulled toward you!");
+    } else if(ptype==="OVERCLOCK"){
+      // OVERCLOCK — all points ×2 for 10s (stacks with fever and other multipliers)
+      gs._overclockEndsAt=Date.now()+10000;
+      activePwrRef.current=activePwrRef.current.filter(p=>p.type!=="OVERCLOCK");
+      activePwrRef.current.push({type:"OVERCLOCK",endsAt:Date.now()+10000});
+      setActivePwrDisp([...activePwrRef.current]);
+      spawnPopup(x,y,"⚡ OVERCLOCK! ×2 PTS!","#fbbf24",22);
+      spawnParticles(x,y,"#fbbf24",20,"spark");spawnParticles(x,y,"#ffffff",8,"dot");
+      sfx("feverStart");vibrate([15,8,15,8,20]);
+      setNotif("⚡ Overclock! All points ×2 for 10 seconds!");
+    } else if(ptype==="SHIELD_WALL"){
+      // SHIELD_WALL — absorbs up to 3 hits (bombs, misses, siphons) before breaking
+      gs._shieldWallHits=3;
+      activePwrRef.current=activePwrRef.current.filter(p=>p.type!=="SHIELD_WALL");
+      activePwrRef.current.push({type:"SHIELD_WALL",endsAt:Date.now()+30000,hitsLeft:3});
+      setActivePwrDisp([...activePwrRef.current]);
+      spawnPopup(x,y,"🏰 SHIELD WALL! ×3","#a78bfa",20);
+      spawnParticles(x,y,"#a78bfa",18,"spark");
+      sfx("lucky");vibrate([12,8,12,8,12]);
+      setNotif("🏰 Shield Wall! Absorbs 3 hits!");
     } else {
       const dur=ptype==="SLOW"?7000:ptype==="FREEZE"?5000:9000;
       activePwrRef.current=activePwrRef.current.filter(p=>p.type!==ptype);
@@ -4268,7 +4365,7 @@ export default function NexusTap(){
       type="bomb";color="#ef4444";glow="#dc2626";sfx("bombSpawn");
     } else if(r<(bossRate||0)+effBomb+0.07){
       type="powerup";color="#60a5fa";glow="#3b82f6";
-      const pt=["SHIELD","SLOW","DOUBLE","LIFE","FREEZE","LUCKY","MIRROR","MULTIPLIER","COMBO_FREEZE","GRAVITY","CHAIN_LIGHTNING","TIME_WARP","SCORE_BOOST","LIFE_SURGE","MAGNET_FIELD"];
+      const pt=["SHIELD","SLOW","DOUBLE","LIFE","FREEZE","LUCKY","MIRROR","MULTIPLIER","COMBO_FREEZE","GRAVITY","CHAIN_LIGHTNING","TIME_WARP","SCORE_BOOST","LIFE_SURGE","MAGNET_FIELD","OVERCLOCK","SHIELD_WALL"];
       pwrType=pt[Math.floor(Math.random()*pt.length)];
     } else if(r<(bossRate||0)+effBomb+0.07+0.045&&(gs.score>0||Math.random()<0.3)&&luckyRef.current!=="active"){
       // 4.5% treasure chest — the variable reward slot machine
@@ -4442,6 +4539,18 @@ export default function NexusTap(){
     } else if((cfg.id||0)>=35&&Math.random()<0.01&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1% Void — absorbs up to 5 nearby targets for massive bonus score
       type="void";color="#7c3aed";glow="#4c1d95";
+    } else if((cfg.id||0)>=18&&Math.random()<0.022&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 2.2% Firefly — tiny fast flickering target; hard to hit, 500+ pts
+      type="firefly";color="#22c55e";glow="#84ef63";moving=true;
+      const fa=Math.random()*Math.PI*2;const fsp=2.6+Math.random()*1.8;
+      vx=Math.cos(fa)*fsp;vy=Math.sin(fa)*fsp;
+    } else if((cfg.id||0)>=20&&Math.random()<0.018&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.8% Geode — 2-tap rock; first tap cracks it, second awards gem + coins
+      type="geode";color="#64748b";glow="#94a3b8";hitsLeft=2;maxHits=2;
+    } else if((cfg.id||0)>=28&&!cfg.isZen&&Math.random()<0.014&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.4% Time Bomb — tap to defuse (+800 pts) or it detonates (−2 lives) after 3s
+      type="timebomb";color="#f97316";glow="#dc2626";moving=Math.random()<0.3;
+      if(moving){const a=Math.random()*Math.PI*2,sp=0.4+Math.random()*0.5;vx=Math.cos(a)*sp;vy=Math.sin(a)*sp;}
     } else if(Math.random()<0.035&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")&&!gs.mysteryPause){
       // 3.5% Mystery Box — Las Vegas variable-ratio slot machine
       type="mystery";color="#ffd700";glow="#b8860b";
@@ -4454,7 +4563,7 @@ export default function NexusTap(){
       }
       if(!moving&&Math.random()<effGhost)ghost=true;
     }
-    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="divider"?BASE_R*1.65:type==="vanishing"?BASE_R*1.1:type==="homing"?BASE_R*1.2:type==="gemstone"?BASE_R*1.1:type==="poison"?BASE_R*1.15:type==="morph"?BASE_R*1.2:type==="conductor"?BASE_R*1.25:type==="siphon"?BASE_R*1.3:type==="glitch"?BASE_R*1.1:type==="prism"?BASE_R*1.2:type==="comet"?BASE_R*1.15:type==="mirrorball"?BASE_R*1.45:type==="nexus"?BASE_R*1.8:type==="phoenix"?BASE_R*1.25:type==="phoenix2"?BASE_R*1.4:type==="icecomet"?BASE_R*1.2:type==="voltage"?BASE_R*1.2:type==="void"?BASE_R*1.5:type==="clover"?BASE_R*1.1:type==="ricochet"?BASE_R*1.15:type==="aurora"?BASE_R*1.35:type==="portal"?BASE_R*1.4:type==="particlebomb"?BASE_R*1.25:type==="beacon"?BASE_R*1.3:type==="shadow"?BASE_R*1.1:type==="shadow_clone"?BASE_R*0.9:type==="spectral"?BASE_R*1.1:type==="heart"?BASE_R*1.2:type==="nova"?BASE_R*1.4:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
+    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="divider"?BASE_R*1.65:type==="vanishing"?BASE_R*1.1:type==="homing"?BASE_R*1.2:type==="gemstone"?BASE_R*1.1:type==="poison"?BASE_R*1.15:type==="morph"?BASE_R*1.2:type==="conductor"?BASE_R*1.25:type==="siphon"?BASE_R*1.3:type==="glitch"?BASE_R*1.1:type==="prism"?BASE_R*1.2:type==="comet"?BASE_R*1.15:type==="mirrorball"?BASE_R*1.45:type==="nexus"?BASE_R*1.8:type==="phoenix"?BASE_R*1.25:type==="phoenix2"?BASE_R*1.4:type==="icecomet"?BASE_R*1.2:type==="voltage"?BASE_R*1.2:type==="void"?BASE_R*1.5:type==="clover"?BASE_R*1.1:type==="ricochet"?BASE_R*1.15:type==="aurora"?BASE_R*1.35:type==="portal"?BASE_R*1.4:type==="particlebomb"?BASE_R*1.25:type==="beacon"?BASE_R*1.3:type==="shadow"?BASE_R*1.1:type==="shadow_clone"?BASE_R*0.9:type==="spectral"?BASE_R*1.1:type==="heart"?BASE_R*1.2:type==="nova"?BASE_R*1.4:type==="firefly"?BASE_R*0.78:type==="geode"?BASE_R*1.3:type==="timebomb"?BASE_R*1.25:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
     // World modifiers: Ocean Deep (8) — slower targets (calmer waters), longer lifetimes
@@ -4473,6 +4582,12 @@ export default function NexusTap(){
     if(type==="comet")lifetime=2800;
     // Ice Comet: similar short lifetime
     if(type==="icecomet")lifetime=3000;
+    // Time Bomb: fixed 3s detonation fuse
+    if(type==="timebomb")lifetime=3000;
+    // Firefly: shorter lifetime (they dart away fast)
+    if(type==="firefly")lifetime=Math.min(lifetime,2200);
+    // Geode: slightly longer (2-tap mechanic)
+    if(type==="geode")lifetime=Math.max(lifetime,3400);
     // Skill: target_sense — extra lifetime
     const tsk=(saveRef.current.skills||{}).target_sense||0;
     if(tsk>=1)lifetime+=500;if(tsk>=2)lifetime+=500;if(tsk>=3)lifetime+=1000;
@@ -5582,6 +5697,83 @@ export default function NexusTap(){
       return;
     }
 
+    // FIREFLY — tiny fast; 500 base pts, bonus if caught within 0.8s of spawn
+    if(hit.type==="firefly"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(12,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const ageMs=Date.now()-hit.spawnedAt;
+      const freshBonus=ageMs<800?2:1; // double pts if caught fast
+      const pts=Math.round(500*combo*feverMult*freshBonus);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      const label=freshBonus===2?"✨ SWIFT CATCH! +"+pts:"✨ Firefly! +"+pts;
+      spawnPopup(hit.x,hit.y-30,label,"#84ef63",freshBonus===2?20:16);
+      spawnParticles(hit.x,hit.y,"#bbf7d0",14,"spark");spawnParticles(hit.x,hit.y,"#ffffff",6,"dot");
+      sfx("tap");if(freshBonus===2){sfx("chainBonus");vibrate([10,5,15]);}else vibrate(8);
+      unlock("firefly_tap");
+      if(freshBonus===2&&(gs._swiftCatches||0)===0){gs._swiftCatches=1;unlock("firefly_swift");}
+      else if(freshBonus===2)gs._swiftCatches=(gs._swiftCatches||0)+1;
+      mascotHappyRef.current+=2;
+      updateMissions(gs.sessionStats);
+      const cfgFf=levelCfgRef.current;
+      if(cfgFf){if(gs.score>=cfgFf.scoreGoal&&(!cfgFf.modifier||checkModGoal(cfgFf.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+    // GEODE — 2-tap rock; first crack reveals gem, second awards big score + coins
+    if(hit.type==="geode"){
+      if(hit.hitsLeft===2){
+        // First tap — crack the shell
+        hit.hitsLeft=1;hit._geodeCracked=true;
+        hit.color="#a855f7";hit.glow="#7c3aed";
+        spawnParticles(hit.x,hit.y,"#94a3b8",12,"spark");
+        spawnPopup(hit.x,hit.y-26,"🪨 CRACKED! Tap again!","#94a3b8",15);
+        sfx("tap");vibrate([8,12,8]);
+      } else {
+        // Second tap — collect the gem
+        targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+        const combo=Math.min(10,1+Math.floor(gs.streak/5));
+        const feverMult=gs.feverActive?2:1;
+        const pts=Math.round(650*combo*feverMult);
+        const coinReward=3+Math.floor(Math.random()*4);
+        gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+        saveRef.current.coins=(saveRef.current.coins||0)+coinReward;
+        saveRef.current.totalCoins=(saveRef.current.totalCoins||0)+coinReward;
+        spawnPopup(hit.x,hit.y-30,`💎 GEM! +${pts} +${coinReward}🪙`,"#c084fc",22);
+        spawnParticles(hit.x,hit.y,"#c084fc",18,"spark");spawnParticles(hit.x,hit.y,"#ffd700",10,"dot");
+        sfx("legendary");vibrate([12,8,20]);
+        unlock("geode_gem");
+        mascotHappyRef.current+=4;
+        updateMissions(gs.sessionStats);
+        const cfgGd=levelCfgRef.current;
+        if(cfgGd){if(gs.score>=cfgGd.scoreGoal&&(!cfgGd.modifier||checkModGoal(cfgGd.modifier,gs))){endLevel(true);return;}}
+      }
+      unlock("geode_crack");
+      return;
+    }
+    // TIME BOMB — tap to defuse; 800 pts base; clutch bonus if < 0.4s left
+    if(hit.type==="timebomb"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const timeLeftMs=Math.max(0,(hit.spawnedAt+hit.lifetime)-Date.now());
+      const clutch=timeLeftMs<400;
+      const basePts=clutch?1400:800;
+      const pts=Math.round(basePts*combo*feverMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      const label=clutch?`💣 CLUTCH DEFUSE! +${pts}`:`💣 DEFUSED! +${pts}`;
+      const col=clutch?"#fbbf24":"#f97316";
+      spawnPopup(hit.x,hit.y-32,label,col,clutch?22:18);
+      spawnParticles(hit.x,hit.y,col,16,"spark");
+      if(clutch){spawnParticles(hit.x,hit.y,"#ffffff",8,"dot");sfx("legendary");vibrate([15,8,20]);setScreenShake(true);setTimeout(()=>setScreenShake(false),250);}
+      else{sfx("bossKill");vibrate([10,6,12]);}
+      unlock("timebomb_defuse");
+      if(clutch)unlock("timebomb_clutch");
+      mascotHappyRef.current+=3;
+      updateMissions(gs.sessionStats);
+      const cfgTb=levelCfgRef.current;
+      if(cfgTb){if(gs.score>=cfgTb.scoreGoal&&(!cfgTb.modifier||checkModGoal(cfgTb.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
     // BEACON — stationary amplifier; tap to collect and score nearby bonus
     if(hit.type==="beacon"){
       targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
@@ -6384,7 +6576,8 @@ export default function NexusTap(){
     const BEACON_RANGE=110;
     const beaconActive=targetsRef.current.some(t=>t.type==="beacon"&&!t.dying&&Math.hypot(t.x-hit.x,t.y-hit.y)<BEACON_RANGE);
     const beaconMult=beaconActive?2:1;
-    const pts=Math.round(hit.rarity.mult*combo*feverMult*(isDouble?2:1)*(isMultiplier?3:1)*(isPerfect?1.5:1)*(isLastBreath?1.5:1)*prestigeMult*shardMult*poisonMult*scoreBoostMult*beaconMult);
+    const overclockMult=(gs._overclockEndsAt&&Date.now()<gs._overclockEndsAt)?2:1;
+    const pts=Math.round(hit.rarity.mult*combo*feverMult*(isDouble?2:1)*(isMultiplier?3:1)*(isPerfect?1.5:1)*(isLastBreath?1.5:1)*prestigeMult*shardMult*poisonMult*scoreBoostMult*beaconMult*overclockMult);
     gs.score+=pts;
     if(scoreBoostMult>1){spawnParticles(hit.x,hit.y,"#f43f5e",8,"spark");}
     // Prestige aura — golden shockwave on each tap when prestige ≥ 1
@@ -7045,6 +7238,21 @@ export default function NexusTap(){
           });
           return false; // remove original
         }
+        // TIME BOMB detonation — costs 2 lives, removes nearby targets, screen shake
+        if(t.type==="timebomb"){
+          const BLAST_R=120;
+          const blasted=targetsRef.current.filter(o=>o!==t&&!o.dying&&Math.hypot(o.x-t.x,o.y-t.y)<BLAST_R&&o.type!=="boss");
+          blasted.forEach(o=>{o.dying=performance.now();spawnParticles(o.x,o.y,"#f97316",6,"spark");});
+          spawnParticles(t.x,t.y,"#f97316",35,"spark");spawnParticles(t.x,t.y,"#ef4444",20,"dot");
+          particlesRef.current.push({type:"shockwave",x:t.x,y:t.y,color:"#f97316",size:BLAST_R*1.4,born:performance.now(),duration:700,alpha:0.85});
+          spawnPopup(t.x,t.y-32,"💣 BOOM! −2 LIVES","#ef4444",20);
+          sfx("miss");vibrate([30,15,30,15,40]);setScreenShake(true);setTimeout(()=>setScreenShake(false),500);
+          const hasShTB=activePwrRef.current.some(p=>p.type==="SHIELD"&&p.endsAt>now);
+          if(hasShTB){activePwrRef.current=activePwrRef.current.filter(p=>p.type!=="SHIELD");setActivePwrDisp([...activePwrRef.current]);}
+          else{gs.lives=Math.max(0,gs.lives-2);gs.streak=0;streakShRef.current=false;setStreakShieldActive(false);lostLife=true;}
+          if(gs.lives<=0){endLevel(false);return false;}
+          return false;
+        }
         // SIPHON expired — drains 1 life (unless shielded)
         if(t.type==="siphon"){
           spawnParticles(t.x,t.y,"#dc2626",20,"spark");
@@ -7078,8 +7286,15 @@ export default function NexusTap(){
         }
         if(t.type==="normal"&&!t._isShard){gs.sessionStats.missedTargets=(gs.sessionStats.missedTargets||0)+1;gs._luckyTaps=0;}
         const hasShield=activePwrRef.current.some(p=>p.type==="SHIELD"&&p.endsAt>now);
+        const shieldWall=activePwrRef.current.find(p=>p.type==="SHIELD_WALL"&&p.endsAt>now);
         if(hasShield){activePwrRef.current=activePwrRef.current.filter(p=>p.type!=="SHIELD");setActivePwrDisp([...activePwrRef.current]);}
-        else if(streakShRef.current){
+        else if(shieldWall){
+          shieldWall.hitsLeft=(shieldWall.hitsLeft||1)-1;
+          spawnParticles(t.x,t.y,"#a78bfa",8,"spark");
+          spawnPopup(t.x,t.y-16,`🏰 WALL: ${shieldWall.hitsLeft} left`,"#a78bfa",12);
+          if(shieldWall.hitsLeft<=0){activePwrRef.current=activePwrRef.current.filter(p=>p.type!=="SHIELD_WALL");setActivePwrDisp([...activePwrRef.current]);sfx("shieldBreak");}
+          else setActivePwrDisp([...activePwrRef.current]);
+        } else if(streakShRef.current){
           // Streak Shield — absorbs one miss, preserves streak!
           streakShRef.current=false;setStreakShieldActive(false);sfx("shieldBreak");vibrate([8,12,8]);
         } else if(gs._streakSaverActive&&(gs.streak||0)>0){
@@ -8733,8 +8948,8 @@ export default function NexusTap(){
               const totalSecs=p.type==="SHIELD"?25:p.type==="SLOW"?8:p.type==="DOUBLE"?10:p.type==="FREEZE"?4:p.type==="MULTIPLIER"?8:p.type==="COMBO_FREEZE"?10:p.type==="TIME_WARP"?6:12;
               const pct=Math.min(100,Math.round(secsLeft/totalSecs*100));
               const isExpiring=secsLeft<=2&&secsLeft>0;
-              const colors={SHIELD:"#fbbf24",SLOW:"#60a5fa",DOUBLE:"#f97316",FREEZE:"#06b6d4",LIFE:"#4ade80",LUCKY:"#ffd700",MIRROR:"#c084fc",MULTIPLIER:"#f43f5e",COMBO_FREEZE:"#67e8f9",GRAVITY:"#a78bfa",TIME_WARP:"#818cf8",SCORE_BOOST:"#f43f5e",LIFE_SURGE:"#4ade80",MAGNET_FIELD:"#ec4899"};
-              const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",FREEZE:"❄️",LIFE:"❤️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐",TIME_WARP:"⏱️",SCORE_BOOST:"×5",LIFE_SURGE:"💚",MAGNET_FIELD:"🧲"};
+              const colors={SHIELD:"#fbbf24",SLOW:"#60a5fa",DOUBLE:"#f97316",FREEZE:"#06b6d4",LIFE:"#4ade80",LUCKY:"#ffd700",MIRROR:"#c084fc",MULTIPLIER:"#f43f5e",COMBO_FREEZE:"#67e8f9",GRAVITY:"#a78bfa",TIME_WARP:"#818cf8",SCORE_BOOST:"#f43f5e",LIFE_SURGE:"#4ade80",MAGNET_FIELD:"#ec4899",OVERCLOCK:"#fbbf24",SHIELD_WALL:"#a78bfa"};
+              const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",FREEZE:"❄️",LIFE:"❤️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐",TIME_WARP:"⏱️",SCORE_BOOST:"×5",LIFE_SURGE:"💚",MAGNET_FIELD:"🧲",OVERCLOCK:"⚡",SHIELD_WALL:"🏰"};
               const c=colors[p.type]||"#60a5fa";
               return(
                 <div key={p.type} className="flex flex-col items-center gap-0.5"
@@ -9706,7 +9921,7 @@ export default function NexusTap(){
   // Achievement tab state — "all" | "gameplay" | "progression" | "social"
   const [achTab, setAchTab] = React.useState("all");
   const ACH_CATS = {
-    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect","prism_tap","comet_tap","comet_early","mirrorball_tap","nexus_tap","phoenix_tap","phoenix_risen","icecomet_tap","voltage_tap","void_tap","void_master","clover_tap","clover_jackpot","ricochet_tap","ricochet_double","aurora_tap","aurora_perfect","fury_mode","score_10k","portal_tap","portal_chaos","particlebomb_tap","beacon_tap","beacon_surge","shadow_tap","shadow_clone_catch"],
+    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect","prism_tap","comet_tap","comet_early","mirrorball_tap","nexus_tap","phoenix_tap","phoenix_risen","icecomet_tap","voltage_tap","void_tap","void_master","clover_tap","clover_jackpot","ricochet_tap","ricochet_double","aurora_tap","aurora_perfect","fury_mode","score_10k","portal_tap","portal_chaos","particlebomb_tap","beacon_tap","beacon_surge","shadow_tap","shadow_clone_catch","spectral_tap","spectral_perfect","heart_tap","nova_tap","firefly_tap","firefly_swift","geode_crack","geode_gem","timebomb_defuse","timebomb_clutch"],
     progression: ["level_10","level_50","level_100","prestige_1","three_stars_5","mascot_lv10","streak_25","streak_50","streak_10","streak_5","score_2000","world_complete"],
     social:      ["missions_all","daily_7","friday_fever","weekend_warrior","all_worlds","streak_saver","loot_chest"],
   };
