@@ -408,6 +408,7 @@ const ACHIEVEMENTS = [
   { id:"twin_hit",        label:"Dynamic Duo",       desc:"Tap a Twin target pair",              icon:"✦", xp:30  },
   { id:"rainbow_catch",   label:"Color Catcher",     desc:"Tap a Rainbow target",                icon:"🌈", xp:20  },
   { id:"rainbow_legendary",label:"Perfect Rainbow",  desc:"Tap a Rainbow at Legendary tier",     icon:"🌟", xp:60  },
+  { id:"frozen_catch",    label:"Ice Breaker",       desc:"Tap a Frozen target's small zone",    icon:"❄️", xp:45  },
 ];
 
 const MISSION_TEMPLATES = [
@@ -1428,6 +1429,38 @@ function drawMagnet(ctx, r, ts) {
   ctx.restore();
 }
 
+// ── Frozen target — smaller tap zone, 3× points, crystalline ice ──
+function drawFrozen(ctx, r, ts) {
+  const sparkle=0.5+0.5*Math.sin(ts*0.012);
+  const spin=ts*0.0008;
+  ctx.save();
+  // Ice crystal outer ring with snowflake spokes
+  ctx.globalAlpha=0.5+sparkle*0.3;ctx.strokeStyle="#e0f2fe";ctx.lineWidth=1.5;ctx.shadowColor="#93c5fd";ctx.shadowBlur=18;
+  for(let i=0;i<6;i++){
+    const a=i*Math.PI/3+spin;
+    ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(Math.cos(a)*r*1.35,Math.sin(a)*r*1.35);ctx.stroke();
+    // Small crossbar
+    const mx=Math.cos(a)*r*0.8,my=Math.sin(a)*r*0.8;
+    const bx=Math.cos(a+Math.PI/2)*5,by=Math.sin(a+Math.PI/2)*5;
+    ctx.beginPath();ctx.moveTo(mx-bx,my-by);ctx.lineTo(mx+bx,my+by);ctx.stroke();
+  }
+  // Icy body
+  ctx.globalAlpha=1;
+  const bg=ctx.createRadialGradient(0,0,0,0,0,r);
+  bg.addColorStop(0,"#f0f9ff");bg.addColorStop(0.4,"#bfdbfe");bg.addColorStop(0.75,"#60a5fa");bg.addColorStop(1,"#2563eb");
+  ctx.fillStyle=bg;ctx.shadowColor="#93c5fd";ctx.shadowBlur=14+sparkle*8;
+  ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  // ×3 label
+  ctx.fillStyle="#ffffff";ctx.font=`black ${r*0.6}px sans-serif`;
+  ctx.textAlign="center";ctx.textBaseline="middle";ctx.shadowBlur=0;
+  ctx.fillText("×3",0,0);
+  // Reduce effective tap radius visual indicator (dotted inner circle at 70%)
+  ctx.globalAlpha=0.35;ctx.setLineDash([3,3]);ctx.strokeStyle="#ff0000";ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.arc(0,0,r*0.7,0,Math.PI*2);ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
 // ── Rainbow target — cycles rarity every ~2s, score based on current tier ──
 const RAINBOW_CYCLE=[
   {color:"#a0a0a0",glow:"#c0c0c0",name:"common",mult:1},
@@ -1716,6 +1749,7 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="healer")   drawHealer(ctx,t.radius,ts);
   else if(t.type==="twin")     drawTwin(ctx,t.radius,ts);
   else if(t.type==="rainbow")  drawRainbow(ctx,t.radius,ts);
+  else if(t.type==="frozen")   drawFrozen(ctx,t.radius,ts);
   else{
     const nm=t.rarity?.name;
     if     (nm==="common")    drawCommon(ctx,t.radius,t.color,t.glow,ts,timeLeft);
@@ -2703,6 +2737,9 @@ export default function NexusTap(){
     } else if((cfg.id||0)>=20&&Math.random()<0.022&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 2.2% Phantom — ultra-short lifetime (1.1s), huge points, ghostly appearance
       type="phantom";color="#e879f9";glow="#a21caf";
+    } else if((cfg.id||0)>=28&&Math.random()<0.018&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.8% Frozen — smaller hit radius (70%), but 3× points
+      type="frozen";color="#bfdbfe";glow="#93c5fd";
     } else if((cfg.id||0)>=30&&Math.random()<0.016&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1.6% Rainbow — cycles through rarity tiers every 2s; score based on current tier when tapped
       type="rainbow";color="#ff6030";glow="#ff4400";
@@ -2733,7 +2770,7 @@ export default function NexusTap(){
       }
       if(!moving&&Math.random()<effGhost)ghost=true;
     }
-    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
+    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
     // World modifiers: Ocean Deep (8) — slower targets (calmer waters), longer lifetimes
@@ -2969,7 +3006,9 @@ export default function NexusTap(){
     for(const t of targetsRef.current){
       if(t.ghost&&Math.sin(performance.now()/200)>0.25)continue;
       const d=Math.hypot(t.x-tx,t.y-ty);
-      if(d<t.radius*1.35&&d<hitDist){hit=t;hitDist=d;}
+      // Frozen targets have 70% smaller effective hit zone (precision challenge)
+      const effectiveR=t.type==="frozen"?t.radius*0.70*1.35:t.radius*1.35;
+      if(d<effectiveR&&d<hitDist){hit=t;hitDist=d;}
     }
     ripplesRef.current.push({x:tx,y:ty,r:12,alpha:0.7,color:hit?(hit.color||"#a78bfa"):"#ffffff44"});
     if(!hit)return;
@@ -3095,6 +3134,27 @@ export default function NexusTap(){
       unlock("twin_hit");mascotHappyRef.current++;
       const cfg2=levelCfgRef.current;
       if(cfg2){if(gs.score>=cfg2.scoreGoal&&(!cfg2.modifier||checkModGoal(cfg2.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
+    // FROZEN — smaller hit zone but 3× points reward
+    if(hit.type==="frozen"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      const isMultiplierFz=activePwrRef.current.some(p=>p.type==="MULTIPLIER"&&p.endsAt>Date.now());
+      const pts=Math.round(180*3*combo*feverMult*prestigeMult*(isMultiplierFz?3:1));
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;gs.sessionStats.rareHits++;
+      hit.dying=performance.now();
+      sfx("rare");vibrate([15,8,15,8,25]);
+      spawnParticles(hit.x,hit.y,"#bfdbfe",25,"spark");
+      spawnParticles(hit.x,hit.y,"#60a5fa",10,"dot");
+      spawnPopup(hit.x,hit.y-32,`❄️ FROZEN! ×3 +${pts}`,"#60a5fa",20);
+      unlock("frozen_catch");mascotHappyRef.current++;
+      const cfgFz=levelCfgRef.current;
+      if(cfgFz){if(gs.score>=cfgFz.scoreGoal&&(!cfgFz.modifier||checkModGoal(cfgFz.modifier,gs))){endLevel(true);return;}}
       return;
     }
 
@@ -3573,9 +3633,16 @@ export default function NexusTap(){
     // Musical pentatonic scale note (most addictive mechanic!) — rising melody as streak grows
     sfx("comboNote", gs.streak);
 
-    // Check personal best mid-game
+    // Check personal best mid-game — firework burst when record is broken
     if(gs.score>saveRef.current.highScore&&gs.score>200&&!newRecord){
       setNewRecord(true);setTimeout(()=>setNewRecord(false),2000);
+      const canvas=canvasRef.current;const cw3=canvas?canvas.width:390;const ch3=canvas?canvas.height:700;
+      const fwColors=["#ffd700","#ff6b35","#34d399","#60a5fa","#f472b6","#a78bfa"];
+      // 3 firework bursts at different positions
+      [[cw3*0.25,ch3*0.3],[cw3*0.75,ch3*0.25],[cw3*0.5,ch3*0.2]].forEach(([fx,fy],i)=>{
+        setTimeout(()=>spawnParticles(fx,fy,fwColors[i*2]||"#ffd700",22,"spark"),i*180);
+      });
+      sfx("jackpot");vibrate([20,10,20,10,20]);
     }
 
     // SFX + particles
