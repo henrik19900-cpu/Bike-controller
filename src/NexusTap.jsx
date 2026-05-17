@@ -428,6 +428,9 @@ const ACHIEVEMENTS = [
   { id:"tornado_catch",  label:"Eye of the Storm",   desc:"Tap a Tornado target",                 icon:"🌀", xp:45  },
   { id:"bubble_pop",     label:"Pop Star",           desc:"Pop a soap Bubble target",             icon:"🫧", xp:15  },
   { id:"bomb_defuse",    label:"Bomb Squad",         desc:"Double-tap a bomb to defuse it!",      icon:"💚", xp:50  },
+  { id:"echo_tap",       label:"Resonance",          desc:"Tap an Echo target",                   icon:"◎",  xp:25  },
+  { id:"echo_bonus",     label:"Double Echo",        desc:"Catch the Echo ghost for bonus points",icon:"🔮", xp:55  },
+  { id:"gold_rush",      label:"Gold Rush!",          desc:"Trigger a Gold Rush Mode",             icon:"🥇", xp:40  },
 ];
 
 const MISSION_TEMPLATES = [
@@ -1676,6 +1679,53 @@ function drawBubble(ctx, r, ts) {
   ctx.restore();
 }
 
+// ── Echo target — leaves a ghost echo on tap; tap the echo for bonus ──
+function drawEcho(ctx, r, ts) {
+  const pulse=0.5+0.5*Math.sin(ts*0.008);
+  const spin=ts*0.0018;
+  ctx.save();
+  // Outer echo rings
+  for(let ring=0;ring<3;ring++){
+    const rr=r*(0.6+ring*0.35);
+    const phase=ring*(Math.PI*2/3)+spin;
+    ctx.globalAlpha=(0.18+pulse*0.14)*(1-ring*0.25);
+    ctx.strokeStyle="#a78bfa";ctx.lineWidth=2.5-ring*0.5;ctx.shadowColor="#7c3aed";ctx.shadowBlur=12;
+    ctx.setLineDash([Math.PI*rr/4,Math.PI*rr/4]);ctx.lineDashOffset=phase*rr;
+    ctx.beginPath();ctx.arc(0,0,rr,0,Math.PI*2);ctx.stroke();
+  }
+  ctx.setLineDash([]);ctx.globalAlpha=1;
+  // Core — translucent violet orb
+  const cg=ctx.createRadialGradient(0,0,0,0,0,r*0.52);
+  cg.addColorStop(0,`rgba(196,181,253,${0.85+pulse*0.12})`);
+  cg.addColorStop(0.6,`rgba(139,92,246,${0.7+pulse*0.1})`);
+  cg.addColorStop(1,"rgba(91,33,182,0.55)");
+  ctx.fillStyle=cg;ctx.shadowColor="#7c3aed";ctx.shadowBlur=22+pulse*14;
+  ctx.beginPath();ctx.arc(0,0,r*0.52,0,Math.PI*2);ctx.fill();
+  // Echo symbol — two overlapping circles
+  ctx.globalAlpha=0.55+pulse*0.25;ctx.strokeStyle="#e9d5ff";ctx.lineWidth=1.5;ctx.shadowBlur=4;
+  ctx.beginPath();ctx.arc(-r*0.14,0,r*0.22,0,Math.PI*2);ctx.stroke();
+  ctx.beginPath();ctx.arc(r*0.14,0,r*0.22,0,Math.PI*2);ctx.stroke();
+  ctx.restore();
+}
+// ── Echo Ghost — fading afterimage of an echo tap ──
+function drawEchoGhost(ctx, r, ts, bornAt) {
+  const age=ts-(bornAt||ts);
+  const life=Math.max(0,1-age/1500);
+  if(life<=0)return;
+  ctx.save();
+  ctx.globalAlpha=life*0.55;
+  ctx.strokeStyle="#c4b5fd";ctx.lineWidth=3;ctx.shadowColor="#7c3aed";ctx.shadowBlur=18*life;
+  ctx.setLineDash([8,6]);
+  ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.globalAlpha=life*0.3;
+  ctx.fillStyle="#a78bfa";
+  ctx.beginPath();ctx.arc(0,0,r*0.5,0,Math.PI*2);ctx.fill();
+  ctx.globalAlpha=life*0.75;ctx.fillStyle="#e9d5ff";ctx.font=`bold ${Math.round(r*0.55)}px sans-serif`;
+  ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("◎",0,0);
+  ctx.restore();
+}
+
 // ── Tornado target — blue spinning vortex, scrambles nearby target positions ──
 function drawTornado(ctx, r, ts) {
   const spin=ts*0.003;
@@ -1954,6 +2004,8 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="lootchest") drawLootChest(ctx,t.radius,ts);
   else if(t.type==="tornado")  drawTornado(ctx,t.radius,ts);
   else if(t.type==="bubble")   drawBubble(ctx,t.radius,ts);
+  else if(t.type==="echo")     drawEcho(ctx,t.radius,ts);
+  else if(t.type==="echo_ghost") drawEchoGhost(ctx,t.radius,ts,t._ghostBorn);
   else{
     const nm=t.rarity?.name;
     if     (nm==="common")    drawCommon(ctx,t.radius,t.color,t.glow,ts,timeLeft);
@@ -2254,6 +2306,171 @@ function drawWorldForeground(ctx,w,h,worldId,ts){
     const sp=ctx.createLinearGradient(w*0.42,0,w*0.58,0);
     sp.addColorStop(0,"transparent");sp.addColorStop(0.5,`rgba(255,200,0,${0.04+pulse*0.03})`);sp.addColorStop(1,"transparent");
     ctx.fillStyle=sp;ctx.fillRect(w*0.42,0,w*0.16,h);
+  }
+  ctx.restore();
+}
+
+// ── World Weather Particles (deterministic, no state needed) ──
+function drawWeatherParticles(ctx,w,h,worldId,ts){
+  if(!worldId)return;
+  const N=26;const gr=2.39996;
+  ctx.save();
+  if(worldId===1){
+    // Dragon's Lair: fire embers rising
+    for(let i=0;i<N;i++){
+      const spd=0.000038+(i%5)*0.000014;
+      const t=((ts*spd+i*0.14)%1+1)%1;
+      const x=((Math.sin(i*gr)*0.5+0.5)*w*0.88+w*0.06+Math.sin(ts*0.0008+i*0.7)*20)%w;
+      const y=h-(t*(h*1.08))-20;
+      const fade=t<0.18?t/0.18:t>0.82?(1-t)/0.18:1;
+      const flicker=0.55+0.45*Math.sin(ts*0.013+i*1.3);
+      ctx.globalAlpha=fade*0.52*flicker;
+      ctx.fillStyle=i%3===0?"#ff6600":i%3===1?"#ffaa00":"#ff3300";
+      ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=7;
+      ctx.beginPath();ctx.arc(x,y,1.4+(i%4)*0.6,0,Math.PI*2);ctx.fill();
+    }
+  } else if(worldId===2){
+    // Troll Forest: leaves + fireflies
+    for(let i=0;i<N;i++){
+      const isFirefly=i%7===0;
+      if(isFirefly){
+        const fx=(Math.sin(i*gr+ts*0.00028)*0.45+0.5)*w;
+        const fy=(Math.cos(i*gr*1.3+ts*0.00022)*0.38+0.5)*h;
+        const glow=0.4+0.6*Math.sin(ts*0.005+i*2.1);
+        ctx.globalAlpha=glow*0.55;ctx.fillStyle="#ccff44";
+        ctx.shadowColor="#88ff00";ctx.shadowBlur=10;
+        ctx.beginPath();ctx.arc(fx,fy,1.4,0,Math.PI*2);ctx.fill();
+      } else {
+        const spd=0.000017+(i%6)*0.0000055;
+        const t=((ts*spd+i*0.13)%1+1)%1;
+        const x=((Math.sin(i*gr*2)*0.5+0.5)*w+Math.sin(ts*0.0006+i*0.9)*28)%w;
+        const y=t*(h+18)-9;
+        const fade=t<0.1?t*10:t>0.9?(1-t)*10:0.7;
+        ctx.globalAlpha=fade*0.48;ctx.shadowBlur=0;
+        ctx.save();ctx.translate(x,y);ctx.rotate(ts*0.002+i*0.8);
+        ctx.fillStyle=i%3===0?"#2d5a1b":i%3===1?"#1a3d0e":"#3a6e22";
+        ctx.beginPath();ctx.ellipse(0,0,3.5,1.5,0,0,Math.PI*2);ctx.fill();
+        ctx.restore();
+      }
+    }
+  } else if(worldId===3){
+    // Elven Kingdom: golden sparkle dust drifting up
+    for(let i=0;i<N;i++){
+      const spd=0.000028+(i%4)*0.00001;
+      const t=((ts*spd+i*0.11)%1+1)%1;
+      const x=(Math.sin(i*gr+ts*0.00018)*0.45+0.5)*w+Math.sin(ts*0.0009+i*0.6)*14;
+      const y=h-(t*h*1.04)+Math.sin(ts*0.0009+i*0.55)*13;
+      const sparkle=0.5+0.5*Math.sin(ts*0.009+i*1.7);
+      const fade=t<0.15?t/0.15:t>0.85?(1-t)/0.15:1;
+      ctx.globalAlpha=fade*sparkle*0.55;
+      ctx.fillStyle=i%2===0?"#ffd700":"#ffe44d";
+      ctx.shadowColor="#ffd700";ctx.shadowBlur=8;
+      ctx.beginPath();ctx.arc(x,y,0.9+sparkle*1.4,0,Math.PI*2);ctx.fill();
+    }
+  } else if(worldId===4){
+    // Dark Wizard Tower: purple shadow wisps drifting
+    for(let i=0;i<20;i++){
+      const ox=(Math.sin(i*gr)*0.5+0.5)*w;
+      const oy=(Math.cos(i*gr*1.4)*0.5+0.5)*h;
+      const wx=ox+Math.sin(ts*0.00035+i*0.8)*44;
+      const wy=oy+Math.cos(ts*0.00028+i*1.1)*32;
+      const pulse=0.5+0.5*Math.sin(ts*0.003+i*2.2);
+      ctx.globalAlpha=pulse*0.17;
+      ctx.fillStyle=i%3===0?"#9b59b6":i%3===1?"#6c3483":"#7d3c98";
+      ctx.shadowColor="#9b59b6";ctx.shadowBlur=14;
+      ctx.beginPath();ctx.arc(wx,wy,5+pulse*8,0,Math.PI*2);ctx.fill();
+    }
+  } else if(worldId===5){
+    // Viking Fjords: snowflakes drifting down
+    for(let i=0;i<N;i++){
+      const spd=0.000023+(i%5)*0.00001;
+      const t=((ts*spd+i*0.12)%1+1)%1;
+      const drift=Math.sin(ts*0.0005+i*0.7)*22;
+      const x=((Math.sin(i*gr*2.1)*0.5+0.5)*w+drift)%w;
+      const y=t*(h+14)-7;
+      const fade=t<0.07?t/0.07:t>0.93?(1-t)/0.07:1;
+      ctx.globalAlpha=fade*0.42;
+      ctx.fillStyle="#c8e6ff";ctx.shadowColor="#a8c8ff";ctx.shadowBlur=4;
+      ctx.beginPath();ctx.arc(x,y,0.9+(i%3)*0.7,0,Math.PI*2);ctx.fill();
+    }
+  } else if(worldId===6){
+    // Goblin Mines: coal dust + gold sparks
+    for(let i=0;i<N;i++){
+      const spd=0.000028+(i%6)*0.000011;
+      const t=((ts*spd+i*0.1)%1+1)%1;
+      const x=((Math.sin(i*gr)*0.5+0.5)*w+Math.sin(ts*0.001+i*0.5)*11)%w;
+      const y=t*(h+10)-5;
+      const isSpark=i%6===0;
+      const fade=t<0.1?t*10:t>0.9?(1-t)*10:0.6;
+      if(isSpark){
+        ctx.globalAlpha=fade*Math.abs(Math.sin(ts*0.018+i*3));
+        ctx.fillStyle="#ffd700";ctx.shadowColor="#ff8800";ctx.shadowBlur=8;
+        ctx.beginPath();ctx.arc(x,y,1.2,0,Math.PI*2);ctx.fill();
+      } else {
+        ctx.globalAlpha=fade*0.32;ctx.shadowBlur=0;
+        ctx.fillStyle="#443322";
+        ctx.beginPath();ctx.arc(x,y,1.4+(i%3)*0.5,0,Math.PI*2);ctx.fill();
+      }
+    }
+  } else if(worldId===7){
+    // Undead Catacombs: ghostly orbs drifting sideways
+    for(let i=0;i<18;i++){
+      const ox=(Math.sin(i*gr*1.5)*0.5+0.5)*w;
+      const oy=60+(Math.cos(i*gr)*0.5+0.5)*(h-130);
+      const gx=(ox+ts*0.024*(i%2?1:-1)+i*44)%(w+44)-22;
+      const gy=oy+Math.sin(ts*0.0008+i*0.9)*20;
+      const glow=0.4+0.6*Math.sin(ts*0.0045+i*1.5);
+      ctx.globalAlpha=glow*0.2;
+      ctx.fillStyle=i%3===0?"#88bb88":"#aaddaa";
+      ctx.shadowColor="#66aa66";ctx.shadowBlur=16;
+      ctx.beginPath();ctx.arc(gx,gy,5+glow*7,0,Math.PI*2);ctx.fill();
+    }
+  } else if(worldId===8){
+    // Sea Serpent's Deep: bubbles rising
+    for(let i=0;i<N;i++){
+      const spd=0.00002+(i%5)*0.000009;
+      const t=((ts*spd+i*0.115)%1+1)%1;
+      const x=((Math.sin(i*gr*1.8)*0.5+0.5)*w*0.88+w*0.06+Math.sin(ts*0.0007+i*0.6)*14);
+      const y=h-(t*(h+18))-9;
+      const fade=t<0.09?t/0.09:t>0.91?(1-t)/0.09:0.5;
+      const r=1.4+(i%4)*0.75;
+      ctx.globalAlpha=fade*0.38;
+      ctx.strokeStyle="#1abc9c";ctx.lineWidth=0.75;ctx.shadowColor="#1abc9c";ctx.shadowBlur=4;
+      ctx.fillStyle="rgba(26,188,156,0.08)";
+      ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();ctx.stroke();
+    }
+  } else if(worldId===9){
+    // Giant's Peak: sleet streaks at sharp angle
+    for(let i=0;i<N;i++){
+      const spd=0.000038+(i%4)*0.000014;
+      const t=((ts*spd+i*0.12)%1+1)%1;
+      const x=((Math.sin(i*gr*1.9)*0.5+0.5)*w+t*w*0.32)%w;
+      const y=t*(h+20)-10;
+      const fade=t<0.06?t/0.06:t>0.94?(1-t)/0.06:0.6;
+      ctx.globalAlpha=fade*0.48;ctx.shadowBlur=0;
+      ctx.strokeStyle="#dce8ff";ctx.lineWidth=0.9;
+      ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+4,y+8);ctx.stroke();
+    }
+  } else if(worldId===10){
+    // Ancient Dragon God: divine golden motes rising with cross-sparkle
+    for(let i=0;i<N;i++){
+      const spd=0.000024+(i%5)*0.0000095;
+      const t=((ts*spd+i*0.11)%1+1)%1;
+      const x=(Math.sin(i*gr+ts*0.00014)*0.45+0.5)*w+Math.sin(ts*0.0006+i*0.8)*18;
+      const y=h-(t*h*1.04);
+      const glow=0.5+0.5*Math.sin(ts*0.007+i*2.1);
+      const fade=(t<0.09?t/0.09:t>0.91?(1-t)/0.09:1)*glow*0.52;
+      ctx.globalAlpha=fade;
+      ctx.fillStyle=i%2===0?"#ffd700":"#ffcc00";
+      ctx.shadowColor="#ffaa00";ctx.shadowBlur=10;
+      ctx.beginPath();ctx.arc(x,y,0.9+glow*1.7,0,Math.PI*2);ctx.fill();
+      if(glow>0.85){
+        // Tiny cross sparkle at peak brightness
+        ctx.globalAlpha=fade*0.6;ctx.strokeStyle="#fff8cc";ctx.lineWidth=0.7;
+        ctx.beginPath();ctx.moveTo(x-3,y);ctx.lineTo(x+3,y);ctx.stroke();
+        ctx.beginPath();ctx.moveTo(x,y-3);ctx.lineTo(x,y+3);ctx.stroke();
+      }
+    }
   }
   ctx.restore();
 }
@@ -2603,6 +2820,7 @@ export default function NexusTap(){
   const [luckyMode,         setLuckyMode]         = useState(false);
   const [newRecord,         setNewRecord]         = useState(false);
   const [rushMode,          setRushMode]          = useState(false);
+  const [goldRushMode,      setGoldRushMode]      = useState(false); // Gold Rush — all coin rewards × 3
   const [bossTaunt,         setBossTaunt]         = useState(null); // {text, phase}
   const [closeBanner,       setCloseBanner]       = useState(false); // "SO CLOSE!" banner
   const luckyRef    = useRef(null);   // null | "active" | "countdown"
@@ -3001,6 +3219,9 @@ export default function NexusTap(){
     } else if((cfg.id||0)>=5&&Math.random()<0.028&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 2.8% Bubble — large hit zone (1.8× radius), pops for points (easy/fun target for beginners)
       type="bubble";color="#e0f7ff";glow="#67e8f9";
+    } else if((cfg.id||0)>=20&&Math.random()<0.022&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 2.2% Echo — tap it to score, then a ghost echo appears for a bonus second tap
+      type="echo";color="#a78bfa";glow="#7c3aed";
     } else if((cfg.id||0)>=24&&Math.random()<0.012&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1.2% Tornado — scrambles nearby target positions in a vortex effect
       type="tornado";color="#67e8f9";glow="#06b6d4";
@@ -3019,7 +3240,7 @@ export default function NexusTap(){
       }
       if(!moving&&Math.random()<effGhost)ghost=true;
     }
-    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
+    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
     // World modifiers: Ocean Deep (8) — slower targets (calmer waters), longer lifetimes
@@ -3552,6 +3773,58 @@ export default function NexusTap(){
       return;
     }
 
+    // ECHO — scores points, then spawns a ghost echo at nearby position for bonus tap
+    if(hit.type==="echo"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      const pts=Math.round(90*combo*feverMult*prestigeMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;
+      sfx("comboNote",gs.streak);vibrate([10,5,15]);
+      spawnParticles(hit.x,hit.y,"#a78bfa",10,"spark");
+      spawnPopup(hit.x,hit.y-28,`◎ ECHO +${pts}`,"#c4b5fd",15);
+      // Spawn ghost echo nearby — tap it for bonus
+      const canvas=canvasRef.current;const cw=canvas?.width||390,ch=canvas?.height||700;
+      const angle=Math.random()*Math.PI*2;
+      const dist=45+Math.random()*60;
+      const ghostX=Math.max(hit.radius+22,Math.min(cw-hit.radius-22,hit.x+Math.cos(angle)*dist));
+      const ghostY=Math.max(hit.radius+100,Math.min(ch-hit.radius-22,hit.y+Math.sin(angle)*dist));
+      const ghostId=Math.random().toString(36).slice(2);
+      const ghostBorn=performance.now();
+      targetsRef.current.push({
+        id:ghostId,type:"echo_ghost",x:ghostX,y:ghostY,
+        radius:hit.radius*0.9,color:"#c4b5fd",glow:"#7c3aed",
+        rarity:hit.rarity,lifetime:1500,spawnedAt:Date.now(),born:ghostBorn,
+        moving:false,ghost:false,vx:0,vy:0,trail:[],
+        hitsLeft:1,maxHits:1,dying:null,_ghostBorn:ghostBorn,_echoPts:Math.round(pts*1.5),
+      });
+      mascotHappyRef.current++;
+      unlock("echo_tap");
+      const cfg=levelCfgRef.current;
+      if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+    // ECHO GHOST — bonus tap after an echo
+    if(hit.type==="echo_ghost"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      const pts=Math.round((hit._echoPts||135)*combo*feverMult*prestigeMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;
+      sfx("lucky");vibrate([10,5,10,5,20]);
+      spawnParticles(hit.x,hit.y,"#e9d5ff",14,"spark");
+      spawnParticles(hit.x,hit.y,"#7c3aed",6,"dot");
+      spawnPopup(hit.x,hit.y-32,`✨ ECHO BONUS! +${pts}`,"#e9d5ff",18);
+      unlock("echo_bonus");
+      const cfg=levelCfgRef.current;
+      if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
     // TORNADO — scrambles nearby target positions in a vortex, then scores
     if(hit.type==="tornado"){
       targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
@@ -4006,12 +4279,23 @@ export default function NexusTap(){
     const _skl=saveRef.current.skills||{};
     const coinSkill=_skl.coin_magnet||0;
     const coinSkillMult=coinSkill===3?1.2:coinSkill===2?1.1:coinSkill===1?1.05:1;
-    const coinMult=(mLvlNow>=5?1.05:1)*coinSkillMult;
+    const goldRushActive=gs._goldRushEndsAt&&Date.now()<gs._goldRushEndsAt;
+    const coinMult=(mLvlNow>=5?1.05:1)*coinSkillMult*(goldRushActive?3:1);
     const baseCoin=Math.max(1,Math.floor(pts*0.09*coinMult));
     const bountyCoin=hit._isBounty?baseCoin*2:0; // Bounty target gives 3× coins (base + 2× bonus)
     saveRef.current.coins=(saveRef.current.coins||0)+baseCoin+bountyCoin;
     saveRef.current.totalCoins=(saveRef.current.totalCoins||0)+baseCoin+bountyCoin;
     if(bountyCoin>0){spawnPopup(hit.x,hit.y-44,`👑 BOUNTY! +${bountyCoin}🪙`,"#ffd700",15);sfx("coin");unlock("bounty_hit");}
+    if(goldRushActive&&baseCoin>0&&Math.random()<0.25){spawnPopup(hit.x,hit.y-50,`🥇 ×3 GOLD!`,"#ffd700",13);}
+    // Trigger Gold Rush — rare chance on legendary or loot chest hit
+    if(!goldRushActive&&!gs._goldRushEndsAt&&(hit.rarity?.name==="legendary"||hit.type==="lootchest")&&Math.random()<0.12){
+      gs._goldRushEndsAt=Date.now()+9000;
+      setGoldRushMode(true);setTimeout(()=>setGoldRushMode(false),9000);
+      sfx("jackpot");vibrate([30,15,30,15,60]);
+      const canvas=canvasRef.current;
+      spawnPopup(canvas?.width/2||195,canvas?.height/3||230,"🥇 GOLD RUSH! 3× COINS","#ffd700",22);
+      unlock("gold_rush");
+    }
 
     gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;
     if(hit.rarity.name!=="common")gs.sessionStats.rareHits++;
@@ -4227,7 +4511,7 @@ export default function NexusTap(){
     targetsRef.current=[];particlesRef.current=[];activePwrRef.current=[];ripplesRef.current=[];tapTrailRef.current=[];
     spawnTimer.current=0;pausedRef.current=false;setPaused(false);
     mascotHappyRef.current=0; // reset session happiness
-    streakShRef.current=false;setStreakShieldActive(false);setNewRecord(false);setCloseBanner(false);setRushMode(false);setBossTaunt(null);
+    streakShRef.current=false;setStreakShieldActive(false);setNewRecord(false);setCloseBanner(false);setRushMode(false);setBossTaunt(null);setGoldRushMode(false);
     luckyRef.current=null;if(luckyTimer.current)clearTimeout(luckyTimer.current);
     // Schedule first lucky event 45-70 seconds in
     luckyTimer.current=setTimeout(()=>triggerLucky(),45000+Math.random()*25000);
@@ -4553,8 +4837,9 @@ export default function NexusTap(){
       drawTarget(ctx,t,ts);return true;
     });
 
-    // World foreground silhouettes + depth vignette (on top of targets)
+    // World foreground silhouettes + weather + depth vignette (on top of targets)
     drawWorldForeground(ctx,w,h,cfg?cfg.world:0,ts);
+    drawWeatherParticles(ctx,w,h,cfg?cfg.world:0,ts);
     drawVignette(ctx,w,h,accentColor);
 
     if(lostLife){if(gs.lives<=0){endLevel(false);return;}}
@@ -6093,6 +6378,10 @@ export default function NexusTap(){
         {rushMode&&!feverBorder&&<div className="absolute inset-0 pointer-events-none z-10" style={{border:"3px solid #f97316",boxShadow:"inset 0 0 40px #f9731633,0 0 40px #f9731633",animation:"feverPulse 0.45s ease-in-out infinite alternate"}}/>}
         {rushMode&&<div className="absolute left-0 right-0 flex justify-center pointer-events-none z-30" style={{top:luckyMode||newRecord?184:feverBorder?166:140}}>
           <span className="font-black text-sm px-3 py-1 rounded-full" style={{color:"#f97316",textShadow:"0 0 16px #f97316",background:"#f9731620",border:"1px solid #f9731666",animation:"heartbeat 0.55s ease-in-out infinite"}}>⚡ RUSH MODE!</span>
+        </div>}
+        {goldRushMode&&<div className="absolute inset-0 pointer-events-none z-10" style={{border:"3px solid #ffd700",boxShadow:"inset 0 0 50px #ffd70028,0 0 50px #ffd70028",animation:"feverPulse 0.5s ease-in-out infinite alternate"}}/>}
+        {goldRushMode&&<div className="absolute left-0 right-0 flex justify-center pointer-events-none z-30" style={{top:feverBorder?178:rushMode?158:140}}>
+          <span className="font-black text-sm px-3 py-1 rounded-full" style={{color:"#ffd700",textShadow:"0 0 18px #ffd700",background:"#ffd70018",border:"1px solid #ffd70066",animation:"heartbeat 0.6s ease-in-out infinite"}}>🥇 GOLD RUSH! 3× COINS!</span>
         </div>}
         {feverBorder&&<div className="absolute inset-0 pointer-events-none z-10" style={{border:"4px solid #fbbf24",boxShadow:"inset 0 0 60px #fbbf2445,0 0 60px #fbbf2445",animation:"feverPulse 0.6s ease-in-out infinite alternate"}}/>}
         {feverBorder&&<div className="absolute left-0 right-0 flex justify-center pointer-events-none z-30" style={{top:luckyMode||newRecord?184:140}}>
