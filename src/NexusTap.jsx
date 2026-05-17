@@ -590,6 +590,7 @@ const DEFAULT_SAVE = {
   musicVol:80,           // 0-100
   sfxVol:80,             // 0-100
   hapticEnabled:true,    // vibration on/off
+  hapticIntensity:70,    // vibration scale 10-100
   speedMode:1.0,         // 0.7=easy, 1.0=normal, 1.3=hard, 1.6=expert
   colorblindMode:false,  // rarity symbols instead of color-only
   infinityBest:0,        // best score in infinity mode
@@ -797,7 +798,15 @@ function loadSave(){try{const r=localStorage.getItem("nexustap_v5");if(r)return{
 // Module-level flags synced from save on game start
 let _hapticOn = true;
 let _colorblindOn = false;
-function vibrate(p){try{if(_hapticOn&&navigator.vibrate)navigator.vibrate(p);}catch{}}
+let _hapticIntensity = 70; // 10-100, scales vibration duration
+function vibrate(p){
+  try{
+    if(!_hapticOn||!navigator.vibrate)return;
+    const scale=(_hapticIntensity??70)/70; // 1.0 = default
+    const scaled=Array.isArray(p)?p.map(v=>Math.round(v*scale)):Math.round(p*scale);
+    navigator.vibrate(scaled);
+  }catch{}
+}
 
 // ═══════════════════════════════════════════════════════════════
 // CANVAS DRAWING — ENHANCED ANIMATED SHAPES
@@ -3558,6 +3567,7 @@ export default function NexusTap(){
     // Sync module-level flags
     _hapticOn=saveRef.current.hapticEnabled!==false;
     _colorblindOn=!!saveRef.current.colorblindMode;
+    _hapticIntensity=saveRef.current.hapticIntensity??70;
     initMissions();
     initBgParts(cfg.world);
     targetsRef.current=[];particlesRef.current=[];activePwrRef.current=[];ripplesRef.current=[];tapTrailRef.current=[];
@@ -4881,6 +4891,20 @@ export default function NexusTap(){
             {cfg.modifier&&<span className="font-bold" style={{color:"#fbbf24"}}>⚡ {cfg.modifier.desc}</span>}
           </div>
         </div>
+        {/* Boss incoming warning — level X9 means next level is a boss */}
+        {cfg.id%10===9&&!cfg.isBoss&&(
+          <div className="rounded-2xl px-4 py-3 flex items-center gap-3"
+            style={{background:"#ff000012",border:"1px solid #ff000044",
+              animation:"heartbeat 1.2s ease-in-out infinite"}}>
+            <span style={{fontSize:24}}>⚠️</span>
+            <div>
+              <div className="font-black text-sm" style={{color:"#ff6b35"}}>BOSS INCOMING!</div>
+              <div className="text-xs opacity-70" style={{color:"#ff9f80"}}>
+                Level {cfg.id+1} features a powerful boss. Consider buying a Shield or Extra Life!
+              </div>
+            </div>
+          </div>
+        )}
         {/* Story teaser card */}
         {(()=>{const ws=WORLD_STORIES.find(s=>s.worldId===cfg.world);if(!ws)return null;
           const snippet=cfg.isBoss?ws.bossIntro?.text:ws.panels[0]?.text;
@@ -6459,6 +6483,18 @@ export default function NexusTap(){
           {(sv.hapticEnabled!==false)?"📳  Vibration ON":"📴  Vibration OFF"}
         </NeonButton>
       </div>
+      {/* Haptic intensity slider */}
+      {(sv.hapticEnabled!==false)&&<div>
+        <p className="text-xs font-bold opacity-40 mb-3 uppercase tracking-widest" style={{color:theme.accent}}>Haptic Intensity</p>
+        <div className="flex items-center gap-3">
+          <span className="text-xs" style={{color:theme.accent}}>📳</span>
+          <input type="range" min={10} max={100} step={10} value={sv.hapticIntensity??70}
+            onChange={e=>{const v=parseInt(e.target.value);sv.hapticIntensity=v;_hapticIntensity=v;debounceSave();vibrate([v]);}}
+            style={{flex:1,accentColor:theme.accent}}/>
+          <span className="text-xs w-10 text-right opacity-50" style={{color:theme.accent}}>{sv.hapticIntensity??70}%</span>
+        </div>
+        <p className="text-xs opacity-30 mt-1" style={{color:"#fff"}}>Higher = stronger vibrations</p>
+      </div>}
       {/* Colorblind mode */}
       <div>
         <p className="text-xs font-bold opacity-40 mb-2 uppercase tracking-widest" style={{color:theme.accent}}>Accessibility</p>
