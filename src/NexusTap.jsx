@@ -1368,6 +1368,40 @@ function drawSplitter(ctx, r, ts) {
   ctx.restore();
 }
 
+// ── Magnet target — pulls nearby targets toward it ──
+function drawMagnet(ctx, r, ts) {
+  const pulse=0.5+0.5*Math.sin(ts*0.006);
+  const spin=ts*0.0018;
+  ctx.save();
+  // Outer magnetic field rings
+  for(let i=1;i<=3;i++){
+    ctx.save();
+    ctx.globalAlpha=(0.12+pulse*0.08)/i;
+    ctx.strokeStyle="#ec4899";ctx.lineWidth=1.5;
+    ctx.setLineDash([4+i*2,4+i*2]);ctx.lineDashOffset=ts*0.03*i;
+    ctx.beginPath();ctx.arc(0,0,r*(1.4+i*0.35),0,Math.PI*2);ctx.stroke();
+    ctx.setLineDash([]);ctx.restore();
+  }
+  // Glow
+  const grd=ctx.createRadialGradient(0,0,r*0.2,0,0,r*2);
+  grd.addColorStop(0,"#ec489944");grd.addColorStop(0.6,"#ec489911");grd.addColorStop(1,"transparent");
+  ctx.fillStyle=grd;ctx.beginPath();ctx.arc(0,0,r*2,0,Math.PI*2);ctx.fill();
+  // Body — hot pink
+  ctx.shadowColor="#ec4899";ctx.shadowBlur=r*(0.8+pulse*0.4);
+  const body=ctx.createRadialGradient(-r*0.3,-r*0.3,0,0,0,r);
+  body.addColorStop(0,"#fce7f3");body.addColorStop(0.5,"#ec4899");body.addColorStop(1,"#9d174d");
+  ctx.fillStyle=body;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  // Horseshoe magnet U shape
+  ctx.save();ctx.rotate(spin*0.5);
+  ctx.strokeStyle="rgba(255,255,255,0.9)";ctx.lineWidth=r*0.14;ctx.lineCap="round";
+  ctx.shadowColor="#fff";ctx.shadowBlur=6;
+  ctx.beginPath();ctx.arc(0,0,r*0.45,Math.PI,0,false);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(-r*0.45,-0.1);ctx.lineTo(-r*0.45,r*0.22);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(r*0.45,-0.1);ctx.lineTo(r*0.45,r*0.22);ctx.stroke();
+  ctx.restore();
+  ctx.restore();
+}
+
 // ── Shielded target — 2 taps (shield absorbs first) ──
 function drawShielded(ctx, r, shieldUp, ts) {
   const pulse=0.5+0.5*Math.sin(ts*0.004);
@@ -1504,6 +1538,7 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="anchor")   drawAnchor(ctx,t.radius,ts);
   else if(t.type==="splitter") drawSplitter(ctx,t.radius,ts);
   else if(t.type==="shielded") drawShielded(ctx,t.radius,t.hitsLeft>=2,ts);
+  else if(t.type==="magnet")   drawMagnet(ctx,t.radius,ts);
   else{
     const nm=t.rarity?.name;
     if     (nm==="common")    drawCommon(ctx,t.radius,t.color,t.glow,ts,timeLeft);
@@ -2182,6 +2217,7 @@ export default function NexusTap(){
   const missionProg  = useRef({});
   const pausedRef    = useRef(false);
   const levelCfgRef  = useRef(null); // current level config
+  const mascotHappyRef = useRef(0);  // 9B — session tap happiness counter (resets per level)
 
   // Audio
   useEffect(()=>{audioRef.current=createAudio();},[]);
@@ -2439,6 +2475,9 @@ export default function NexusTap(){
     } else if((cfg.id||0)>=10&&Math.random()<0.03&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 3% Shielded — requires 2 taps (shield absorbs first hit)
       type="shielded";color="#6366f1";glow="#4f46e5";hitsLeft=2;maxHits=2;
+    } else if((cfg.id||0)>=14&&Math.random()<0.025&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 2.5% Magnet — pulls nearby targets toward it
+      type="magnet";color="#ec4899";glow="#9d174d";
     } else if(Math.random()<0.035&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")&&!gs.mysteryPause){
       // 3.5% Mystery Box — Las Vegas variable-ratio slot machine
       type="mystery";color="#ffd700";glow="#b8860b";
@@ -2451,7 +2490,7 @@ export default function NexusTap(){
       }
       if(!moving&&Math.random()<effGhost)ghost=true;
     }
-    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
+    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
     // World modifiers: Ocean Deep (8) — slower targets (calmer waters), longer lifetimes
@@ -2627,6 +2666,37 @@ export default function NexusTap(){
     }
     ripplesRef.current.push({x:tx,y:ty,r:12,alpha:0.7,color:hit?(hit.color||"#a78bfa"):"#ffffff44"});
     if(!hit)return;
+
+    // MAGNET — collect all targets currently in range (area-of-effect)
+    if(hit.type==="magnet"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const MAGNET_R=100;
+      const pulled=targetsRef.current.filter(t=>!t.dying&&t.type==="normal"&&Math.hypot(t.x-hit.x,t.y-hit.y)<MAGNET_R);
+      let totalPts=0;
+      pulled.forEach(t=>{
+        const combo=Math.min(10,1+Math.floor(gs.streak/5));
+        const feverMult=gs.feverActive?2:1;
+        const ptsMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+        const rarityMult=t.rarity?.mult||1;
+        const tpts=Math.round(rarityMult*combo*feverMult*ptsMult);
+        totalPts+=tpts;
+        t.dying=performance.now();
+        spawnParticles(t.x,t.y,"#ec4899",10,"spark");
+      });
+      const basePts=Math.round(150*(gs.feverActive?2:1));
+      gs.score+=basePts+totalPts;
+      gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;
+      sfx("powerUp");vibrate([15,8,30]);
+      spawnParticles(hit.x,hit.y,"#ec4899",24,"spark");
+      spawnParticles(hit.x,hit.y,"#fce7f3",10,"dot");
+      spawnPopup(hit.x,hit.y-26,`🧲 PULLED ${pulled.length}! +${basePts+totalPts}`,"#ec4899",19);
+      if(pulled.length>=2)setEpicFlash(true),setTimeout(()=>setEpicFlash(false),600);
+      sfx("comboNote",gs.streak);
+      const cfg=levelCfgRef.current;
+      if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
 
     // SHIELDED — first tap destroys shield, second tap scores
     if(hit.type==="shielded"){
@@ -2975,6 +3045,24 @@ export default function NexusTap(){
     gs.lastRarityMult=hit.rarity.mult;
     gs.lastRarityColor=hit.color;
     gs.lastRarityName=hit.rarity.name;
+    // 9B — Mascot happiness — session tap milestone triggers dialogue + bonus
+    mascotHappyRef.current=(mascotHappyRef.current||0)+1;
+    const happyCount=mascotHappyRef.current;
+    if(happyCount===25||happyCount===50||happyCount===75){
+      const happyMascot=MASCOTS.find(m=>m.id===(saveRef.current.mascotId||"dragon"));
+      const msgs=happyMascot?.speeches?.happy||["Great job!"];
+      showMascotSpeech("happy");
+      if(happyCount===50){
+        // 50-tap milestone: +50 score bonus
+        gs.score+=50;
+        spawnPopup(hit.x,hit.y-55,`${happyMascot?.emoji?.happy||"🌟"} HAPPY BOOST! +50`,"#fbbf24",16);
+      }
+      if(happyCount===75){
+        // 75-tap milestone: instant 3× score multiplier for 5s (handled via feverMult override)
+        spawnPopup(hit.x,hit.y-55,"🌈 MASCOT FEVER! +100","#ff00ff",18);
+        gs.score+=100;sfx("mascotNote",25,440,"sine");vibrate([20,10,20,10,40]);
+      }
+    }
     // Mascot XP (level 5 = +5% coin bonus)
     const mascotIdNow=saveRef.current.mascotId||"dragon";
     const mXP=saveRef.current.mascotXP||(saveRef.current.mascotXP={});
@@ -3171,6 +3259,7 @@ export default function NexusTap(){
     initBgParts(cfg.world);
     targetsRef.current=[];particlesRef.current=[];activePwrRef.current=[];ripplesRef.current=[];
     spawnTimer.current=0;pausedRef.current=false;setPaused(false);
+    mascotHappyRef.current=0; // reset session happiness
     streakShRef.current=false;setStreakShieldActive(false);setNewRecord(false);setCloseBanner(false);
     luckyRef.current=null;if(luckyTimer.current)clearTimeout(luckyTimer.current);
     // Schedule first lucky event 45-70 seconds in
@@ -3347,6 +3436,20 @@ export default function NexusTap(){
           if(t.y<t.radius+95||t.y>h-margin){t.vy*=-1;t.y=Math.max(t.radius+95,Math.min(h-margin,t.y));}
         }
         if(t.trail){t.trail.push({x:t.x,y:t.y});if(t.trail.length>12)t.trail.shift();}
+      }
+      // 10B — Magnet pull: attract nearby normal targets toward this magnet
+      if(t.type==="magnet"&&!t.dying){
+        const PULL_R=110,PULL_STR=0.018;
+        targetsRef.current.forEach(other=>{
+          if(other===t||other.dying||other.type!=="normal")return;
+          const dx=t.x-other.x,dy=t.y-other.y;
+          const dist=Math.hypot(dx,dy);
+          if(dist>0&&dist<PULL_R){
+            const force=PULL_STR*(1-dist/PULL_R)*dt;
+            other.x+=dx/dist*force*2;
+            other.y+=dy/dist*force*2;
+          }
+        });
       }
       // Squish (dying) animation — plays for 120ms then removes
       if(t.dying){
@@ -4172,6 +4275,33 @@ export default function NexusTap(){
           </div>
         )}
         <p className="text-xs opacity-40 text-center" style={{color:theme.accent}}>One free spin per day — come back tomorrow!</p>
+        {/* 10D — Bonus spin for login streak >= 7 */}
+        {(sv.loginStreak||0)>=7&&(()=>{
+          const bonusSpinKey=`bonusSpin_${getTodayKey()}`;
+          const alreadyBonused=sv[bonusSpinKey];
+          return!alreadyBonused?(
+            <div className="w-full rounded-2xl p-4 text-center" style={{background:"#ffd70015",border:"2px solid #ffd70066",boxShadow:"0 0 24px #ffd70033"}}>
+              <div className="font-black text-sm mb-1" style={{color:"#ffd700",letterSpacing:"0.06em"}}>🔥 7-DAY STREAK BONUS!</div>
+              <div className="text-xs opacity-60 mb-3" style={{color:"#fbbf24"}}>You get an extra bonus spin today!</div>
+              <NeonButton onClick={()=>{
+                if(spinState==="spinning")return;
+                const sv2=saveRef.current;
+                sv2[bonusSpinKey]=true;
+                // Bonus spin always gives double rewards
+                const prizeIdx=Math.floor(Math.random()*SPIN_PRIZES.length);
+                const prize=SPIN_PRIZES[prizeIdx];
+                if(prize.type==="coins"){const b=prize.value*2;sv2.coins=(sv2.coins||0)+b;sv2.totalCoins=(sv2.totalCoins||0)+b;}
+                else if(prize.type==="xp"){sv2.xp=(sv2.xp||0)+prize.value*2;}
+                flushSave();
+                sfx("jackpot");vibrate([30,15,30,15,60]);
+                setNotif(`🎁 BONUS SPIN: ${prize.emoji} ${prize.label} ×2! 🔥`);
+                setTimeout(()=>setNotif(null),3000);
+              }} style={{background:"linear-gradient(135deg,#b45309,#fbbf24)",boxShadow:"0 0 20px #ffd70066",letterSpacing:"0.05em"}}>
+                🎡 CLAIM BONUS SPIN
+              </NeonButton>
+            </div>
+          ):null;
+        })()}
       </div>
     );
   };
@@ -4615,15 +4745,28 @@ export default function NexusTap(){
           </div>
         )}
         {/* Power-ups */}
+        {/* 9D — Power-up queue visual with time bars */}
         {activePwrDisp.length>0&&(
-          <div className="absolute left-0 right-0 flex justify-center gap-2 z-20" style={{top:hud.boss?148:hud.modGoal?108:76}}>
-            {activePwrDisp.map(p=>(
-              <div key={p.type} className="px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1"
-                style={{background:"#1e3a8acc",border:"1px solid #60a5fa55",color:"#60a5fa"}}>
-                {p.type==="SHIELD"?"🛡":p.type==="SLOW"?"🐢":p.type==="DOUBLE"?"×2":p.type==="FREEZE"?"❄️":"❤️"}
-                {" "}{p.type}{" "}<span className="opacity-50">{Math.max(0,Math.ceil((p.endsAt-Date.now())/1000))}s</span>
-              </div>
-            ))}
+          <div className="absolute left-0 right-0 flex justify-center gap-1.5 z-20" style={{top:hud.boss?148:hud.modGoal?108:76}}>
+            {activePwrDisp.map(p=>{
+              const secsLeft=Math.max(0,Math.ceil((p.endsAt-Date.now())/1000));
+              const totalSecs=p.type==="SHIELD"?25:p.type==="SLOW"?8:p.type==="DOUBLE"?10:p.type==="FREEZE"?4:12;
+              const pct=Math.min(100,Math.round(secsLeft/totalSecs*100));
+              const colors={SHIELD:"#fbbf24",SLOW:"#60a5fa",DOUBLE:"#f97316",FREEZE:"#06b6d4",LIFE:"#4ade80"};
+              const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",FREEZE:"❄️",LIFE:"❤️"};
+              const c=colors[p.type]||"#60a5fa";
+              return(
+                <div key={p.type} className="flex flex-col items-center gap-0.5"
+                  style={{background:"#0a0a1acc",borderRadius:8,padding:"3px 6px",border:`1px solid ${c}44`,minWidth:36}}>
+                  <div className="text-xs font-black" style={{color:c,fontSize:11}}>{icons[p.type]||"⚡"}</div>
+                  <div className="text-xs font-bold tabular-nums" style={{color:c,fontSize:9,lineHeight:1}}>{secsLeft}s</div>
+                  <div style={{width:28,height:3,background:"#ffffff15",borderRadius:2,overflow:"hidden"}}>
+                    <div style={{width:`${pct}%`,height:"100%",background:c,borderRadius:2,
+                      boxShadow:`0 0 4px ${c}`,transition:"width 0.5s linear"}}/>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
         {/* Streak Shield indicator */}
