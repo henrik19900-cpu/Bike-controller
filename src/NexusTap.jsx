@@ -476,6 +476,10 @@ const ACHIEVEMENTS = [
   { id:"portal_tap",         label:"Warp Tapper",      desc:"Tap a Portal target",                     icon:"🌀",xp:40 },
   { id:"portal_chaos",       label:"Chaos Agent",      desc:"Teleport 5+ targets with one Portal tap", icon:"🎲",xp:90 },
   { id:"particlebomb_tap",   label:"Boom!",            desc:"Tap a Particle Bomb target",              icon:"💥",xp:35 },
+  { id:"beacon_tap",         label:"Signal Boost",     desc:"Tap a Beacon target",                     icon:"🔆",xp:30 },
+  { id:"beacon_surge",       label:"Beacon Surge",     desc:"Tap Beacon with 4+ nearby targets",       icon:"⚡",xp:80 },
+  { id:"shadow_tap",         label:"Shadow Boxer",     desc:"Tap a Shadow target",                     icon:"🕶️",xp:30 },
+  { id:"shadow_clone_catch", label:"Clone Catcher",    desc:"Catch a Shadow clone for bonus pts",      icon:"👤",xp:70 },
 ];
 
 const MISSION_TEMPLATES = [
@@ -2636,6 +2640,61 @@ function drawVoid(ctx, r, ts) {
 }
 
 // ── Motion trail + ghost afterimages for moving targets ──
+// ── Beacon target — stationary golden lighthouse; nearby taps score double while it lives ──
+function drawBeacon(ctx, r, ts) {
+  const pulse=0.5+0.5*Math.sin(ts*0.007);
+  // Radiating rings (influence area indicator)
+  for(let i=3;i>0;i--){
+    ctx.save();ctx.strokeStyle="#fbbf24";ctx.lineWidth=1;ctx.globalAlpha=(0.06+i*0.03)*pulse;
+    ctx.shadowColor="#fbbf24";ctx.shadowBlur=4;
+    ctx.beginPath();ctx.arc(0,0,r*(1.5+i*0.6),0,Math.PI*2);ctx.stroke();ctx.restore();
+  }
+  // Core golden orb
+  const grd=ctx.createRadialGradient(-r*0.2,-r*0.2,0,0,0,r);
+  grd.addColorStop(0,"#fef9c3");grd.addColorStop(0.4,"#fbbf24");grd.addColorStop(1,"#b45309");
+  ctx.save();ctx.fillStyle=grd;ctx.shadowColor="#fbbf24";ctx.shadowBlur=18+8*pulse;
+  ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  // Beacon beam upward
+  const beamH=r*2.5;
+  const beamGrd=ctx.createLinearGradient(0,-r,0,-r-beamH);
+  beamGrd.addColorStop(0,"#fbbf2488");beamGrd.addColorStop(1,"transparent");
+  ctx.globalAlpha=0.4+0.3*pulse;ctx.fillStyle=beamGrd;
+  ctx.beginPath();ctx.moveTo(-r*0.3,-r);ctx.lineTo(r*0.3,-r);
+  ctx.lineTo(r*0.6,-r-beamH);ctx.lineTo(-r*0.6,-r-beamH);ctx.closePath();ctx.fill();
+  ctx.fillStyle="#fff";ctx.font=`bold ${Math.round(r*0.8)}px sans-serif`;
+  ctx.textAlign="center";ctx.textBaseline="middle";ctx.globalAlpha=0.95;
+  ctx.fillText("🔆",0,1);ctx.restore();
+}
+
+// ── Shadow target — leaves a clone shadow on tap; tap shadow for bonus pts ──
+function drawShadow(ctx, r, ts, isShadowClone) {
+  const pulse=0.5+0.5*Math.sin(ts*0.009);
+  if(isShadowClone){
+    // Shadow clone: ghostly dark silhouette
+    ctx.save();ctx.globalAlpha=0.45*pulse;
+    ctx.fillStyle="#1e1b4b";ctx.shadowColor="#818cf8";ctx.shadowBlur=12;
+    ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle="#818cf8";ctx.font=`bold ${Math.round(r*0.7)}px sans-serif`;
+    ctx.textAlign="center";ctx.textBaseline="middle";ctx.globalAlpha=0.7*pulse;
+    ctx.fillText("👤",0,1);ctx.restore();
+    return;
+  }
+  // Main shadow target: deep indigo with mirror effect
+  const grd=ctx.createRadialGradient(0,0,0,0,0,r);
+  grd.addColorStop(0,"#4338ca");grd.addColorStop(0.5,"#3730a3");grd.addColorStop(1,"#1e1b4b");
+  ctx.save();ctx.fillStyle=grd;ctx.shadowColor="#6366f1";ctx.shadowBlur=16+6*pulse;
+  ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  // Dark shimmer waves
+  for(let i=0;i<3;i++){
+    const a=(i/3)*Math.PI*2+ts*0.004;
+    ctx.strokeStyle="#818cf8";ctx.lineWidth=1;ctx.globalAlpha=0.3*pulse;
+    ctx.beginPath();ctx.arc(Math.cos(a)*r*0.3,Math.sin(a)*r*0.3,r*0.4,0,Math.PI*2);ctx.stroke();
+  }
+  ctx.fillStyle="#c7d2fe";ctx.font=`bold ${Math.round(r*0.8)}px sans-serif`;
+  ctx.textAlign="center";ctx.textBaseline="middle";ctx.globalAlpha=0.95;
+  ctx.fillText("🕶️",0,1);ctx.restore();
+}
+
 // ── Portal target — swirling warp gate; teleports all targets when tapped ──
 function drawPortal(ctx, r, ts) {
   const pulse=0.5+0.5*Math.sin(ts*0.008);
@@ -2892,6 +2951,9 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="aurora")     drawAurora(ctx,t.radius,ts);
   else if(t.type==="portal")     drawPortal(ctx,t.radius,ts);
   else if(t.type==="particlebomb") drawParticleBomb(ctx,t.radius,ts);
+  else if(t.type==="beacon")     drawBeacon(ctx,t.radius,ts);
+  else if(t.type==="shadow")     drawShadow(ctx,t.radius,ts,false);
+  else if(t.type==="shadow_clone") drawShadow(ctx,t.radius,ts,true);
   else{
     const nm=t.rarity?.name;
     if     (nm==="common")    drawCommon(ctx,t.radius,t.color,t.glow,ts,timeLeft);
@@ -4256,6 +4318,13 @@ export default function NexusTap(){
       vx=Math.cos(homingAngle)*0.4;vy=Math.sin(homingAngle)*0.4;
       const initSpd=0.6+Math.random()*0.4;const angle=Math.random()*Math.PI*2;
       vx=Math.cos(angle)*initSpd;vy=Math.sin(angle)*initSpd;
+    } else if((cfg.id||0)>=14&&Math.random()<0.016&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.6% Beacon — stationary; doubles nearby tap scores while alive
+      type="beacon";color="#fbbf24";glow="#b45309";moving=false;
+    } else if((cfg.id||0)>=18&&Math.random()<0.018&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.8% Shadow — leaves clone on tap; tap clone for bonus
+      type="shadow";color="#4338ca";glow="#6366f1";moving=Math.random()<0.35;
+      if(moving){const a=Math.random()*Math.PI*2,sp=0.4+Math.random()*0.6;vx=Math.cos(a)*sp;vy=Math.sin(a)*sp;}
     } else if((cfg.id||0)>=20&&Math.random()<0.016&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1.6% Portal — teleports all targets to new positions on tap
       type="portal";color="#818cf8";glow="#4f46e5";
@@ -4291,7 +4360,7 @@ export default function NexusTap(){
       }
       if(!moving&&Math.random()<effGhost)ghost=true;
     }
-    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="divider"?BASE_R*1.65:type==="vanishing"?BASE_R*1.1:type==="homing"?BASE_R*1.2:type==="gemstone"?BASE_R*1.1:type==="poison"?BASE_R*1.15:type==="morph"?BASE_R*1.2:type==="conductor"?BASE_R*1.25:type==="siphon"?BASE_R*1.3:type==="glitch"?BASE_R*1.1:type==="prism"?BASE_R*1.2:type==="comet"?BASE_R*1.15:type==="mirrorball"?BASE_R*1.45:type==="nexus"?BASE_R*1.8:type==="phoenix"?BASE_R*1.25:type==="phoenix2"?BASE_R*1.4:type==="icecomet"?BASE_R*1.2:type==="voltage"?BASE_R*1.2:type==="void"?BASE_R*1.5:type==="clover"?BASE_R*1.1:type==="ricochet"?BASE_R*1.15:type==="aurora"?BASE_R*1.35:type==="portal"?BASE_R*1.4:type==="particlebomb"?BASE_R*1.25:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
+    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="divider"?BASE_R*1.65:type==="vanishing"?BASE_R*1.1:type==="homing"?BASE_R*1.2:type==="gemstone"?BASE_R*1.1:type==="poison"?BASE_R*1.15:type==="morph"?BASE_R*1.2:type==="conductor"?BASE_R*1.25:type==="siphon"?BASE_R*1.3:type==="glitch"?BASE_R*1.1:type==="prism"?BASE_R*1.2:type==="comet"?BASE_R*1.15:type==="mirrorball"?BASE_R*1.45:type==="nexus"?BASE_R*1.8:type==="phoenix"?BASE_R*1.25:type==="phoenix2"?BASE_R*1.4:type==="icecomet"?BASE_R*1.2:type==="voltage"?BASE_R*1.2:type==="void"?BASE_R*1.5:type==="clover"?BASE_R*1.1:type==="ricochet"?BASE_R*1.15:type==="aurora"?BASE_R*1.35:type==="portal"?BASE_R*1.4:type==="particlebomb"?BASE_R*1.25:type==="beacon"?BASE_R*1.3:type==="shadow"?BASE_R*1.1:type==="shadow_clone"?BASE_R*0.9:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
     // World modifiers: Ocean Deep (8) — slower targets (calmer waters), longer lifetimes
@@ -5323,6 +5392,79 @@ export default function NexusTap(){
       return;
     }
 
+    // BEACON — stationary amplifier; tap to collect and score nearby bonus
+    if(hit.type==="beacon"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      const BEACON_R=110;
+      const nearbyCount=targetsRef.current.filter(t=>!t.dying&&t.type!=="bomb"&&Math.hypot(t.x-hit.x,t.y-hit.y)<BEACON_R).length;
+      const basePts=Math.round((150+nearbyCount*60)*combo*feverMult*prestigeMult);
+      gs.score+=basePts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;
+      // Remove beacon boost flag from nearby targets
+      targetsRef.current.forEach(t=>{if(t._beaconBoost)t._beaconBoost=false;});
+      spawnParticles(hit.x,hit.y,"#fbbf24",16,"spark");
+      particlesRef.current.push({type:"shockwave",x:hit.x,y:hit.y,color:"#fbbf24",size:BEACON_R*1.5,born:performance.now(),duration:600,alpha:0.5});
+      spawnPopup(hit.x,hit.y-44,`🔆 BEACON! ×${nearbyCount} nearby +${basePts}`,"#fbbf24",nearbyCount>3?24:20);
+      sfx(nearbyCount>3?"legendary":"epic");
+      if(nearbyCount>3){setEpicFlash(true);setTimeout(()=>setEpicFlash(false),500);}
+      vibrate([15,8,20,8,25]);
+      unlock("beacon_tap");
+      if(nearbyCount>=4)unlock("beacon_surge");
+      mascotHappyRef.current+=2+nearbyCount;
+      const cfgBn=levelCfgRef.current;
+      if(cfgBn){if(gs.score>=cfgBn.scoreGoal&&(!cfgBn.modifier||checkModGoal(cfgBn.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
+    // SHADOW — tap leaves a shadow_clone at same position; clone gives bonus if caught
+    if(hit.type==="shadow"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      const basePts=Math.round(100*combo*feverMult*prestigeMult);
+      gs.score+=basePts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;
+      // Spawn shadow clone at same position — 1.5s window
+      targetsRef.current.push({
+        id:Math.random().toString(36).slice(2),type:"shadow_clone",
+        x:hit.x,y:hit.y,radius:BASE_R*0.9,color:"#4338ca",glow:"#6366f1",
+        rarity:RARITY.RARE,lifetime:1500,spawnedAt:Date.now(),born:performance.now(),
+        moving:false,ghost:false,vx:0,vy:0,trail:[],hitsLeft:1,maxHits:1,dying:null
+      });
+      spawnParticles(hit.x,hit.y,"#6366f1",12,"spark");
+      spawnPopup(hit.x,hit.y-36,`🕶️ SHADOW! +${basePts} — catch clone!`,"#818cf8",20);
+      sfx("rare");vibrate([12,6,12]);
+      unlock("shadow_tap");
+      mascotHappyRef.current+=2;
+      const cfgSh=levelCfgRef.current;
+      if(cfgSh){if(gs.score>=cfgSh.scoreGoal&&(!cfgSh.modifier||checkModGoal(cfgSh.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
+    // SHADOW CLONE — bonus tap after a shadow target; short window
+    if(hit.type==="shadow_clone"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      const cloneBonus=Math.round(300*combo*feverMult*prestigeMult);
+      gs.score+=cloneBonus;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;gs.sessionStats.rareHits++;
+      spawnParticles(hit.x,hit.y,"#c7d2fe",14,"spark");
+      spawnPopup(hit.x,hit.y-40,`👤 CLONE CAUGHT! +${cloneBonus}`,"#c7d2fe",22);
+      sfx("epic");setEpicFlash(true);setTimeout(()=>setEpicFlash(false),500);
+      vibrate([15,8,25]);
+      unlock("shadow_clone_catch");
+      mascotHappyRef.current+=4;
+      const cfgSc=levelCfgRef.current;
+      if(cfgSc){if(gs.score>=cfgSc.scoreGoal&&(!cfgSc.modifier||checkModGoal(cfgSc.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
     // PORTAL — teleports all targets to random new positions; base score + chaos bonus
     if(hit.type==="portal"){
       targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
@@ -6048,7 +6190,11 @@ export default function NexusTap(){
     if(poisonMult<1)gs._poisonedUntil=null; // consume debuff after one hit
     const scoreBoostMult=(gs._scoreBoostTaps||0)>0?5:1;
     if(scoreBoostMult>1){gs._scoreBoostTaps--;if(gs._scoreBoostTaps<=0)setNotif("×5 boost ended!");}
-    const pts=Math.round(hit.rarity.mult*combo*feverMult*(isDouble?2:1)*(isMultiplier?3:1)*(isPerfect?1.5:1)*(isLastBreath?1.5:1)*prestigeMult*shardMult*poisonMult*scoreBoostMult);
+    // Beacon bonus: if any active beacon within 110px, target scores 2×
+    const BEACON_RANGE=110;
+    const beaconActive=targetsRef.current.some(t=>t.type==="beacon"&&!t.dying&&Math.hypot(t.x-hit.x,t.y-hit.y)<BEACON_RANGE);
+    const beaconMult=beaconActive?2:1;
+    const pts=Math.round(hit.rarity.mult*combo*feverMult*(isDouble?2:1)*(isMultiplier?3:1)*(isPerfect?1.5:1)*(isLastBreath?1.5:1)*prestigeMult*shardMult*poisonMult*scoreBoostMult*beaconMult);
     gs.score+=pts;
     if(scoreBoostMult>1){spawnParticles(hit.x,hit.y,"#f43f5e",8,"spark");}
     // Prestige aura — golden shockwave on each tap when prestige ≥ 1
@@ -9346,7 +9492,7 @@ export default function NexusTap(){
   // Achievement tab state — "all" | "gameplay" | "progression" | "social"
   const [achTab, setAchTab] = React.useState("all");
   const ACH_CATS = {
-    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect","prism_tap","comet_tap","comet_early","mirrorball_tap","nexus_tap","phoenix_tap","phoenix_risen","icecomet_tap","voltage_tap","void_tap","void_master","clover_tap","clover_jackpot","ricochet_tap","ricochet_double","aurora_tap","aurora_perfect","fury_mode","score_10k","portal_tap","portal_chaos","particlebomb_tap"],
+    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect","prism_tap","comet_tap","comet_early","mirrorball_tap","nexus_tap","phoenix_tap","phoenix_risen","icecomet_tap","voltage_tap","void_tap","void_master","clover_tap","clover_jackpot","ricochet_tap","ricochet_double","aurora_tap","aurora_perfect","fury_mode","score_10k","portal_tap","portal_chaos","particlebomb_tap","beacon_tap","beacon_surge","shadow_tap","shadow_clone_catch"],
     progression: ["level_10","level_50","level_100","prestige_1","three_stars_5","mascot_lv10","streak_25","streak_50","streak_10","streak_5","score_2000","world_complete"],
     social:      ["missions_all","daily_7","friday_fever","weekend_warrior","all_worlds","streak_saver","loot_chest"],
   };
