@@ -461,6 +461,7 @@ const ACHIEVEMENTS = [
   { id:"nexus_tap",          label:"NEXUS!",           desc:"Find and tap the legendary Nexus",     icon:"🌟", xp:500 },
   { id:"phoenix_tap",        label:"Fire Tamer",       desc:"Tap a Phoenix target",                 icon:"🔥", xp:25  },
   { id:"phoenix_risen",      label:"Born Again",       desc:"Tap a Phoenix in its risen Legendary form",icon:"🦋",xp:80 },
+  { id:"icecomet_tap",       label:"Frost Strike",     desc:"Tap an Ice Comet and freeze nearby targets",icon:"❄️",xp:40 },
 ];
 
 const MISSION_TEMPLATES = [
@@ -1540,6 +1541,43 @@ function drawMagnet(ctx, r, ts) {
   ctx.restore();
 }
 
+// ── Ice Comet target — frozen streaker; freezes nearby targets on expiry ──
+function drawIceComet(ctx, r, ts, trail) {
+  const pulse=0.7+0.3*Math.sin(ts*0.01);
+  // Icy trail
+  if(trail&&trail.length>1){
+    for(let i=1;i<trail.length;i++){
+      const alpha=(i/trail.length)*0.4*pulse;
+      const sz=r*(i/trail.length)*0.6;
+      ctx.save();
+      ctx.globalAlpha=alpha;
+      ctx.fillStyle=`hsl(${195+i*4},100%,${75-i*2}%)`;
+      ctx.translate(trail[i].x-trail[trail.length-1].x,trail[i].y-trail[trail.length-1].y);
+      ctx.beginPath();ctx.arc(0,0,sz,0,Math.PI*2);ctx.fill();
+      ctx.restore();
+    }
+  }
+  // Ice crystals around head
+  ctx.save();
+  for(let i=0;i<6;i++){
+    const a=(i/6)*Math.PI*2+ts*0.001;
+    ctx.fillStyle="#bae6fd";ctx.globalAlpha=0.5*pulse;
+    const px=Math.cos(a)*(r+6),py=Math.sin(a)*(r+6);
+    ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(px+3,py-4);ctx.lineTo(px-3,py-4);ctx.closePath();ctx.fill();
+  }
+  // Core
+  ctx.globalAlpha=1;
+  const grad=ctx.createRadialGradient(0,0,0,0,0,r);
+  grad.addColorStop(0,"#ffffff");grad.addColorStop(0.3,"#bae6fd");grad.addColorStop(0.7,"#0ea5e9");grad.addColorStop(1,"#075985");
+  ctx.fillStyle=grad;ctx.shadowColor="#38bdf8";ctx.shadowBlur=20+pulse*12;
+  ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle="#ffffff";ctx.shadowBlur=0;
+  ctx.font=`${Math.floor(r*0.9)}px sans-serif`;
+  ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.fillText("❄️",0,1);
+  ctx.restore();
+}
+
 // ── Phoenix target — fiery bird; when expired it respawns once as Epic ──
 function drawPhoenix(ctx, r, ts, isRisen) {
   const pulse=0.6+0.4*Math.sin(ts*0.012);
@@ -2613,6 +2651,7 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="comet")      drawComet(ctx,t.radius,ts,t.trail);
   else if(t.type==="mirrorball") drawMirrorBall(ctx,t.radius,ts);
   else if(t.type==="nexus")      drawNexus(ctx,t.radius,ts);
+  else if(t.type==="icecomet")   drawIceComet(ctx,t.radius,ts,t.trail);
   else if(t.type==="phoenix")    drawPhoenix(ctx,t.radius,ts,false);
   else if(t.type==="phoenix2")   drawPhoenix(ctx,t.radius,ts,true);
   else{
@@ -3912,6 +3951,12 @@ export default function NexusTap(){
     } else if((cfg.id||0)>=50&&Math.random()<0.004&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 0.4% Nexus — ultra-rare cosmic core; 2000+ pts; once per session check
       type="nexus";color="#ffd700";glow="#b8860b";
+    } else if((cfg.id||0)>=18&&Math.random()<0.016&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.6% Ice Comet — streaks across screen freezing nearby targets on impact
+      type="icecomet";color="#38bdf8";glow="#0ea5e9";moving=true;
+      const angle=(Math.PI*0.2+Math.random()*Math.PI*0.6);
+      const speed=2.0+Math.random()*1.0;
+      vx=Math.cos(angle)*speed;vy=Math.sin(angle)*speed;
     } else if((cfg.id||0)>=12&&Math.random()<0.02&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 2% Phoenix — fiery bird; respawns once as epic when expired
       type="phoenix";color="#f97316";glow="#dc2626";moving=Math.random()<0.35;
@@ -3966,7 +4011,7 @@ export default function NexusTap(){
       }
       if(!moving&&Math.random()<effGhost)ghost=true;
     }
-    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="divider"?BASE_R*1.65:type==="vanishing"?BASE_R*1.1:type==="homing"?BASE_R*1.2:type==="gemstone"?BASE_R*1.1:type==="poison"?BASE_R*1.15:type==="morph"?BASE_R*1.2:type==="conductor"?BASE_R*1.25:type==="siphon"?BASE_R*1.3:type==="glitch"?BASE_R*1.1:type==="prism"?BASE_R*1.2:type==="comet"?BASE_R*1.15:type==="mirrorball"?BASE_R*1.45:type==="nexus"?BASE_R*1.8:type==="phoenix"?BASE_R*1.25:type==="phoenix2"?BASE_R*1.4:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
+    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="divider"?BASE_R*1.65:type==="vanishing"?BASE_R*1.1:type==="homing"?BASE_R*1.2:type==="gemstone"?BASE_R*1.1:type==="poison"?BASE_R*1.15:type==="morph"?BASE_R*1.2:type==="conductor"?BASE_R*1.25:type==="siphon"?BASE_R*1.3:type==="glitch"?BASE_R*1.1:type==="prism"?BASE_R*1.2:type==="comet"?BASE_R*1.15:type==="mirrorball"?BASE_R*1.45:type==="nexus"?BASE_R*1.8:type==="phoenix"?BASE_R*1.25:type==="phoenix2"?BASE_R*1.4:type==="icecomet"?BASE_R*1.2:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
     // World modifiers: Ocean Deep (8) — slower targets (calmer waters), longer lifetimes
@@ -3983,6 +4028,8 @@ export default function NexusTap(){
     if(type==="ninja")lifetime=3500;
     // Comet targets: very short lifetime (2800ms) — it flies across fast!
     if(type==="comet")lifetime=2800;
+    // Ice Comet: similar short lifetime
+    if(type==="icecomet")lifetime=3000;
     // Skill: target_sense — extra lifetime
     const tsk=(saveRef.current.skills||{}).target_sense||0;
     if(tsk>=1)lifetime+=500;if(tsk>=2)lifetime+=500;if(tsk>=3)lifetime+=1000;
@@ -4624,6 +4671,36 @@ export default function NexusTap(){
       else{sfx("tap");vibrate([8]);}
       unlock("morph_tap");
       mascotHappyRef.current+=phase>=4?5:1;
+      const cfg=levelCfgRef.current;
+      if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
+    // ICE COMET — streaks across screen; freezes nearby targets when tapped
+    if(hit.type==="icecomet"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      const pts=Math.round(220*combo*feverMult*prestigeMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;
+      // Freeze nearby targets (80px radius) for 2s
+      const FREEZE_R=80;
+      targetsRef.current.forEach(t=>{
+        if(t!==hit&&!t.dying&&t.type==="normal"&&Math.hypot(t.x-hit.x,t.y-hit.y)<FREEZE_R){
+          const origVx=t.vx,origVy=t.vy;
+          t.vx=0;t.vy=0;t.moving=false;t._frozen=true;
+          spawnParticles(t.x,t.y,"#38bdf8",6,"spark");
+          setTimeout(()=>{if(t._frozen){t.vx=origVx;t.vy=origVy;t.moving=origVx!==0||origVy!==0;t._frozen=false;}},2000);
+        }
+      });
+      spawnParticles(hit.x,hit.y,"#38bdf8",20,"spark");
+      spawnParticles(hit.x,hit.y,"#bae6fd",10,"dot");
+      spawnPopup(hit.x,hit.y-40,`❄️ ICE COMET! +${pts}`,"#38bdf8",22);
+      sfx("tap");vibrate([10,6,10]);
+      unlock("icecomet_tap");
+      mascotHappyRef.current+=2;
       const cfg=levelCfgRef.current;
       if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
       return;
@@ -5930,8 +6007,8 @@ export default function NexusTap(){
           }
         } else {
           const timeWarpMult=gs._timeWarpEndsAt&&Date.now()<gs._timeWarpEndsAt?0.2:1;
-          // Comet flies straight without bouncing
-          if(t.type==="comet"){
+          // Comet and Ice Comet fly straight without bouncing
+          if(t.type==="comet"||t.type==="icecomet"){
             t.x+=t.vx*dt*0.072*timeWarpMult;t.y+=t.vy*dt*0.072*timeWarpMult;
             // Off-screen removal (handled by expiry)
           } else
