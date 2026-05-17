@@ -3984,6 +3984,10 @@ export default function NexusTap(){
   const [lbTab,          setLbTab]          = useState("all"); // "today"|"week"|"all"
   const [zenWorld,       setZenWorld]       = useState(1);    // world selector for zen mode
   const [taWorld,        setTaWorld]        = useState(1);    // world selector for time attack
+  // Bounty Board — rotating wanted rarity for bonus pts
+  const [bountyData,     setBountyData]     = useState(null); // {rarity,icon,mult,expiresAt}
+  const bountyRef        = useRef(null);
+  const bountyTimerRef   = useRef(null);
 
   // Canvas & game refs
   const canvasRef    = useRef(null);
@@ -4630,6 +4634,8 @@ export default function NexusTap(){
     const gs=gsRef.current;if(!gs)return;
     if(rafRef.current){cancelAnimationFrame(rafRef.current);rafRef.current=null;}
     if(luckyTimer.current){clearTimeout(luckyTimer.current);luckyTimer.current=null;}
+    if(bountyTimerRef.current){clearTimeout(bountyTimerRef.current);bountyTimerRef.current=null;}
+    bountyRef.current=null;setBountyData(null);
     luckyRef.current=null;setLuckyMode(false);
     streakShRef.current=false;setStreakShieldActive(false);
     audioRef.current?.stopBgMusic?.();
@@ -4647,6 +4653,8 @@ export default function NexusTap(){
       sv.levelStars={...sv.levelStars,[cfg.id]:newStars};
       // Unlock next
       if(cfg.id>=sv.unlockedLevel) sv.unlockedLevel=Math.min(100,cfg.id+1);
+      // 11B — Boss incoming notification on level X9 (next level is a boss)
+      if(cfg.id%10===9){const nextLvl=cfg.id+1;const bossWorld=WORLDS[Math.floor((nextLvl-1)/10)];setTimeout(()=>setNotif(`⚠️ BOSS INCOMING on Level ${nextLvl}! ${bossWorld?.emoji||"👹"} Prepare yourself!`),1500);}
       // XP + coins
       const _xpBoostLvl=(sv.skills||{}).xp_boost||0;
       const _xpBoostMult=_xpBoostLvl===3?1.3:_xpBoostLvl===2?1.2:_xpBoostLvl===1?1.1:1.0;
@@ -6577,8 +6585,29 @@ export default function NexusTap(){
     const beaconActive=targetsRef.current.some(t=>t.type==="beacon"&&!t.dying&&Math.hypot(t.x-hit.x,t.y-hit.y)<BEACON_RANGE);
     const beaconMult=beaconActive?2:1;
     const overclockMult=(gs._overclockEndsAt&&Date.now()<gs._overclockEndsAt)?2:1;
-    const pts=Math.round(hit.rarity.mult*combo*feverMult*(isDouble?2:1)*(isMultiplier?3:1)*(isPerfect?1.5:1)*(isLastBreath?1.5:1)*prestigeMult*shardMult*poisonMult*scoreBoostMult*beaconMult*overclockMult);
+    // Bounty Board bonus: matching rarity gives 2-5× extra points
+    const bounty=bountyRef.current;
+    const bountyHit=bounty&&bounty.expiresAt>Date.now()&&hit.rarity?.name===bounty.rarity;
+    const bountyMult=bountyHit?bounty.mult:1;
+    const pts=Math.round(hit.rarity.mult*combo*feverMult*(isDouble?2:1)*(isMultiplier?3:1)*(isPerfect?1.5:1)*(isLastBreath?1.5:1)*prestigeMult*shardMult*poisonMult*scoreBoostMult*beaconMult*overclockMult*bountyMult);
     gs.score+=pts;
+    if(bountyHit){
+      spawnPopup(hit.x,hit.y-38,`🎯 BOUNTY! ×${bounty.mult} +${pts}`,bounty.color,22);
+      spawnParticles(hit.x,hit.y,bounty.color,16,"spark");
+      sfx("chainBonus");vibrate([12,6,18]);
+      gs._bountyHits=(gs._bountyHits||0)+1;
+      if(gs._bountyHits>=3)unlock("bounty_hit");
+      // Reset bounty after hit — next one in 8s
+      bountyRef.current=null;setBountyData(null);
+      if(bountyTimerRef.current)clearTimeout(bountyTimerRef.current);
+      bountyTimerRef.current=setTimeout(()=>{
+        if(!gsRef.current||gsRef.current.lives<=0)return;
+        const BOUNTY_POOL2=[{rarity:"UNCOMMON",icon:"⚪",mult:2,color:"#94a3b8"},{rarity:"RARE",icon:"🔵",mult:3,color:"#60a5fa"},{rarity:"EPIC",icon:"🟣",mult:4,color:"#c084fc"},{rarity:"LEGENDARY",icon:"🟡",mult:5,color:"#ffd700"}];
+        const b=BOUNTY_POOL2[Math.floor(Math.random()*BOUNTY_POOL2.length)];
+        const bd={...b,expiresAt:Date.now()+35000};bountyRef.current=bd;setBountyData(bd);
+        bountyTimerRef.current=setTimeout(()=>{bountyRef.current=null;setBountyData(null);},35000);
+      },8000);
+    }
     if(scoreBoostMult>1){spawnParticles(hit.x,hit.y,"#f43f5e",8,"spark");}
     // Prestige aura — golden shockwave on each tap when prestige ≥ 1
     if((saveRef.current.prestigeLevel||0)>=1){
@@ -6948,6 +6977,23 @@ export default function NexusTap(){
     luckyRef.current=null;if(luckyTimer.current)clearTimeout(luckyTimer.current);
     // Schedule first lucky event 45-70 seconds in
     luckyTimer.current=setTimeout(()=>triggerLucky(),45000+Math.random()*25000);
+    // Bounty Board — first bounty after 12 seconds, then every 35s
+    bountyRef.current=null;setBountyData(null);
+    if(bountyTimerRef.current)clearTimeout(bountyTimerRef.current);
+    const BOUNTY_POOL=[
+      {rarity:"UNCOMMON",icon:"⚪",mult:2,color:"#94a3b8"},
+      {rarity:"RARE",icon:"🔵",mult:3,color:"#60a5fa"},
+      {rarity:"EPIC",icon:"🟣",mult:4,color:"#c084fc"},
+      {rarity:"LEGENDARY",icon:"🟡",mult:5,color:"#ffd700"},
+    ];
+    const pickBounty=()=>{
+      if(!gsRef.current||gsRef.current.lives<=0)return;
+      const b=BOUNTY_POOL[Math.floor(Math.random()*BOUNTY_POOL.length)];
+      const bd={...b,expiresAt:Date.now()+35000};
+      bountyRef.current=bd;setBountyData(bd);
+      bountyTimerRef.current=setTimeout(()=>{bountyRef.current=null;setBountyData(null);bountyTimerRef.current=setTimeout(pickBounty,5000);},35000);
+    };
+    bountyTimerRef.current=setTimeout(pickBounty,12000);
 
     const extraLife=shopCart.includes("extra_life");
     const headStart=shopCart.includes("head_start");
@@ -9049,6 +9095,26 @@ export default function NexusTap(){
             </div>
           </div>
         )}
+        {/* Bounty Board — wanted rarity chip */}
+        {bountyData&&!hud.fever&&(()=>{
+          const secsLeft=Math.max(0,Math.round((bountyData.expiresAt-Date.now())/1000));
+          const urgent=secsLeft<=8;
+          return(
+            <div className="absolute pointer-events-none z-20" style={{top:88,left:"50%",transform:"translateX(-50%)"}}>
+              <div style={{
+                display:"flex",alignItems:"center",gap:5,
+                background:"#0a0a1aee",border:`1.5px solid ${bountyData.color}`,
+                borderRadius:16,padding:"3px 10px",
+                boxShadow:`0 0 10px ${bountyData.color}44`,
+                animation:urgent?"heartbeat 0.5s ease-in-out infinite":"none"
+              }}>
+                <span style={{fontSize:11}}>🎯</span>
+                <span style={{fontSize:9,color:bountyData.color,fontWeight:"bold",letterSpacing:"0.06em"}}>WANTED: {bountyData.icon} {bountyData.rarity}</span>
+                <span style={{fontSize:9,color:urgent?"#ef4444":"#6b7280",fontWeight:"bold"}}>×{bountyData.mult} {secsLeft}s</span>
+              </div>
+            </div>
+          );
+        })()}
         {/* Combo milestone progress bar — shows distance to next milestone */}
         {hud.streak>0&&(()=>{
           const COMBO_MILESTONES=[5,10,20,25,30,35,50];
