@@ -433,6 +433,7 @@ const ACHIEVEMENTS = [
   { id:"gold_rush",      label:"Gold Rush!",          desc:"Trigger a Gold Rush Mode",             icon:"🥇", xp:40  },
   { id:"crystal_shatter",label:"Gem Hunter",         desc:"Shatter a Crystal target",             icon:"💎", xp:30  },
   { id:"crystal_chain",  label:"Full Crystal",       desc:"Tap all 3 crystal shards after shattering",icon:"💠",xp:80 },
+  { id:"chain_lightning_hit",label:"Lightning Rod",  desc:"Use the Chain Lightning power-up",     icon:"⚡", xp:45  },
 ];
 
 const MISSION_TEMPLATES = [
@@ -1139,7 +1140,7 @@ function drawPowerup(ctx, r, pwrType, ts) {
   ctx.setLineDash([r*0.35,r*0.18]); ctx.beginPath(); ctx.arc(0,0,r-4,0,Math.PI*2); ctx.stroke();
   ctx.setLineDash([]); ctx.restore();
   // Icon
-  const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",LIFE:"❤️",FREEZE:"❄️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐"};
+  const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",LIFE:"❤️",FREEZE:"❄️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐",CHAIN_LIGHTNING:"⚡"};
   if(pwrType==="LUCKY"){ctx.shadowColor="#ffd700";ctx.shadowBlur=r*(1.2+pulse*0.8);}
   const label=icons[pwrType]||"⚡";
   ctx.font=`bold ${r*0.9}px serif`; ctx.textAlign="center"; ctx.textBaseline="middle";
@@ -3166,6 +3167,29 @@ export default function NexusTap(){
       sfx("chainBonus");vibrate([15,8,25]);
       setScreenShake(true);setTimeout(()=>setScreenShake(false),350);
       setNotif("🌐 GRAVITY! All targets pulled to center!");
+    } else if(ptype==="CHAIN_LIGHTNING"){
+      // CHAIN LIGHTNING — auto-scores up to 4 random non-boss targets instantly
+      const eligible=targetsRef.current.filter(t=>!t.dying&&t.type!=="boss"&&t.type!=="bomb"&&t.type!=="volatile");
+      const toZap=eligible.sort(()=>Math.random()-0.5).slice(0,4);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      let totalPts=0;
+      toZap.forEach((t,i)=>{
+        setTimeout(()=>{
+          if(!t.dying){
+            t.dying=performance.now();
+            const pts=Math.round(60*combo*feverMult);
+            gs.score+=pts;gs.sessionStats.score=gs.score;totalPts+=pts;
+            spawnParticles(t.x,t.y,"#fbbf24",8,"spark");
+            spawnPopup(t.x,t.y-22,`⚡ +${pts}`,"#fbbf24",13);
+            sfx("comboNote",Math.min(12,gs.streak+i));
+          }
+        },i*150);
+      });
+      spawnPopup(x,y,"⚡ CHAIN LIGHTNING!","#fbbf24",20);
+      vibrate([10,8,10,8,25]);sfx("chainBonus");
+      unlock("chain_lightning_hit");
+      setNotif(`⚡ CHAIN LIGHTNING! Zapping ${toZap.length} targets!`);
     } else {
       const dur=ptype==="SLOW"?7000:ptype==="FREEZE"?5000:9000;
       activePwrRef.current=activePwrRef.current.filter(p=>p.type!==ptype);
@@ -3203,7 +3227,7 @@ export default function NexusTap(){
       type="bomb";color="#ef4444";glow="#dc2626";sfx("bombSpawn");
     } else if(r<(bossRate||0)+effBomb+0.07){
       type="powerup";color="#60a5fa";glow="#3b82f6";
-      const pt=["SHIELD","SLOW","DOUBLE","LIFE","FREEZE","LUCKY","MIRROR","MULTIPLIER","COMBO_FREEZE","GRAVITY"];
+      const pt=["SHIELD","SLOW","DOUBLE","LIFE","FREEZE","LUCKY","MIRROR","MULTIPLIER","COMBO_FREEZE","GRAVITY","CHAIN_LIGHTNING"];
       pwrType=pt[Math.floor(Math.random()*pt.length)];
     } else if(r<(bossRate||0)+effBomb+0.07+0.045&&(gs.score>0||Math.random()<0.3)&&luckyRef.current!=="active"){
       // 4.5% treasure chest — the variable reward slot machine
@@ -4433,10 +4457,19 @@ export default function NexusTap(){
     // Mascot bounce on every hit
     mascotBouncePlay();
     // Streak milestone burst celebrations + speech
-    {const MILESTONES=[{n:5,label:"🔥 ON FIRE!",color:"#fbbf24"},{n:10,label:"⚡ UNSTOPPABLE!",color:"#f97316"},{n:20,label:"💥 LEGENDARY!",color:"#ef4444"},{n:30,label:"🌈 GODLIKE!!!",color:"#ff00ff"},{n:50,label:"👑 TRANSCENDENT!",color:"#ffd700"}];
+    {const MILESTONES=[{n:5,label:"🔥 ON FIRE!",color:"#fbbf24"},{n:10,label:"⚡ UNSTOPPABLE!",color:"#f97316"},{n:20,label:"💥 LEGENDARY!",color:"#ef4444"},{n:25,label:"🌟 SUPERSTAR!",color:"#c084fc"},{n:30,label:"🌈 GODLIKE!!!",color:"#ff00ff"},{n:50,label:"👑 TRANSCENDENT!",color:"#ffd700"}];
     const ms=MILESTONES.find(m=>m.n===gs.streak);
     if(ms){
       setStreakBurst(ms);setTimeout(()=>setStreakBurst(null),ms.n>=50?1800:1200);showMascotSpeech("streak");
+      // 25x: shockwave ring explosion
+      if(ms.n===25){
+        const canvas=canvasRef.current;const cw2=canvas?canvas.width:390;const ch2=canvas?canvas.height:700;
+        const cols=["#c084fc","#a78bfa","#60a5fa","#fbbf24"];
+        cols.forEach((c,i)=>setTimeout(()=>spawnParticles(cw2/2,ch2/2,c,12,"spark"),i*55));
+        spawnParticles(cw2/2,ch2/2,"#fff",8,"shockwave");
+        sfx("chainBonus");vibrate([20,10,20,10,45]);
+        setEpicFlash(true);setTimeout(()=>setEpicFlash(false),500);
+      }
       // 50x: rainbow explosion across the whole canvas
       if(ms.n>=50){
         const canvas=canvasRef.current;const cw2=canvas?canvas.width:390;const ch2=canvas?canvas.height:700;
