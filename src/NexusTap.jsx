@@ -321,6 +321,17 @@ function getZenConfig(worldId=1) {
   };
 }
 
+function getTimeAttackConfig(worldId=1) {
+  const w=WORLDS[(worldId-1)%10];
+  return {
+    id:`timeattack${worldId}`, world:worldId, worldName:w.name, worldColor:w.color, worldBg:w.bg, worldGrid:w.grid,
+    name:`⚡ Time Attack — ${w.name}`, scoreGoal:99999, lives:3, spawnInterval:450,
+    targetLifetime:2200, bombRate:0.04, movingRate:0.45, ghostRate:0.12,
+    bossEnabled:false, bossRate:0, modifier:{type:"time_attack",desc:"45s sprint! Max score wins!"},
+    rarityBonus:0.12, isBoss:false, isLast:false, isZen:true, zenDuration:45000, isTimeAttack:true,
+  };
+}
+
 // ═══════════════════════════════════════════════════════════════
 // GAME CONSTANTS
 // ═══════════════════════════════════════════════════════════════
@@ -622,6 +633,7 @@ const DEFAULT_SAVE = {
   skills:{},              // { skillId: level }
   adaptiveDifficulty:false, // auto-adjusts spawn rate to keep player challenged
   zenBest:0,               // best score in zen mode
+  taBest:0,                // best score in time attack mode
   zenBestWorld:1,          // world of best zen run
   lastActiveTime:null,     // timestamp (ms) when player last closed/backgrounded app
   worldBest:{},            // { worldId: bestScore } — per-world records (12B)
@@ -2634,6 +2646,7 @@ export default function NexusTap(){
   const [chainFlash,     setChainFlash]     = useState(null); // null | {label, at}
   const [lbTab,          setLbTab]          = useState("all"); // "today"|"week"|"all"
   const [zenWorld,       setZenWorld]       = useState(1);    // world selector for zen mode
+  const [taWorld,        setTaWorld]        = useState(1);    // world selector for time attack
 
   // Canvas & game refs
   const canvasRef    = useRef(null);
@@ -3170,6 +3183,7 @@ export default function NexusTap(){
       // Zen mode best update
       if(cfg.isZen){
         if(score>(sv.zenBest||0)){sv.zenBest=score;sv.zenBestWorld=cfg.world;}
+        if(cfg.isTimeAttack&&score>(sv.taBest||0)){sv.taBest=score;sv.taBestWorld=cfg.world;}
         coinsEarned+=Math.floor(score*0.08); // bonus coins for zen
         unlock("zen_master");
       }
@@ -4268,7 +4282,7 @@ export default function NexusTap(){
 
   // Menu canvas loop
   useEffect(()=>{
-    if(screen!=="menu"&&screen!=="levelmap"&&screen!=="shop"&&screen!=="levelcomplete"&&screen!=="gameover"&&screen!=="spinwheel"&&screen!=="missions"&&screen!=="achievements"&&screen!=="leaderboard"&&screen!=="settings"&&screen!=="infinity"&&screen!=="gauntlet"&&screen!=="mascotcollection"&&screen!=="weekly"&&screen!=="tournament"&&screen!=="skilltree"&&screen!=="zen")return;
+    if(screen!=="menu"&&screen!=="levelmap"&&screen!=="shop"&&screen!=="levelcomplete"&&screen!=="gameover"&&screen!=="spinwheel"&&screen!=="missions"&&screen!=="achievements"&&screen!=="leaderboard"&&screen!=="settings"&&screen!=="infinity"&&screen!=="gauntlet"&&screen!=="mascotcollection"&&screen!=="weekly"&&screen!=="tournament"&&screen!=="skilltree"&&screen!=="zen"&&screen!=="timeattack")return;
     let raf;
     const loop=(ts)=>{
       const canvas=canvasRef.current;if(!canvas)return;
@@ -5164,6 +5178,15 @@ export default function NexusTap(){
           style={{background:"linear-gradient(135deg,#05966922,#34d39933)",border:"2px solid #34d39966",
             color:"#34d399",boxShadow:"0 0 20px #34d39933",letterSpacing:"0.06em"}}>
           ☯ ZEN MODE {sv.zenBest>0?`• Best: ${sv.zenBest.toLocaleString()}`:""}
+        </NeonButton>
+      )}
+      {/* Time Attack Mode — unlocked after level 3 */}
+      {(sv.unlockedLevel||1)>=3&&(
+        <NeonButton onClick={()=>go("timeattack")}
+          className="w-full py-3 text-base font-black"
+          style={{background:"linear-gradient(135deg,#ea580c22,#f9731633)",border:"2px solid #f9731666",
+            color:"#f97316",boxShadow:"0 0 20px #f9731633",letterSpacing:"0.06em"}}>
+          ⚡ TIME ATTACK {sv.taBest>0?`• Best: ${sv.taBest.toLocaleString()}`:""}
         </NeonButton>
       )}
       {/* Infinity Mode — unlocked after level 100 */}
@@ -7600,6 +7623,59 @@ export default function NexusTap(){
     );
   };
 
+  // ── Time Attack Mode ──
+  const renderTimeAttack=()=>{
+    const taBest=sv.taBest||0;
+    const worldCfg=getTimeAttackConfig(taWorld);
+    const taWorld_=WORLDS[taWorld-1];
+    return(
+      <div className="flex flex-col h-full px-5 py-6 gap-5 relative z-10 items-center justify-center">
+        <NeonButton onClick={()=>go("menu")} className="absolute top-4 left-4 px-3 py-2 text-sm" style={{background:"#ffffff10"}}>← Back</NeonButton>
+        <div className="text-center">
+          <div className="text-5xl mb-2" style={{animation:"heartbeat 0.8s ease-in-out infinite",filter:"drop-shadow(0 0 20px #f97316)"}}>⚡</div>
+          <h2 className="font-black text-3xl" style={{color:"#f97316",textShadow:"0 0 30px #f97316aa",fontFamily:"'Rajdhani',sans-serif",letterSpacing:"0.1em"}}>TIME ATTACK</h2>
+          <p className="text-sm opacity-60 mt-1" style={{color:"#f97316"}}>45 seconds. Max score wins. No mercy.</p>
+        </div>
+        {taBest>0&&(
+          <div className="px-6 py-3 rounded-2xl text-center" style={{background:"#f9731618",border:"1px solid #f9731644"}}>
+            <div className="text-xs opacity-50 mb-1" style={{color:"#f97316"}}>Personal Best</div>
+            <div className="text-2xl font-black" style={{color:"#f97316"}}>{taBest.toLocaleString()}</div>
+            {sv.taBestWorld&&<div className="text-xs opacity-40" style={{color:"#f97316"}}>World {sv.taBestWorld}: {WORLDS[(sv.taBestWorld||1)-1].name}</div>}
+          </div>
+        )}
+        {/* World selector */}
+        <div className="w-full rounded-2xl p-3" style={{background:"#ffffff08",border:"1px solid #f9731633"}}>
+          <div className="text-xs opacity-40 mb-2 uppercase tracking-widest text-center" style={{color:"#f97316"}}>Choose World</div>
+          <div className="grid grid-cols-5 gap-1.5">
+            {WORLDS.map(w=>(
+              <NeonButton key={w.id} onClick={()=>setTaWorld(w.id)}
+                className="py-2 text-center text-lg rounded-xl"
+                style={{background:taWorld===w.id?`${w.color}33`:"#ffffff06",
+                  border:`1px solid ${taWorld===w.id?w.color:"#ffffff10"}`,
+                  boxShadow:taWorld===w.id?`0 0 8px ${w.color}66`:"none"}}>
+                {w.emoji}
+              </NeonButton>
+            ))}
+          </div>
+          <div className="text-center mt-2 text-xs font-bold" style={{color:taWorld_.color}}>{taWorld_.name}</div>
+        </div>
+        {/* Rules */}
+        <div className="w-full rounded-xl px-4 py-3 text-xs" style={{background:"#ffffff06",border:"1px solid #f9731622",color:"#aaa",lineHeight:1.7}}>
+          ⏱ <strong style={{color:"#f97316"}}>45 seconds</strong> — tap everything you can<br/>
+          💣 <strong style={{color:"#ef4444"}}>Bombs</strong> are present — watch out!<br/>
+          🌈 <strong style={{color:"#a78bfa"}}>All rarities</strong> spawn rapidly — chain them!<br/>
+          🏆 Score is saved to your personal best
+        </div>
+        <NeonButton onClick={()=>startGame(0,[],worldCfg)}
+          className="w-full py-5 text-xl font-black"
+          style={{background:"linear-gradient(135deg,#ea580c,#f97316)",boxShadow:"0 0 40px #f9731666",letterSpacing:"0.1em"}}>
+          ⚡ START ATTACK!
+        </NeonButton>
+        <p className="text-xs text-center opacity-30" style={{color:"#f97316"}}>3 lives · Bombs active · Ultra-fast spawn rate</p>
+      </div>
+    );
+  };
+
   // ── Weekly Challenge Screen ──
   const renderWeekly=()=>{
     const wk=getWeekKey();
@@ -7907,6 +7983,7 @@ export default function NexusTap(){
       {screen==="spinwheel"     &&renderSpinWheel()}
       {screen==="infinity"      &&renderInfinity()}
       {screen==="zen"           &&renderZen()}
+      {screen==="timeattack"    &&renderTimeAttack()}
       {screen==="gauntlet"      &&renderGauntlet()}
       {screen==="weekly"        &&renderWeekly()}
       {screen==="tournament"    &&renderTournament()}
