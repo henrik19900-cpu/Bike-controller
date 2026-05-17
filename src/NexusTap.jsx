@@ -4808,18 +4808,36 @@ export default function NexusTap(){
     const isSniper=accuracyPct>=95&&totalAttempted>=8;
     return(<>
       <div className="flex flex-col items-center h-full overflow-y-auto px-5 py-5 gap-3.5 relative z-10">
-        {/* Coin shower — falling coins animation */}
-        <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
-          {Array.from({length:isBossLevel?22:12},(_,i)=>(
-            <div key={i} style={{
-              position:"absolute",top:"-10%",left:`${(i*7+3)%97}%`,
-              fontSize:isBossLevel?18:14,
-              animation:`coinFall ${1.4+Math.random()*1.8}s ${i*0.15}s ease-in forwards`,
-              opacity:0.85}}>
-              {i%3===0?"🪙":i%3===1?"⭐":"💎"}
+        {/* World-themed confetti explosion — 9E */}
+        {(()=>{
+          // Each world has themed confetti emojis
+          const worldConfetti=[
+            ["🌿","🍃","✨","💚","🌱"],["🔥","💥","⚡","🌋","🌟"],
+            ["❄️","💙","🌊","💎","⛄"],["🌵","🏜️","💛","⭐","🪙"],
+            ["🌸","🌺","💜","🌙","✨"],["⚙️","🔩","🤖","⚡","💎"],
+            ["🌊","🐠","💙","🐚","✨"],["👻","💜","🕷️","🌟","💀"],
+            ["🚀","⭐","🌌","💫","🪐"],["🌈","✨","💎","🌟","🎊"],
+          ];
+          const wEmoji=worldConfetti[(wld.id-1)%10];
+          const count=isBossLevel?30:16;
+          return(
+            <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+              {Array.from({length:count},(_,i)=>(
+                <div key={i} style={{
+                  position:"absolute",
+                  top:`${-5-Math.random()*10}%`,
+                  left:`${(i*(100/count)+Math.random()*8)%100}%`,
+                  fontSize:isBossLevel?`${14+Math.floor(Math.random()*10)}px`:`${12+Math.floor(Math.random()*8)}px`,
+                  animation:`coinFall ${1.2+Math.random()*2.2}s ${i*0.09}s ease-in forwards`,
+                  opacity:0.9,
+                  transform:`rotate(${Math.floor(Math.random()*360)}deg)`,
+                }}>
+                  {wEmoji[i%wEmoji.length]}
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          );
+        })()}
         {/* ── BIG DANCING MASCOT — victory celebration ── */}
         <div className="flex flex-col items-center gap-2" style={{animation:"victoryBurst 0.6s cubic-bezier(0.34,1.5,0.64,1)"}}>
           <MascotEmoji mood="victory" dancing={true} size={isBossLevel?118:96}/>
@@ -4984,14 +5002,27 @@ export default function NexusTap(){
             👑 PRESTIGE! ({(sv.prestigeLevel||0)+1}/5) — +5% Score Forever
           </NeonButton>
         )}
-        {/* Score sharing */}
+        {/* Score sharing card — 9A */}
         <NeonButton onClick={()=>{
-          const txt=`🎮 I scored ${score.toLocaleString()} on Level ${levelId} "${cfg.name}" in NexusTap! Can you beat me? 🐉`;
+          const mascot=currentMascot;
+          const starStr="⭐".repeat(stars)+"☆".repeat(3-stars);
+          const accuracyStr=isSniper?` 🎯 ${accuracyPct}% Sniper!`:`📊 ${accuracyPct}% accuracy`;
+          const streakStr=sessionStats.bestCombo>0?` | ⚡ ${sessionStats.bestCombo}× combo`:"";
+          const txt=[
+            `🎮 NexusTap Score Card`,
+            `─────────────────────`,
+            `${wld.emoji} ${cfg.name} (Level ${levelId})`,
+            `🏆 Score: ${score.toLocaleString()} ${starStr}`,
+            `${accuracyStr}${streakStr}`,
+            `🐾 Mascot: ${mascot.emoji.idle} ${mascot.name}`,
+            `─────────────────────`,
+            `Can you beat me? 👇`,
+          ].join("\n");
           if(navigator.share){navigator.share({title:"NexusTap",text:txt}).catch(()=>{});}
-          else if(navigator.clipboard){navigator.clipboard.writeText(txt);setNotif("📋 Score copied!");}
+          else if(navigator.clipboard){navigator.clipboard.writeText(txt);setNotif("📋 Score card copied!");}
         }} className="w-full py-3 text-sm"
           style={{background:"rgba(255,255,255,0.06)",border:`1px solid ${wld.color}44`,backdropFilter:"blur(8px)"}}>
-          📤 Share Score
+          📤 Share Score Card
         </NeonButton>
         <NeonButton onClick={()=>{setMascotDancing(false);setMascotMood("idle");setScrollToLevel(levelId);go("levelmap");}}
           className="w-full py-3 text-sm" style={{background:"rgba(255,255,255,0.06)",border:`1px solid ${wld.color}33`,backdropFilter:"blur(8px)"}}>
@@ -5307,15 +5338,46 @@ export default function NexusTap(){
   };
 
   // ── Achievements ──
-  const renderAchievements=()=>(
+  // Achievement tab state — "all" | "gameplay" | "progression" | "social"
+  const [achTab, setAchTab] = React.useState("all");
+  const ACH_CATS = {
+    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit"],
+    progression: ["level_10","level_50","level_100","prestige_1","three_stars_5","mascot_lv10"],
+    social:      ["missions_all","daily_7","score_2000"],
+  };
+  const renderAchievements=()=>{
+    const filtered=achTab==="all"?ACHIEVEMENTS:ACHIEVEMENTS.filter(a=>ACH_CATS[achTab]?.includes(a.id));
+    const unlockedCount=sv.unlockedAchievements.length;
+    return(
     <div className="flex flex-col h-full px-4 py-5 gap-4 overflow-y-auto relative z-10">
       <div className="flex items-center gap-3">
         <NeonButton onClick={()=>go("menu")} className="px-3 py-2 text-sm" style={{background:"#ffffff10"}}>← Back</NeonButton>
         <h2 className="text-xl font-black" style={{color:theme.accent}}>Medals</h2>
-        <span className="text-xs opacity-40" style={{color:theme.accent}}>{sv.unlockedAchievements.length}/{ACHIEVEMENTS.length}</span>
+        <span className="text-xs opacity-40" style={{color:theme.accent}}>{unlockedCount}/{ACHIEVEMENTS.length}</span>
       </div>
+      {/* Tab bar */}
+      <div className="flex gap-1.5 rounded-xl p-1" style={{background:"rgba(0,0,0,0.3)"}}>
+        {[["all","All"],["gameplay","🎮"],["progression","📈"],["social","🤝"]].map(([t,label])=>(
+          <button key={t} onClick={()=>setAchTab(t)}
+            className="flex-1 py-1.5 rounded-lg text-xs font-black transition-all"
+            style={{background:achTab===t?theme.accent+"33":"transparent",color:achTab===t?theme.accent:"#ffffff55",
+              border:achTab===t?`1px solid ${theme.accent}66`:"1px solid transparent"}}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {/* Overall XP from achievements */}
+      {achTab==="all"&&(
+        <div className="rounded-xl px-3 py-2 flex items-center gap-2" style={{background:`${theme.accent}12`,border:`1px solid ${theme.accent}33`}}>
+          <span style={{fontSize:18}}>⚡</span>
+          <div className="text-xs" style={{color:theme.accent}}>
+            Total achievement XP: <span className="font-black">{ACHIEVEMENTS.filter(a=>sv.unlockedAchievements.includes(a.id)).reduce((s,a)=>s+(a.xp||0),0)}</span>
+          </div>
+          <div className="ml-auto text-xs font-black" style={{color:theme.accent}}>{Math.round(unlockedCount/ACHIEVEMENTS.length*100)}%</div>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3">
-        {ACHIEVEMENTS.map(a=>{
+        {filtered.map(a=>{
           const unlocked=sv.unlockedAchievements.includes(a.id);
           return(
             <div key={a.id} className="rounded-2xl p-3 text-center"
@@ -5329,7 +5391,8 @@ export default function NexusTap(){
         })}
       </div>
     </div>
-  );
+    );
+  };
 
   // ── Leaderboard ──
   const renderLeaderboard=()=>{
