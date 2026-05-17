@@ -406,6 +406,8 @@ const ACHIEVEMENTS = [
   { id:"healer_catch",    label:"First Aid",         desc:"Tap a Healer to restore a life",      icon:"❤️", xp:25 },
   { id:"overkill_5x",    label:"OVERKILL",          desc:"Score 5× the level goal",             icon:"🌟", xp:80 },
   { id:"twin_hit",        label:"Dynamic Duo",       desc:"Tap a Twin target pair",              icon:"✦", xp:30  },
+  { id:"rainbow_catch",   label:"Color Catcher",     desc:"Tap a Rainbow target",                icon:"🌈", xp:20  },
+  { id:"rainbow_legendary",label:"Perfect Rainbow",  desc:"Tap a Rainbow at Legendary tier",     icon:"🌟", xp:60  },
 ];
 
 const MISSION_TEMPLATES = [
@@ -1426,6 +1428,42 @@ function drawMagnet(ctx, r, ts) {
   ctx.restore();
 }
 
+// ── Rainbow target — cycles rarity every ~2s, score based on current tier ──
+const RAINBOW_CYCLE=[
+  {color:"#a0a0a0",glow:"#c0c0c0",name:"common",mult:1},
+  {color:"#4ecb71",glow:"#22c55e",name:"uncommon",mult:2},
+  {color:"#60a5fa",glow:"#3b82f6",name:"rare",mult:3},
+  {color:"#b06de8",glow:"#9333ea",name:"epic",mult:5},
+  {color:"#ffd700",glow:"#f59e0b",name:"legendary",mult:10},
+];
+function getRainbowTier(ts){return RAINBOW_CYCLE[Math.floor(ts/2000)%RAINBOW_CYCLE.length];}
+function drawRainbow(ctx, r, ts) {
+  const tier=getRainbowTier(ts);
+  const frac=(ts%2000)/2000; // 0→1 within current cycle
+  const pulse=0.5+0.5*Math.sin(ts*0.01);
+  const spin=ts*0.001;
+  ctx.save();
+  // Rainbow ring that rotates with hue shift
+  ctx.globalAlpha=0.6;ctx.lineWidth=3;ctx.shadowColor=tier.glow;ctx.shadowBlur=18;
+  const grad=ctx.createConicalGradient?.(0,0,0)||null;
+  ctx.strokeStyle=tier.color;
+  ctx.beginPath();ctx.arc(0,0,r*1.4,0,Math.PI*2);ctx.stroke();
+  // Body with current tier color
+  ctx.globalAlpha=1;
+  const bg=ctx.createRadialGradient(0,0,0,0,0,r);
+  bg.addColorStop(0,"#ffffff88");bg.addColorStop(0.4,tier.color);bg.addColorStop(1,tier.glow);
+  ctx.fillStyle=bg;ctx.shadowColor=tier.glow;ctx.shadowBlur=16+pulse*10;
+  ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  // Tier label in center
+  ctx.fillStyle="#fff";ctx.font=`bold ${r*0.5}px sans-serif`;
+  ctx.textAlign="center";ctx.textBaseline="middle";ctx.shadowBlur=0;
+  ctx.fillText(["C","U","R","E","L"][RAINBOW_CYCLE.indexOf(tier)]||"?",0,0);
+  // Progress arc for next cycle
+  ctx.globalAlpha=0.45;ctx.strokeStyle="#fff";ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(0,0,r+4,-Math.PI/2,-Math.PI/2+frac*Math.PI*2);ctx.stroke();
+  ctx.restore();
+}
+
 // ── Twin target — golden amber, tapping one scores both ──
 function drawTwin(ctx, r, ts) {
   const pulse=0.5+0.5*Math.sin(ts*0.006);
@@ -1677,6 +1715,7 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="volatile") drawVolatile(ctx,t.radius,ts,timeLeft);
   else if(t.type==="healer")   drawHealer(ctx,t.radius,ts);
   else if(t.type==="twin")     drawTwin(ctx,t.radius,ts);
+  else if(t.type==="rainbow")  drawRainbow(ctx,t.radius,ts);
   else{
     const nm=t.rarity?.name;
     if     (nm==="common")    drawCommon(ctx,t.radius,t.color,t.glow,ts,timeLeft);
@@ -2657,6 +2696,9 @@ export default function NexusTap(){
     } else if((cfg.id||0)>=20&&Math.random()<0.022&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 2.2% Phantom — ultra-short lifetime (1.1s), huge points, ghostly appearance
       type="phantom";color="#e879f9";glow="#a21caf";
+    } else if((cfg.id||0)>=30&&Math.random()<0.016&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.6% Rainbow — cycles through rarity tiers every 2s; score based on current tier when tapped
+      type="rainbow";color="#ff6030";glow="#ff4400";
     } else if((cfg.id||0)>=22&&Math.random()<0.02&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 2% Twin — spawns as a pair; tapping one scores both (bonus points for efficiency)
       type="twin";color="#f59e0b";glow="#d97706";
@@ -2684,7 +2726,7 @@ export default function NexusTap(){
       }
       if(!moving&&Math.random()<effGhost)ghost=true;
     }
-    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
+    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
     // World modifiers: Ocean Deep (8) — slower targets (calmer waters), longer lifetimes
@@ -2990,6 +3032,33 @@ export default function NexusTap(){
       unlock("shielded_hit");
       const cfg=levelCfgRef.current;
       if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
+    // RAINBOW — score based on current color tier when tapped
+    if(hit.type==="rainbow"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const tier=getRainbowTier(performance.now()); // use current time for tier
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      const isMultiplierR=activePwrRef.current.some(p=>p.type==="MULTIPLIER"&&p.endsAt>Date.now());
+      const pts=Math.round(tier.mult*80*combo*feverMult*prestigeMult*(isMultiplierR?3:1));
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;
+      if(tier.name!=="common")gs.sessionStats.rareHits++;
+      hit.dying=performance.now();
+      const tierIcons={common:"⚪",uncommon:"🟢",rare:"🔵",epic:"🟣",legendary:"🌟"};
+      sfx(tier.name==="legendary"?"legendary":tier.name==="epic"?"epic":tier.name==="rare"?"rare":"tap");
+      vibrate([12,8,12]);
+      spawnParticles(hit.x,hit.y,tier.color,20+(tier.mult*3),"spark");
+      spawnPopup(hit.x,hit.y-30,`${tierIcons[tier.name]||""} ${tier.name.toUpperCase()}! +${pts}`,"#ffffff",18);
+      if(tier.name==="legendary"){setLegendaryFlash(true);setTimeout(()=>setLegendaryFlash(false),600);}
+      else if(tier.name==="epic"){setEpicFlash(true);setTimeout(()=>setEpicFlash(false),400);}
+      if(tier.name==="legendary")unlock("rainbow_legendary");
+      unlock("rainbow_catch");mascotHappyRef.current++;
+      const cfg3=levelCfgRef.current;
+      if(cfg3){if(gs.score>=cfg3.scoreGoal&&(!cfg3.modifier||checkModGoal(cfg3.modifier,gs))){endLevel(true);return;}}
       return;
     }
 
@@ -4491,17 +4560,29 @@ export default function NexusTap(){
         })}
       </div>
 
-      {/* Coins + streak */}
-      <div className="flex items-center gap-3">
+      {/* Stats strip */}
+      <div className="flex items-center gap-2 flex-wrap justify-center">
         <div className="flex items-center gap-1 px-3 py-1.5 rounded-xl" style={{background:"#fbbf2415",border:"1px solid #fbbf2430"}}>
           <span>🪙</span><span className="font-bold text-sm" style={{color:"#fbbf24"}}>{sv.coins||0}</span>
         </div>
         <div className="flex items-center gap-1 px-3 py-1.5 rounded-xl" style={{background:theme.accent+"15",border:`1px solid ${theme.accent}30`}}>
           <span className="text-xs" style={{color:theme.accent}}>Day {sv.loginStreak||1} 🔥</span>
         </div>
-        {sv.highScore>0&&<div className="flex items-center gap-1 px-3 py-1.5 rounded-xl" style={{background:"#ffffff08",border:"1px solid #ffffff15"}}>
-          <span className="text-xs opacity-50">Best {sv.highScore.toLocaleString()}</span>
-        </div>}
+        {(sv.unlockedAchievements||[]).length>0&&(
+          <div className="flex items-center gap-1 px-3 py-1.5 rounded-xl" style={{background:"#ffffff08",border:"1px solid #ffffff15"}}>
+            <span className="text-xs opacity-60">🏆 {sv.unlockedAchievements.length}/{ACHIEVEMENTS.length}</span>
+          </div>
+        )}
+        {(sv.prestigeLevel||0)>0&&(()=>{
+          const pt=PRESTIGE_TIERS[sv.prestigeLevel];
+          return pt?.badge?(
+            <div className="flex items-center gap-1 px-3 py-1.5 rounded-xl"
+              style={{background:`${pt.color}18`,border:`1px solid ${pt.color}55`}}>
+              <span style={{fontSize:13}}>{pt.badge}</span>
+              <span className="text-xs font-bold" style={{color:pt.color}}>{pt.title}</span>
+            </div>
+          ):null;
+        })()}
       </div>
 
       {/* Play button */}
