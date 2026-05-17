@@ -392,6 +392,12 @@ const ACHIEVEMENTS = [
   { id:"mascot_lv10",  label:"Best Friends",      desc:"Level up a mascot to LV10",        icon:"🐾", xp:80 },
   { id:"prestige_1",   label:"Prestige Pioneer",  desc:"Prestige for the first time",      icon:"👑", xp:200 },
   { id:"tournament_top",label:"Tournament Top",   desc:"Reach Top 15% in a daily tournament",icon:"🏆", xp:90 },
+  // Phase 10A — 5 new achievements
+  { id:"zen_master",   label:"Zen Master",       desc:"Complete a Zen Mode session",         icon:"☯",  xp:40  },
+  { id:"streak_50",    label:"Streak Legend",    desc:"Achieve a 50× streak",                icon:"🔥", xp:75  },
+  { id:"coins_500",    label:"Coin Hoarder",     desc:"Collect 500 coins total",             icon:"💰", xp:35  },
+  { id:"offline_earn", label:"Passive Earner",   desc:"Earn coins while offline",            icon:"🌙", xp:20  },
+  { id:"all_worlds",   label:"World Traveler",   desc:"Play in all 10 worlds",               icon:"🌍", xp:100 },
 ];
 
 const MISSION_TEMPLATES = [
@@ -2240,6 +2246,12 @@ export default function NexusTap(){
       sv.totalCoins=(sv.totalCoins||0)+earned;
       const hoursAway=Math.max(0,(Date.now()-(sv.lastActiveTime||Date.now())))/3600000;
       setOfflineCoinsData({coins:earned,hours:Math.min(4,hoursAway)});
+      // Achievement: earned coins offline
+      if(!sv.unlockedAchievements?.includes("offline_earn")){
+        sv.unlockedAchievements=[...(sv.unlockedAchievements||[]),"offline_earn"];
+        const ach=ACHIEVEMENTS.find(a=>a.id==="offline_earn");
+        if(ach)sv.xp=(sv.xp||0)+(ach.xp||0);
+      }
       flushSave();
     }
     // Track active time — update on mount and on page unload
@@ -2520,7 +2532,14 @@ export default function NexusTap(){
       if(cfg.isZen){
         if(score>(sv.zenBest||0)){sv.zenBest=score;sv.zenBestWorld=cfg.world;}
         coinsEarned+=Math.floor(score*0.08); // bonus coins for zen
+        unlock("zen_master");
       }
+      // Phase 10A achievement checks
+      if(gs.streak>=50||sv.bestStreak>=50)unlock("streak_50");
+      if((sv.totalCoins||0)>=500)unlock("coins_500");
+      // Track world visits — all_worlds achievement
+      const visitedWorlds=new Set(Object.keys(sv.levelStars||{}).map(id=>getLevelConfig(Number(id)).world));
+      if(visitedWorlds.size>=10)unlock("all_worlds");
       flushSave();
       const canPrestige=cfg.id===100&&(sv.prestigeLevel||0)<5;
       setLevelCompleteData({score,stars,newStars,xpEarned,coinsEarned,levelId:cfg.id,isLast:cfg.isLast,
@@ -3155,6 +3174,11 @@ export default function NexusTap(){
     setLevelCompleteData(null);setGameOverData(null);setEpicFlash(false);setFeverBorder(false);setComboLabel("");
     setCartItems([]);setScreen("playing");setMascotMood("idle");setMascotSpeech(null);setMascotBounce(false);
     if(soundOn&&audioRef.current?.startBgMusic)audioRef.current.startBgMusic(cfg.world);
+    // 11B — Boss warning on levels ending in 9 (boss next)
+    if(!cfg.isInfinity&&!cfg.isZen&&typeof levelId==="number"&&levelId%10===9){
+      const nextWld=WORLDS[Math.floor(levelId/10)%10];
+      setTimeout(()=>setNotif(`👑 Next level: ${nextWld?.emoji||""} BOSS BATTLE!`),2200);
+    }
     runCountdown(()=>{lastTickRef.current=performance.now();rafRef.current=requestAnimationFrame(gl=>gameLoopFn(gl));});
   },[initMissions,initBgParts,runCountdown,soundOn]); // eslint-disable-line
 
@@ -4640,18 +4664,23 @@ export default function NexusTap(){
             </div>
           </div>
         )}
-        {/* Streak milestone burst */}
+        {/* Streak milestone burst + 50× combo finisher (10C) */}
         {streakBurst&&(
           <div className="absolute left-1/2 pointer-events-none z-40"
-            style={{top:"30%",transform:"translateX(-50%)",animation:"streakBurstAnim 1.1s cubic-bezier(0.34,1.4,0.64,1) forwards",
+            style={{top:"30%",transform:"translateX(-50%)",
+              animation:streakBurst.n>=50?"comboFinisher 1.4s cubic-bezier(0.34,1.4,0.64,1) forwards":"streakBurstAnim 1.1s cubic-bezier(0.34,1.4,0.64,1) forwards",
               textAlign:"center",whiteSpace:"nowrap"}}>
-            <div className="font-black" style={{fontSize:"clamp(1.6rem,8vw,2.8rem)",
-              color:streakBurst.color,textShadow:`0 0 40px ${streakBurst.color},0 0 80px ${streakBurst.color}55`,
+            {streakBurst.n>=50&&(
+              <div style={{position:"absolute",inset:"-30px",background:"radial-gradient(ellipse at center,#ffd70033 0%,transparent 70%)",animation:"legendaryRainbow 0.8s linear infinite",borderRadius:"50%"}}/>
+            )}
+            <div className="font-black" style={{fontSize:streakBurst.n>=50?"clamp(2rem,10vw,3.6rem)":"clamp(1.6rem,8vw,2.8rem)",
+              color:streakBurst.color,
+              textShadow:streakBurst.n>=50?`0 0 60px ${streakBurst.color},0 0 120px ${streakBurst.color}88,0 0 200px #ffd70044`:`0 0 40px ${streakBurst.color},0 0 80px ${streakBurst.color}55`,
               letterSpacing:"0.04em"}}>
               {streakBurst.label}
             </div>
             <div style={{fontSize:"clamp(0.7rem,3vw,1rem)",color:streakBurst.color,opacity:0.8}}>
-              {streakBurst.n}× combo!
+              {streakBurst.n}× combo!{streakBurst.n>=50?" 🌈 LEGENDARY!":""}
             </div>
           </div>
         )}
@@ -4788,6 +4817,17 @@ export default function NexusTap(){
             <div className="text-4xl font-black mb-6" style={{color:wc}}>PAUSED</div>
             <NeonButton onClick={togglePause} className="w-48 py-4 text-lg mb-3"
               style={{background:`linear-gradient(135deg,${theme.secondary},${wc})`,boxShadow:`0 0 24px ${wc}55`}}>▶ RESUME</NeonButton>
+            {/* Quick restart — 11A */}
+            <NeonButton onClick={()=>{
+              const lvId=levelCfgRef.current?.id;
+              if(!lvId)return;
+              if(rafRef.current){cancelAnimationFrame(rafRef.current);rafRef.current=null;}
+              gsRef.current=null;targetsRef.current=[];particlesRef.current=[];activePwrRef.current=[];
+              setActivePwrDisp([]);setFeverBorder(false);setPaused(false);pausedRef.current=false;
+              setTimeout(()=>startGame(lvId,[]),50);
+            }} className="w-48 py-3 mb-3" style={{background:`${wc}22`,border:`1px solid ${wc}66`,boxShadow:`0 0 12px ${wc}33`}}>
+              🔄 RESTART
+            </NeonButton>
             <NeonButton onClick={()=>{if(rafRef.current){cancelAnimationFrame(rafRef.current);rafRef.current=null;}gsRef.current=null;targetsRef.current=[];particlesRef.current=[];activePwrRef.current=[];setActivePwrDisp([]);setFeverBorder(false);setPaused(false);pausedRef.current=false;go("levelmap");}}
               className="w-48 py-3" style={{background:"#ffffff10",border:`1px solid ${wc}44`}}>✕ QUIT</NeonButton>
           </div>
@@ -4895,13 +4935,20 @@ export default function NexusTap(){
               animation:payoutDone?"none":"heartbeat 0.35s ease-in-out infinite",
               textShadow:payoutDone?"none":`0 0 12px ${wld.color}`}}>+{displayedXP} XP</div>
           </div>
-          <div className="flex-1 rounded-2xl py-3 flex flex-col items-center gap-0.5"
+          {/* 11C — Coins earned with animated pop overlay */}
+          <div className="flex-1 rounded-2xl py-3 flex flex-col items-center gap-0.5 relative overflow-visible"
             style={{background:"#fbbf2412",border:"1px solid #fbbf2433",backdropFilter:"blur(8px)"}}>
             <div className="text-lg">🪙</div>
             <div className="font-black text-sm" style={{
               color:"#fbbf24",
               animation:payoutDone?"none":"heartbeat 0.35s ease-in-out infinite",
               textShadow:payoutDone?"none":"0 0 14px #fbbf24"}}>+{displayedCoins}</div>
+            {payoutDone&&coinsEarned>0&&(
+              <div style={{position:"absolute",top:"-22px",left:"50%",transform:"translateX(-50%)",
+                fontSize:11,fontWeight:"black",color:"#ffd700",whiteSpace:"nowrap",
+                animation:"coinPop 1.2s ease-out forwards",pointerEvents:"none",
+                textShadow:"0 0 8px #ffd700"}}>+🪙{coinsEarned}!</div>
+            )}
           </div>
           <div className="flex-1 rounded-2xl py-3 flex flex-col items-center gap-0.5"
             style={{background:"#ffffff08",border:"1px solid #ffffff15",backdropFilter:"blur(8px)"}}>
@@ -6211,6 +6258,8 @@ export default function NexusTap(){
         @keyframes danceButterfly{0%,100%{transform:translateY(0) rotate(-12deg) scale(1)}25%{transform:translateY(-18px) rotate(14deg) scale(1.15)}50%{transform:translateY(-8px) rotate(-8deg) scale(0.92)}75%{transform:translateY(-14px) rotate(10deg) scale(1.1)}}
         @keyframes danceUnicorn{0%,100%{transform:translateY(0) scaleX(1)}20%{transform:translateY(-14px) scaleX(0.92) rotate(-5deg)}40%{transform:translateY(-8px) scaleX(1.08) rotate(4deg)}60%{transform:translateY(-18px) scaleX(0.95) rotate(-4deg)}80%{transform:translateY(-6px) scaleX(1.05) rotate(3deg)}}
         @keyframes streakBurstAnim{0%{transform:translateX(-50%) scale(0.4);opacity:0}20%{transform:translateX(-50%) scale(1.25);opacity:1}70%{transform:translateX(-50%) scale(1);opacity:1}90%{transform:translateX(-50%) scale(0.95);opacity:0.6}100%{transform:translateX(-50%) scale(0.8);opacity:0}}
+        @keyframes comboFinisher{0%{transform:translateX(-50%) scale(0.2) rotate(-8deg);opacity:0}15%{transform:translateX(-50%) scale(1.5) rotate(4deg);opacity:1}35%{transform:translateX(-50%) scale(1.1) rotate(-2deg);opacity:1}60%{transform:translateX(-50%) scale(1.2) rotate(0);opacity:1}85%{transform:translateX(-50%) scale(1.05);opacity:0.9}100%{transform:translateX(-50%) scale(0.7);opacity:0}}
+        @keyframes coinPop{0%{transform:translateX(-50%) translateY(0) scale(0.6);opacity:0}20%{transform:translateX(-50%) translateY(-8px) scale(1.2);opacity:1}60%{transform:translateX(-50%) translateY(-18px) scale(1);opacity:1}100%{transform:translateX(-50%) translateY(-30px) scale(0.8);opacity:0}}
         @keyframes mascotIdle{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-5px) scale(1.04)}}
         @keyframes bossRagePulse{0%,100%{box-shadow:0 0 0 0 #ff000044}50%{box-shadow:0 0 0 12px #ff000022}}
         @keyframes prestigePop{0%{transform:scale(0.3) rotate(-20deg);opacity:0}50%{transform:scale(1.3) rotate(5deg)}75%{transform:scale(0.95) rotate(-2deg)}100%{transform:scale(1) rotate(0);opacity:1}}
