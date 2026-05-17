@@ -467,6 +467,10 @@ const ACHIEVEMENTS = [
   { id:"void_master",        label:"Black Hole",       desc:"Absorb 3+ targets with a single Void tap", icon:"🕳️",xp:120 },
   { id:"clover_tap",         label:"Lucky Tap",        desc:"Tap a Lucky Clover target",                icon:"🍀",xp:30 },
   { id:"clover_jackpot",     label:"Four-Leaf Fortune",desc:"Roll the maximum ×10 on a Lucky Clover",  icon:"🌟",xp:150 },
+  { id:"ricochet_tap",       label:"Billiard Shot",    desc:"Tap a Ricochet target",                   icon:"🎯",xp:30 },
+  { id:"ricochet_double",    label:"Bank Shot",        desc:"Ricochet kills 2 targets at once",         icon:"💫",xp:75 },
+  { id:"aurora_tap",         label:"Borealis Bop",     desc:"Tap an Aurora target",                    icon:"🌌",xp:35 },
+  { id:"aurora_perfect",     label:"Perfect Rhythm",   desc:"Tap Aurora with perfect timing rhythm",   icon:"✨",xp:100 },
 ];
 
 const MISSION_TEMPLATES = [
@@ -2627,6 +2631,64 @@ function drawVoid(ctx, r, ts) {
 }
 
 // ── Motion trail + ghost afterimages for moving targets ──
+// ── Ricochet target — bouncing silver orb; tap to ricochet-kill 2 nearby targets ──
+function drawRicochet(ctx, r, ts) {
+  const pulse=0.7+0.3*Math.sin(ts*0.01);
+  // Outer bounce ring
+  ctx.save();ctx.strokeStyle="#e2e8f0";ctx.lineWidth=2;ctx.globalAlpha=0.5*pulse;
+  ctx.shadowColor="#94a3b8";ctx.shadowBlur=10;
+  ctx.setLineDash([6,4]);ctx.beginPath();ctx.arc(0,0,r*1.3,0,Math.PI*2);ctx.stroke();
+  ctx.setLineDash([]);ctx.restore();
+  // Core silver body
+  const grd=ctx.createRadialGradient(-r*0.25,-r*0.25,0,0,0,r);
+  grd.addColorStop(0,"#f8fafc");grd.addColorStop(0.5,"#94a3b8");grd.addColorStop(1,"#475569");
+  ctx.save();ctx.shadowColor="#cbd5e1";ctx.shadowBlur=14+6*pulse;
+  ctx.fillStyle=grd;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  // Reflection highlight
+  ctx.fillStyle="#ffffff66";ctx.beginPath();ctx.arc(-r*0.28,-r*0.3,r*0.28,0,Math.PI*2);ctx.fill();
+  // Bounce arrows indicating ricochet
+  const arrowAngs=[Math.PI*0.2,Math.PI*0.7,Math.PI*1.2];
+  arrowAngs.forEach(a=>{
+    const ax=Math.cos(a)*r*0.55,ay=Math.sin(a)*r*0.55;
+    ctx.save();ctx.translate(ax,ay);ctx.rotate(a+Math.PI/2);
+    ctx.strokeStyle="#fff";ctx.lineWidth=1.5;ctx.globalAlpha=0.7*pulse;
+    ctx.beginPath();ctx.moveTo(0,-4);ctx.lineTo(0,4);ctx.lineTo(-3,1);ctx.moveTo(0,4);ctx.lineTo(3,1);
+    ctx.stroke();ctx.restore();
+  });
+  ctx.restore();
+}
+
+// ── Aurora target — shimmering northern lights; rhythm-based tap multiplier ──
+function drawAurora(ctx, r, ts) {
+  const pulse=0.5+0.5*Math.sin(ts*0.007);
+  // Aurora wave bands
+  const bands=5;
+  for(let i=0;i<bands;i++){
+    const hue=(i/bands)*120+180+ts*0.04; // shifting blue-green-purple
+    const wave=Math.sin(ts*0.006+i*1.2)*r*0.3;
+    const bandR=r*(0.6+i*0.18);
+    ctx.save();ctx.globalAlpha=(0.12+i*0.04)*pulse;
+    ctx.strokeStyle=`hsl(${hue},90%,65%)`;ctx.lineWidth=6-i;
+    ctx.shadowColor=`hsl(${hue},90%,65%)`;ctx.shadowBlur=12;
+    ctx.beginPath();
+    for(let a=0;a<=Math.PI*2;a+=0.1){
+      const wr=bandR+wave*Math.sin(a*3+ts*0.003);
+      const px=Math.cos(a)*wr,py=Math.sin(a)*wr;
+      a===0?ctx.moveTo(px,py):ctx.lineTo(px,py);
+    }
+    ctx.closePath();ctx.stroke();ctx.restore();
+  }
+  // Core gem
+  const grd=ctx.createRadialGradient(0,0,0,0,0,r*0.85);
+  grd.addColorStop(0,"#e0f2fe");grd.addColorStop(0.4,"#38bdf8");grd.addColorStop(0.8,"#0284c7");grd.addColorStop(1,"#0c4a6e");
+  ctx.save();ctx.shadowColor="#38bdf8";ctx.shadowBlur=20+10*pulse;
+  ctx.fillStyle=grd;ctx.beginPath();ctx.arc(0,0,r*0.85,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle="#ffffff88";ctx.beginPath();ctx.arc(-r*0.22,-r*0.25,r*0.22,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle="#e0f2fe";ctx.font=`bold ${Math.round(r*0.7)}px sans-serif`;
+  ctx.textAlign="center";ctx.textBaseline="middle";ctx.globalAlpha=0.9;
+  ctx.fillText("🌌",0,1);ctx.restore();
+}
+
 function drawTrail(ctx, t) {
   if(!t.trail||t.trail.length<2) return;
   // Ghost afterimages every 3 frames
@@ -2764,6 +2826,8 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="voltage")    drawVoltage(ctx,t.radius,ts);
   else if(t.type==="void")       drawVoid(ctx,t.radius,ts);
   else if(t.type==="clover")     drawLuckyClover(ctx,t.radius,ts);
+  else if(t.type==="ricochet")   drawRicochet(ctx,t.radius,ts);
+  else if(t.type==="aurora")     drawAurora(ctx,t.radius,ts);
   else{
     const nm=t.rarity?.name;
     if     (nm==="common")    drawCommon(ctx,t.radius,t.color,t.glow,ts,timeLeft);
@@ -4109,6 +4173,13 @@ export default function NexusTap(){
       vx=Math.cos(homingAngle)*0.4;vy=Math.sin(homingAngle)*0.4;
       const initSpd=0.6+Math.random()*0.4;const angle=Math.random()*Math.PI*2;
       vx=Math.cos(angle)*initSpd;vy=Math.sin(angle)*initSpd;
+    } else if((cfg.id||0)>=12&&Math.random()<0.019&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.9% Ricochet — tap to ricochet-kill 2 nearby targets
+      type="ricochet";color="#94a3b8";glow="#cbd5e1";moving=Math.random()<0.4;
+      if(moving){const a=Math.random()*Math.PI*2,sp=1.0+Math.random()*1.0;vx=Math.cos(a)*sp;vy=Math.sin(a)*sp;}
+    } else if((cfg.id||0)>=28&&Math.random()<0.014&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.4% Aurora — rhythm-based tap multiplier (1-5×)
+      type="aurora";color="#38bdf8";glow="#0284c7";
     } else if((cfg.id||0)>=10&&Math.random()<0.018&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1.8% Lucky Clover — random 1-10× multiplier on tap
       type="clover";color="#22c55e";glow="#16a34a";
@@ -4131,7 +4202,7 @@ export default function NexusTap(){
       }
       if(!moving&&Math.random()<effGhost)ghost=true;
     }
-    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="divider"?BASE_R*1.65:type==="vanishing"?BASE_R*1.1:type==="homing"?BASE_R*1.2:type==="gemstone"?BASE_R*1.1:type==="poison"?BASE_R*1.15:type==="morph"?BASE_R*1.2:type==="conductor"?BASE_R*1.25:type==="siphon"?BASE_R*1.3:type==="glitch"?BASE_R*1.1:type==="prism"?BASE_R*1.2:type==="comet"?BASE_R*1.15:type==="mirrorball"?BASE_R*1.45:type==="nexus"?BASE_R*1.8:type==="phoenix"?BASE_R*1.25:type==="phoenix2"?BASE_R*1.4:type==="icecomet"?BASE_R*1.2:type==="voltage"?BASE_R*1.2:type==="void"?BASE_R*1.5:type==="clover"?BASE_R*1.1:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
+    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="divider"?BASE_R*1.65:type==="vanishing"?BASE_R*1.1:type==="homing"?BASE_R*1.2:type==="gemstone"?BASE_R*1.1:type==="poison"?BASE_R*1.15:type==="morph"?BASE_R*1.2:type==="conductor"?BASE_R*1.25:type==="siphon"?BASE_R*1.3:type==="glitch"?BASE_R*1.1:type==="prism"?BASE_R*1.2:type==="comet"?BASE_R*1.15:type==="mirrorball"?BASE_R*1.45:type==="nexus"?BASE_R*1.8:type==="phoenix"?BASE_R*1.25:type==="phoenix2"?BASE_R*1.4:type==="icecomet"?BASE_R*1.2:type==="voltage"?BASE_R*1.2:type==="void"?BASE_R*1.5:type==="clover"?BASE_R*1.1:type==="ricochet"?BASE_R*1.15:type==="aurora"?BASE_R*1.35:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
     // World modifiers: Ocean Deep (8) — slower targets (calmer waters), longer lifetimes
@@ -5080,6 +5151,86 @@ export default function NexusTap(){
       mascotHappyRef.current+=mult>=7?4:1;
       const cfg=levelCfgRef.current;
       if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
+    // RICOCHET — kills 2 nearest normal targets in addition to base score
+    if(hit.type==="ricochet"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      const basePts=Math.round(100*combo*feverMult*prestigeMult);
+      gs.score+=basePts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;
+      spawnParticles(hit.x,hit.y,"#cbd5e1",12,"spark");
+      // Find 2 nearest normal targets and ricochet to them
+      const ricTargets=targetsRef.current
+        .filter(t=>!t.dying&&(t.type==="normal"||t.type==="phantom"))
+        .sort((a,b)=>Math.hypot(a.x-hit.x,a.y-hit.y)-Math.hypot(b.x-hit.x,b.y-hit.y))
+        .slice(0,2);
+      let ricPts=basePts;
+      ricTargets.forEach((rt,i)=>{
+        setTimeout(()=>{
+          if(!rt.dying){
+            rt.dying=performance.now();
+            const rpts=Math.round(60*combo*feverMult*prestigeMult);
+            gs.score+=rpts;ricPts+=rpts;gs.sessionStats.score=gs.score;
+            // Draw arc line from hit to target
+            particlesRef.current.push({type:"arc",x:hit.x,y:hit.y,x2:rt.x,y2:rt.y,
+              color:"#e2e8f0",alpha:1,born:performance.now(),duration:300});
+            spawnParticles(rt.x,rt.y,"#94a3b8",8,"spark");
+            spawnPopup(rt.x,rt.y-24,`🎯 RICO! +${rpts}`,"#e2e8f0",13);
+            sfx("comboNote",gs.streak+i);
+          }
+        },i*100);
+      });
+      spawnPopup(hit.x,hit.y-36,`🎯 RICOCHET! +${basePts}`,"#e2e8f0",20);
+      sfx("chainBonus");vibrate([12,6,12,6,18]);
+      if(ricTargets.length>0)setNotif(`🎯 Ricochet! Killed ${ricTargets.length} nearby!`);
+      unlock("ricochet_tap");
+      if(ricTargets.length>=2)unlock("ricochet_double");
+      mascotHappyRef.current+=1+ricTargets.length;
+      const cfgR=levelCfgRef.current;
+      if(cfgR){if(gs.score>=cfgR.scoreGoal&&(!cfgR.modifier||checkModGoal(cfgR.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
+    // AURORA — scores based on tap rhythm consistency (taps at even intervals = bonus)
+    if(hit.type==="aurora"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      // Rhythm bonus: consistency of last 3 inter-tap intervals
+      const times=gs._recentTaps||[];
+      let rhythmMult=1;
+      if(times.length>=3){
+        const intervals=[];
+        for(let i=1;i<Math.min(times.length,4);i++)intervals.push(times[i]-times[i-1]);
+        if(intervals.length>=2){
+          const avg=intervals.reduce((a,b)=>a+b,0)/intervals.length;
+          const variance=intervals.reduce((a,b)=>a+(b-avg)**2,0)/intervals.length;
+          const cv=Math.sqrt(variance)/Math.max(avg,1); // coefficient of variation (0=perfect)
+          rhythmMult=cv<0.1?5:cv<0.2?4:cv<0.35?3:cv<0.5?2:1;
+        }
+      }
+      const pts=Math.round(160*rhythmMult*combo*feverMult*prestigeMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;gs.sessionStats.rareHits++;
+      const rhythmColors=["#94a3b8","#34d399","#60a5fa","#c084fc","#ffd700"];
+      const rc=rhythmColors[rhythmMult-1]||"#38bdf8";
+      spawnParticles(hit.x,hit.y,rc,12+(rhythmMult*3),"spark");
+      const rhythmLabels=["GOOD","GOOD","NICE","GREAT","PERFECT"];
+      spawnPopup(hit.x,hit.y-44,`🌌 AURORA ×${rhythmMult} ${rhythmLabels[rhythmMult-1]}! +${pts}`,rc,rhythmMult>=4?24:20);
+      if(rhythmMult>=4){sfx("legendary");setEpicFlash(true);setTimeout(()=>setEpicFlash(false),500);}
+      else{sfx("epic");}
+      vibrate(rhythmMult>=4?[20,8,20,8,35]:[12,6,16]);
+      unlock("aurora_tap");
+      if(rhythmMult>=5)unlock("aurora_perfect");
+      mascotHappyRef.current+=rhythmMult;
+      const cfgA=levelCfgRef.current;
+      if(cfgA){if(gs.score>=cfgA.scoreGoal&&(!cfgA.modifier||checkModGoal(cfgA.modifier,gs))){endLevel(true);return;}}
       return;
     }
 
@@ -7691,7 +7842,9 @@ export default function NexusTap(){
           if(id>=35) previews.push({icon:"🥷",label:"Ninja",desc:"Invisible mostly!"});
           if(id>=40) previews.push({icon:"💥",label:"Splitter",desc:"Splits into 3!"});
           if(id>=10) previews.push({icon:"🍀",label:"Clover",desc:"Random ×1-10 multiplier!"});
+          if(id>=12) previews.push({icon:"🎯",label:"Ricochet",desc:"Kills 2 nearby targets!"});
           if(id>=15) previews.push({icon:"⚡",label:"Voltage",desc:"Chain zaps 3 targets!"});
+          if(id>=28) previews.push({icon:"🌌",label:"Aurora",desc:"Rhythm tap multiplier"});
           if(id>=35) previews.push({icon:"🌀",label:"Void",desc:"Absorbs nearby targets"});
           if(cfg.isBoss) previews.push({icon:WORLDS[cfg.world-1].emoji,label:"BOSS",desc:"Multi-hit epic fight!"});
           const show=previews.slice(-8); // Show last 8 relevant types for this level
@@ -8995,7 +9148,7 @@ export default function NexusTap(){
   // Achievement tab state — "all" | "gameplay" | "progression" | "social"
   const [achTab, setAchTab] = React.useState("all");
   const ACH_CATS = {
-    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect","prism_tap","comet_tap","comet_early","mirrorball_tap","nexus_tap","phoenix_tap","phoenix_risen","icecomet_tap","voltage_tap","void_tap","void_master","clover_tap","clover_jackpot"],
+    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect","prism_tap","comet_tap","comet_early","mirrorball_tap","nexus_tap","phoenix_tap","phoenix_risen","icecomet_tap","voltage_tap","void_tap","void_master","clover_tap","clover_jackpot","ricochet_tap","ricochet_double","aurora_tap","aurora_perfect"],
     progression: ["level_10","level_50","level_100","prestige_1","three_stars_5","mascot_lv10","streak_25","streak_50","streak_10","streak_5","score_2000","world_complete"],
     social:      ["missions_all","daily_7","friday_fever","weekend_warrior","all_worlds","streak_saver","loot_chest"],
   };
