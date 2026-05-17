@@ -402,6 +402,7 @@ const ACHIEVEMENTS = [
   { id:"weekend_warrior", label:"Weekend Warrior",   desc:"Play on a weekend for bonus coins", icon:"🎉", xp:25  },
   { id:"speed_demon",     label:"Speed Demon",       desc:"Complete a level with a speed bonus", icon:"⚡", xp:30 },
   { id:"phantom_catch",   label:"Ghost Hunter",      desc:"Catch a Phantom target",              icon:"👻", xp:40 },
+  { id:"volatile_defuse", label:"Bomb Squad",        desc:"Defuse a Volatile target",            icon:"💣", xp:35 },
 ];
 
 const MISSION_TEMPLATES = [
@@ -1413,6 +1414,37 @@ function drawMagnet(ctx, r, ts) {
   ctx.restore();
 }
 
+// ── Volatile target — pulsing bomb-like, explodes on expiry ──
+function drawVolatile(ctx, r, ts, lifeRatio) {
+  const urgency=1-lifeRatio; // 0=fresh, 1=about to explode
+  const pulse=0.5+0.5*Math.sin(ts*0.008*(1+urgency*4));
+  const sz=r*(1+urgency*0.25+pulse*0.08);
+  ctx.save();
+  // Outer explosive ring
+  ctx.globalAlpha=0.4+urgency*0.4;
+  ctx.strokeStyle=`hsl(${20-urgency*20},100%,50%)`;
+  ctx.lineWidth=2+urgency*2;ctx.shadowColor="#ff4500";ctx.shadowBlur=18+urgency*20;
+  ctx.beginPath();ctx.arc(0,0,sz*1.4,0,Math.PI*2);ctx.stroke();
+  // Body gradient
+  ctx.globalAlpha=1;
+  const bg=ctx.createRadialGradient(0,0,0,0,0,sz);
+  const hue=20-urgency*20;
+  bg.addColorStop(0,`hsl(${hue+30},100%,70%)`);
+  bg.addColorStop(0.5,`hsl(${hue},100%,50%)`);
+  bg.addColorStop(1,`hsl(${hue-15},100%,30%)`);
+  ctx.fillStyle=bg;ctx.shadowColor=`hsl(${hue},100%,50%)`;ctx.shadowBlur=16+urgency*12;
+  ctx.beginPath();ctx.arc(0,0,sz,0,Math.PI*2);ctx.fill();
+  // ⚠ warning icon
+  ctx.fillStyle="#fff";ctx.font=`bold ${sz*0.85}px serif`;
+  ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.fillText("💣",0,0);
+  // Timer ring
+  ctx.globalAlpha=0.7;ctx.strokeStyle="#ffffff";ctx.lineWidth=2.5;
+  ctx.shadowBlur=0;ctx.beginPath();
+  ctx.arc(0,0,sz+4,-Math.PI/2,-Math.PI/2+lifeRatio*Math.PI*2);ctx.stroke();
+  ctx.restore();
+}
+
 // ── Phantom target — ultra-short lifetime, huge points, ghostly flicker ──
 function drawPhantom(ctx, r, ts, lifeRatio) {
   // Flicker faster as time runs out
@@ -1574,6 +1606,7 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="shielded") drawShielded(ctx,t.radius,t.hitsLeft>=2,ts);
   else if(t.type==="magnet")   drawMagnet(ctx,t.radius,ts);
   else if(t.type==="phantom")  drawPhantom(ctx,t.radius,ts,timeLeft);
+  else if(t.type==="volatile") drawVolatile(ctx,t.radius,ts,timeLeft);
   else{
     const nm=t.rarity?.name;
     if     (nm==="common")    drawCommon(ctx,t.radius,t.color,t.glow,ts,timeLeft);
@@ -2554,6 +2587,9 @@ export default function NexusTap(){
     } else if((cfg.id||0)>=20&&Math.random()<0.022&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 2.2% Phantom — ultra-short lifetime (1.1s), huge points, ghostly appearance
       type="phantom";color="#e879f9";glow="#a21caf";
+    } else if((cfg.id||0)>=25&&Math.random()<0.018&&!gs.bonusRoundActive&&effBomb>0&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.8% Volatile — tap to defuse (scores 250pts), or it explodes on expiry (costs a life)
+      type="volatile";color="#ff4500";glow="#dc2626";
     } else if(Math.random()<0.035&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")&&!gs.mysteryPause){
       // 3.5% Mystery Box — Las Vegas variable-ratio slot machine
       type="mystery";color="#ffd700";glow="#b8860b";
@@ -2566,7 +2602,7 @@ export default function NexusTap(){
       }
       if(!moving&&Math.random()<effGhost)ghost=true;
     }
-    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
+    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
     // World modifiers: Ocean Deep (8) — slower targets (calmer waters), longer lifetimes
@@ -2577,6 +2613,8 @@ export default function NexusTap(){
     if(activePwrRef.current.some(p=>p.type==="FREEZE"&&p.endsAt>Date.now())){vx=0;vy=0;}
     // Phantom targets: very short lifetime (1100ms fixed) — catch it or lose it!
     if(type==="phantom")lifetime=1100;
+    // Volatile targets: medium-short lifetime (2200ms) — defuse or explode
+    if(type==="volatile")lifetime=2200;
     // Skill: target_sense — extra lifetime
     const tsk=(saveRef.current.skills||{}).target_sense||0;
     if(tsk>=1)lifetime+=500;if(tsk>=2)lifetime+=500;if(tsk>=3)lifetime+=1000;
@@ -2845,6 +2883,26 @@ export default function NexusTap(){
       setEpicFlash(true);setTimeout(()=>setEpicFlash(false),600);
       sfx("comboNote",gs.streak);
       unlock("shielded_hit");
+      const cfg=levelCfgRef.current;
+      if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
+    // VOLATILE — defuse for 250pts, or it explodes costing a life
+    if(hit.type==="volatile"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      const isMultiplierV=activePwrRef.current.some(p=>p.type==="MULTIPLIER"&&p.endsAt>Date.now());
+      const pts=Math.round(250*combo*feverMult*prestigeMult*(isMultiplierV?3:1));
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;
+      sfx("bossHit");vibrate([15,8,15]);
+      spawnParticles(hit.x,hit.y,"#ff4500",20,"spark");
+      spawnPopup(hit.x,hit.y-28,`💣 DEFUSED! +${pts}`,"#ff8c00",18);
+      unlock("volatile_defuse");
+      mascotHappyRef.current++;
       const cfg=levelCfgRef.current;
       if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
       return;
@@ -3633,6 +3691,19 @@ export default function NexusTap(){
       // Expiry
       if((now-t.spawnedAt)>=t.lifetime){
         if(t.type==="powerup"||t.type==="bomb"||t.type==="boss"||t.type==="treasure")return false;
+        // VOLATILE explosion on expiry — costs a life, removes nearby targets
+        if(t.type==="volatile"){
+          const BLAST_R=90;
+          const blasted=targetsRef.current.filter(o=>o!==t&&!o.dying&&o.type==="normal"&&Math.hypot(o.x-t.x,o.y-t.y)<BLAST_R);
+          blasted.forEach(o=>{o.dying=performance.now();spawnParticles(o.x,o.y,"#ff4500",6,"spark");});
+          spawnParticles(t.x,t.y,"#ff4500",30,"spark");spawnParticles(t.x,t.y,"#ffd700",15,"dot");
+          spawnPopup(t.x,t.y-30,"💥 BOOM! -1 LIFE","#ef4444",18);
+          sfx("miss");vibrate([30,15,30]);setScreenShake(true);setTimeout(()=>setScreenShake(false),400);
+          const hasShieldV=activePwrRef.current.some(p=>p.type==="SHIELD"&&p.endsAt>now);
+          if(!hasShieldV){gs.lives--;gs.streak=0;streakShRef.current=false;setStreakShieldActive(false);}
+          else{activePwrRef.current=activePwrRef.current.filter(p=>p.type!=="SHIELD");setActivePwrDisp([...activePwrRef.current]);}
+          return false;
+        }
         if(t.type==="normal"&&!t._isShard)gs.sessionStats.missedTargets=(gs.sessionStats.missedTargets||0)+1;
         const hasShield=activePwrRef.current.some(p=>p.type==="SHIELD"&&p.endsAt>now);
         if(hasShield){activePwrRef.current=activePwrRef.current.filter(p=>p.type!=="SHIELD");setActivePwrDisp([...activePwrRef.current]);}
@@ -5803,7 +5874,7 @@ export default function NexusTap(){
   // Achievement tab state — "all" | "gameplay" | "progression" | "social"
   const [achTab, setAchTab] = React.useState("all");
   const ACH_CATS = {
-    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch"],
+    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse"],
     progression: ["level_10","level_50","level_100","prestige_1","three_stars_5","mascot_lv10"],
     social:      ["missions_all","daily_7","score_2000","friday_fever","weekend_warrior","all_worlds"],
   };
@@ -5955,11 +6026,18 @@ export default function NexusTap(){
         {/* ── WORLD RECORDS HALL — 12B ── */}
         {Object.keys(sv.worldBest||{}).length>0&&(
           <div className="rounded-2xl p-3" style={{background:"#ffffff05",border:"1px solid #ffffff10"}}>
-            <div className="text-xs font-bold opacity-50 mb-2 uppercase tracking-widest" style={{color:theme.accent}}>🌍 World Records</div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-xs font-bold opacity-50 uppercase tracking-widest" style={{color:theme.accent}}>🌍 World Records</div>
+              <div className="text-xs opacity-40">{Object.keys(sv.worldBest||{}).length}/{WORLDS.length} worlds</div>
+            </div>
             <div className="grid grid-cols-2 gap-1.5">
               {WORLDS.map(w=>{
                 const best=(sv.worldBest||{})[w.id];
                 if(!best)return null;
+                const worldLvl=getLevelConfig(w.id*10);
+                const ratio=best/(worldLvl.scoreGoal||1);
+                const rank=ratio>=3?"S+":ratio>=2.2?"S":ratio>=1.5?"A":ratio>=1?"B":"C";
+                const rankColor={"S+":"#ffd700","S":"#f97316","A":"#a78bfa","B":"#60a5fa","C":"#94a3b8"}[rank]||"#fff";
                 return(
                   <div key={w.id} className="flex items-center gap-1.5 rounded-xl px-2 py-1.5"
                     style={{background:`${w.color}0e`,border:`1px solid ${w.color}33`}}>
@@ -5968,10 +6046,16 @@ export default function NexusTap(){
                       <div style={{fontSize:9,color:w.color,opacity:0.7,letterSpacing:"0.04em",fontWeight:"bold"}}>{w.name}</div>
                       <div style={{fontSize:12,color:w.color,fontWeight:"black",tabularNums:true}}>{best.toLocaleString()}</div>
                     </div>
+                    <div style={{fontSize:13,fontWeight:"black",color:rankColor,
+                      textShadow:`0 0 8px ${rankColor}88`,minWidth:22,textAlign:"center"}}>{rank}</div>
                   </div>
                 );
               }).filter(Boolean)}
             </div>
+            {Object.keys(sv.worldBest||{}).length===WORLDS.length&&(
+              <div className="mt-2 text-center text-xs font-bold" style={{color:"#ffd700",
+                textShadow:"0 0 12px #ffd70088"}}>🌟 All worlds conquered! 🌟</div>
+            )}
           </div>
         )}
         {/* ── TIME-TABBED SCORES ── */}
