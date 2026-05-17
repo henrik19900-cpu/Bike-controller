@@ -507,6 +507,9 @@ const ACHIEVEMENTS = [
   { id:"stardust_tap",       label:"Star Chaser",      desc:"Tap a Stardust target",                  icon:"⭐",xp:25 },
   { id:"stardust_shower",    label:"Star Shower",      desc:"Catch 5+ stars from one Stardust",       icon:"🌟",xp:85 },
   { id:"score_25k",          label:"Quarter Million",  desc:"Score 25,000 pts in a single session",   icon:"💰",xp:150 },
+  { id:"solarflare_tap",     label:"Sun Blocker",      desc:"Tap a Solar Flare target",               icon:"☀️",xp:30 },
+  { id:"solarflare_early",   label:"Early Bird",       desc:"Catch Solar Flare in first 25% of life", icon:"🌅",xp:95 },
+  { id:"magma_tap",          label:"Lava Tamer",       desc:"Defuse a Magma before it destroys a target",icon:"🌋",xp:40 },
 ];
 
 const MISSION_TEMPLATES = [
@@ -2666,6 +2669,48 @@ function drawVoid(ctx, r, ts) {
   ctx.fillText("🌀",0,1);ctx.restore();
 }
 
+// ── Solar Flare — expands outward; smaller = more points ──
+function drawSolarFlare(ctx,r,ts,growPct){
+  const pct=growPct||0;
+  const heat=0.6+0.4*Math.sin(ts*0.016);
+  const hue=15+pct*25; // orange → yellow as it grows
+  ctx.save();
+  ctx.shadowBlur=16+pct*20;ctx.shadowColor=`hsl(${hue},100%,60%)`;
+  const grad=ctx.createRadialGradient(0,0,0,0,0,r);
+  grad.addColorStop(0,"#fff7ed");grad.addColorStop(0.4,`hsl(${hue},100%,65%)`);
+  grad.addColorStop(0.8,`hsl(${hue+20},100%,45%)`);
+  grad.addColorStop(1,"transparent");
+  ctx.fillStyle=grad;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  // Coronal rays
+  const rays=6+Math.floor(pct*4);
+  ctx.strokeStyle=`hsl(${hue},100%,75%)`;ctx.lineWidth=1.5;ctx.globalAlpha=0.4*heat;
+  for(let i=0;i<rays;i++){
+    const a=(i/rays)*Math.PI*2+ts*0.0006;const len=r*(0.25+Math.sin(ts*0.012+i)*0.15);
+    ctx.beginPath();ctx.moveTo(Math.cos(a)*r*0.8,Math.sin(a)*r*0.8);ctx.lineTo(Math.cos(a)*(r*0.8+len),Math.sin(a)*(r*0.8+len));ctx.stroke();
+  }
+  ctx.globalAlpha=1;ctx.font=`${Math.round(r*0.62)}px serif`;ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.fillText("☀️",0,0);ctx.restore();
+}
+// ── Magma — hunts the nearest normal target; defuse before it destroys one ──
+function drawMagma(ctx,r,ts){
+  const drip=Math.sin(ts*0.011)*0.1;
+  ctx.save();
+  ctx.shadowBlur=18;ctx.shadowColor="#dc2626";
+  const grad=ctx.createRadialGradient(0,r*0.1,0,0,0,r);
+  grad.addColorStop(0,"#fde68a");grad.addColorStop(0.3,"#f97316");
+  grad.addColorStop(0.7,"#dc2626");grad.addColorStop(1,"#450a0a");
+  ctx.fillStyle=grad;ctx.beginPath();
+  // Lava drop shape
+  ctx.moveTo(0,-r*(0.9+drip));
+  ctx.bezierCurveTo(r*0.85,-r*0.4,r*0.85,r*0.6,0,r*(0.9-drip));
+  ctx.bezierCurveTo(-r*0.85,r*0.6,-r*0.85,-r*0.4,0,-r*(0.9+drip));
+  ctx.fill();
+  // Cracks
+  ctx.strokeStyle="#fde68a";ctx.lineWidth=1;ctx.globalAlpha=0.5;
+  ctx.beginPath();ctx.moveTo(-r*0.2,-r*0.3);ctx.lineTo(r*0.1,r*0.2);ctx.lineTo(-r*0.1,r*0.5);ctx.stroke();
+  ctx.globalAlpha=1;ctx.font=`${Math.round(r*0.82)}px serif`;ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.fillText("🌋",0,0);ctx.restore();
+}
 // ── Chain Collector — auto-grabs 3 nearest targets on tap ──
 function drawChainCollector(ctx,r,ts){
   const pulse=0.8+0.2*Math.sin(ts*0.009);
@@ -3333,6 +3378,8 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="crystalball") drawCrystalBall(ctx,t.radius,ts);
   else if(t.type==="quantum")     drawQuantum(ctx,t.radius,ts,t.hitsLeft,t.maxHits);
   else if(t.type==="clockwork")   drawClockwork(ctx,t.radius,ts);
+  else if(t.type==="solarflare"){const gpct=Math.min(1,(Date.now()-t.spawnedAt)/(t.lifetime*0.9));drawSolarFlare(ctx,t.radius,ts,gpct);}
+  else if(t.type==="magma")       drawMagma(ctx,t.radius,ts);
   else if(t.type==="chaincollector") drawChainCollector(ctx,t.radius,ts);
   else if(t.type==="stardust")    drawStardust(ctx,t.radius,ts);
   else if(t.type==="star_piece")  {ctx.save();ctx.shadowBlur=10;ctx.shadowColor="#fde68a";ctx.fillStyle="#fbbf24";ctx.beginPath();ctx.arc(0,0,t.radius,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;ctx.font=`${Math.round(t.radius*0.9)}px serif`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("⭐",0,0);ctx.restore();}
@@ -4777,6 +4824,13 @@ export default function NexusTap(){
     } else if((cfg.id||0)>=35&&Math.random()<0.01&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1% Void — absorbs up to 5 nearby targets for massive bonus score
       type="void";color="#7c3aed";glow="#4c1d95";
+    } else if((cfg.id||0)>=20&&Math.random()<0.016&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.6% Solar Flare — expands over lifetime; less pts the bigger it grows
+      type="solarflare";color="#f97316";glow="#fde68a";
+    } else if((cfg.id||0)>=28&&!cfg.isZen&&Math.random()<0.013&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.3% Magma — hunts nearest normal target; defuse before it destroys it
+      type="magma";color="#dc2626";glow="#f97316";moving=true;
+      const ma=Math.random()*Math.PI*2,ms=0.6+Math.random()*0.4;vx=Math.cos(ma)*ms;vy=Math.sin(ma)*ms;
     } else if((cfg.id||0)>=12&&Math.random()<0.02&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 2% Chain Collector — auto-grabs 3 nearest targets on tap
       type="chaincollector";color="#34d399";glow="#6ee7b7";
@@ -4831,7 +4885,7 @@ export default function NexusTap(){
       }
       if(!moving&&Math.random()<effGhost)ghost=true;
     }
-    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="divider"?BASE_R*1.65:type==="vanishing"?BASE_R*1.1:type==="homing"?BASE_R*1.2:type==="gemstone"?BASE_R*1.1:type==="poison"?BASE_R*1.15:type==="morph"?BASE_R*1.2:type==="conductor"?BASE_R*1.25:type==="siphon"?BASE_R*1.3:type==="glitch"?BASE_R*1.1:type==="prism"?BASE_R*1.2:type==="comet"?BASE_R*1.15:type==="mirrorball"?BASE_R*1.45:type==="nexus"?BASE_R*1.8:type==="phoenix"?BASE_R*1.25:type==="phoenix2"?BASE_R*1.4:type==="icecomet"?BASE_R*1.2:type==="voltage"?BASE_R*1.2:type==="void"?BASE_R*1.5:type==="clover"?BASE_R*1.1:type==="ricochet"?BASE_R*1.15:type==="aurora"?BASE_R*1.35:type==="portal"?BASE_R*1.4:type==="particlebomb"?BASE_R*1.25:type==="beacon"?BASE_R*1.3:type==="shadow"?BASE_R*1.1:type==="shadow_clone"?BASE_R*0.9:type==="spectral"?BASE_R*1.1:type==="heart"?BASE_R*1.2:type==="nova"?BASE_R*1.4:type==="firefly"?BASE_R*0.78:type==="geode"?BASE_R*1.3:type==="timebomb"?BASE_R*1.25:type==="thunderbolt"?BASE_R*1.1:type==="gravityorb"?BASE_R*1.5:type==="crystalball"?BASE_R*1.35:type==="quantum"?BASE_R*1.2:type==="clockwork"?BASE_R*1.3:type==="bloom"?BASE_R*1.4:type==="petal"?BASE_R*0.55:type==="reflector"?BASE_R*1.25:type==="chaincollector"?BASE_R*1.35:type==="stardust"?BASE_R*1.3:type==="star_piece"?BASE_R*0.6:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
+    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="divider"?BASE_R*1.65:type==="vanishing"?BASE_R*1.1:type==="homing"?BASE_R*1.2:type==="gemstone"?BASE_R*1.1:type==="poison"?BASE_R*1.15:type==="morph"?BASE_R*1.2:type==="conductor"?BASE_R*1.25:type==="siphon"?BASE_R*1.3:type==="glitch"?BASE_R*1.1:type==="prism"?BASE_R*1.2:type==="comet"?BASE_R*1.15:type==="mirrorball"?BASE_R*1.45:type==="nexus"?BASE_R*1.8:type==="phoenix"?BASE_R*1.25:type==="phoenix2"?BASE_R*1.4:type==="icecomet"?BASE_R*1.2:type==="voltage"?BASE_R*1.2:type==="void"?BASE_R*1.5:type==="clover"?BASE_R*1.1:type==="ricochet"?BASE_R*1.15:type==="aurora"?BASE_R*1.35:type==="portal"?BASE_R*1.4:type==="particlebomb"?BASE_R*1.25:type==="beacon"?BASE_R*1.3:type==="shadow"?BASE_R*1.1:type==="shadow_clone"?BASE_R*0.9:type==="spectral"?BASE_R*1.1:type==="heart"?BASE_R*1.2:type==="nova"?BASE_R*1.4:type==="firefly"?BASE_R*0.78:type==="geode"?BASE_R*1.3:type==="timebomb"?BASE_R*1.25:type==="thunderbolt"?BASE_R*1.1:type==="gravityorb"?BASE_R*1.5:type==="crystalball"?BASE_R*1.35:type==="quantum"?BASE_R*1.2:type==="clockwork"?BASE_R*1.3:type==="bloom"?BASE_R*1.4:type==="petal"?BASE_R*0.55:type==="reflector"?BASE_R*1.25:type==="chaincollector"?BASE_R*1.35:type==="stardust"?BASE_R*1.3:type==="star_piece"?BASE_R*0.6:type==="solarflare"?BASE_R*1.0:type==="magma"?BASE_R*1.2:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
     // World modifiers: Ocean Deep (8) — slower targets (calmer waters), longer lifetimes
@@ -4860,6 +4914,10 @@ export default function NexusTap(){
     if(type==="thunderbolt")lifetime=Math.min(lifetime,2000);
     // Quantum: medium lifetime — 3 taps needed before it vanishes
     if(type==="quantum")lifetime=Math.max(lifetime,4500);
+    // Solar Flare: medium lifetime — it expands over time
+    if(type==="solarflare")lifetime=Math.max(lifetime,3500);
+    // Magma: slightly longer — gives time to defuse
+    if(type==="magma")lifetime=Math.max(lifetime,4000);
     // Chain Collector: medium lifetime
     if(type==="chaincollector")lifetime=Math.max(lifetime,3000);
     // Stardust: medium
@@ -5991,6 +6049,47 @@ export default function NexusTap(){
       return;
     }
 
+    // SOLAR FLARE — smaller = more points (1200→120 as it grows)
+    if(hit.type==="solarflare"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const growPct=Math.min(1,(Date.now()-hit.spawnedAt)/(hit.lifetime*0.9));
+      const flareBase=Math.round(1200*(1-growPct*0.9)+120); // 1200 small → 132 big
+      const pts=Math.round(flareBase*combo*feverMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      const isEarlyTap=growPct<0.25;
+      const col=isEarlyTap?"#fde68a":"#f97316";
+      spawnPopup(hit.x,hit.y-30,(isEarlyTap?`☀️ SOLAR BURST! +${pts}`:`☀️ Flare! +${pts}`),col,isEarlyTap?22:16);
+      spawnParticles(hit.x,hit.y,col,isEarlyTap?20:10,"spark");
+      if(isEarlyTap){sfx("legendary");vibrate([12,8,18]);setScreenShake(true);setTimeout(()=>setScreenShake(false),200);}
+      else{sfx("tap");vibrate(8);}
+      unlock("solarflare_tap");
+      if(isEarlyTap)unlock("solarflare_early");
+      mascotHappyRef.current+=2;
+      updateMissions(gs.sessionStats);
+      const cfgSF=levelCfgRef.current;
+      if(cfgSF){if(gs.score>=cfgSF.scoreGoal&&(!cfgSF.modifier||checkModGoal(cfgSF.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+    // MAGMA — defuse for 800pts before it destroys a target
+    if(hit.type==="magma"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const pts=Math.round(800*combo*feverMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      spawnPopup(hit.x,hit.y-32,`🌋 COOLED! +${pts}`,"#f97316",20);
+      spawnParticles(hit.x,hit.y,"#f97316",16,"spark");spawnParticles(hit.x,hit.y,"#fbbf24",8,"dot");
+      particlesRef.current.push({type:"shockwave",x:hit.x,y:hit.y,color:"#f97316",size:180,born:performance.now(),duration:600,alpha:0.5});
+      sfx("bossKill");vibrate([12,8,16]);
+      unlock("magma_tap");
+      mascotHappyRef.current+=3;
+      updateMissions(gs.sessionStats);
+      const cfgMg=levelCfgRef.current;
+      if(cfgMg){if(gs.score>=cfgMg.scoreGoal&&(!cfgMg.modifier||checkModGoal(cfgMg.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
     // CHAIN COLLECTOR — auto-grabs 3 nearest normal/special targets
     if(hit.type==="chaincollector"){
       targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
@@ -7818,6 +7917,28 @@ export default function NexusTap(){
           }
         } else {
           t._edgeWarnAt=null;
+        }
+      }
+      // Solar Flare — grows in radius over lifetime
+      if(t.type==="solarflare"&&!t.dying){
+        const growPct=Math.min(1,(now-t.spawnedAt)/(t.lifetime*0.9));
+        t.radius=Math.round((BASE_R*1.0)*(1+growPct*1.8)); // grows up to 2.8× base
+      }
+      // Magma — slowly homes in on nearest normal target
+      if(t.type==="magma"&&!t.dying){
+        const nearest=targetsRef.current
+          .filter(o=>o!==t&&!o.dying&&o.type==="normal"&&!o._isShard)
+          .sort((a,b)=>Math.hypot(a.x-t.x,a.y-t.y)-Math.hypot(b.x-t.x,b.y-t.y))[0];
+        if(nearest){
+          const dx=nearest.x-t.x,dy=nearest.y-t.y;const dist=Math.hypot(dx,dy)||1;
+          t.vx=(t.vx||0)+(dx/dist)*0.02*dt;t.vy=(t.vy||0)+(dy/dist)*0.02*dt;
+          const spd=Math.hypot(t.vx,t.vy);if(spd>1.2){t.vx=t.vx/spd*1.2;t.vy=t.vy/spd*1.2;}
+          // If magma touches a normal target, destroy it!
+          if(dist<t.radius+nearest.radius){
+            spawnParticles(nearest.x,nearest.y,"#dc2626",12,"spark");
+            spawnPopup(nearest.x,nearest.y-20,"🌋 EATEN!","#dc2626",14);
+            nearest.dying=performance.now();sfx("bombHit");vibrate([15,8,15]);
+          }
         }
       }
       // Quantum — micro-teleports every 1.8s when alive (between player taps)
@@ -10603,7 +10724,7 @@ export default function NexusTap(){
   // Achievement tab state — "all" | "gameplay" | "progression" | "social"
   const [achTab, setAchTab] = React.useState("all");
   const ACH_CATS = {
-    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect","prism_tap","comet_tap","comet_early","mirrorball_tap","nexus_tap","phoenix_tap","phoenix_risen","icecomet_tap","voltage_tap","void_tap","void_master","clover_tap","clover_jackpot","ricochet_tap","ricochet_double","aurora_tap","aurora_perfect","fury_mode","score_10k","portal_tap","portal_chaos","particlebomb_tap","beacon_tap","beacon_surge","shadow_tap","shadow_clone_catch","spectral_tap","spectral_perfect","heart_tap","nova_tap","firefly_tap","firefly_swift","geode_crack","geode_gem","timebomb_defuse","timebomb_clutch","thunderbolt_tap","thunderbolt_clutch","gravityorb_tap","gravityorb_cluster","crystalball_tap","quantum_tap","quantum_stable","clockwork_tap","bloom_tap","bloom_harvest","reflector_tap","reflector_chaos","chain_collect","chain_triple","stardust_tap","stardust_shower","score_25k"],
+    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect","prism_tap","comet_tap","comet_early","mirrorball_tap","nexus_tap","phoenix_tap","phoenix_risen","icecomet_tap","voltage_tap","void_tap","void_master","clover_tap","clover_jackpot","ricochet_tap","ricochet_double","aurora_tap","aurora_perfect","fury_mode","score_10k","portal_tap","portal_chaos","particlebomb_tap","beacon_tap","beacon_surge","shadow_tap","shadow_clone_catch","spectral_tap","spectral_perfect","heart_tap","nova_tap","firefly_tap","firefly_swift","geode_crack","geode_gem","timebomb_defuse","timebomb_clutch","thunderbolt_tap","thunderbolt_clutch","gravityorb_tap","gravityorb_cluster","crystalball_tap","quantum_tap","quantum_stable","clockwork_tap","bloom_tap","bloom_harvest","reflector_tap","reflector_chaos","chain_collect","chain_triple","stardust_tap","stardust_shower","score_25k","solarflare_tap","solarflare_early","magma_tap"],
     progression: ["level_10","level_50","level_100","prestige_1","three_stars_5","mascot_lv10","streak_25","streak_50","streak_10","streak_5","score_2000","world_complete"],
     social:      ["missions_all","daily_7","friday_fever","weekend_warrior","all_worlds","streak_saver","loot_chest"],
   };
