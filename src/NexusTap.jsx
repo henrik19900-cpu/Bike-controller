@@ -455,6 +455,8 @@ const ACHIEVEMENTS = [
   { id:"prism_tap",          label:"Prism Hunter",    desc:"Tap a Prism target",                   icon:"🔮", xp:35  },
   { id:"lucky_streak",       label:"Lucky Seven",     desc:"Hit 7 targets in a row for lucky coins",icon:"🍀", xp:30  },
   { id:"score_boost_use",    label:"Rocket Launch",   desc:"Use the Score Boost power-up",         icon:"🚀", xp:25  },
+  { id:"comet_tap",          label:"Star Gazer",      desc:"Tap a Comet target",                   icon:"🌠", xp:30  },
+  { id:"comet_early",        label:"Shooting Star",   desc:"Catch a Comet in the first half of its flight",icon:"⭐",xp:75 },
 ];
 
 const MISSION_TEMPLATES = [
@@ -1534,6 +1536,36 @@ function drawMagnet(ctx, r, ts) {
   ctx.restore();
 }
 
+// ── Comet target — streaks across the screen in a straight line; short lifetime ──
+function drawComet(ctx, r, ts, trail) {
+  const pulse=0.7+0.3*Math.sin(ts*0.015);
+  // Draw trail history
+  if(trail&&trail.length>1){
+    for(let i=1;i<trail.length;i++){
+      const alpha=(i/trail.length)*0.55*pulse;
+      const size=r*(i/trail.length)*0.7;
+      const dx=trail[i].x-trail[i-1].x;const dy=trail[i].y-trail[i-1].y;
+      ctx.save();
+      ctx.globalAlpha=alpha;
+      ctx.fillStyle=`hsl(${45+i*8},100%,${65+i*2}%)`;
+      ctx.translate(trail[i].x-trail[trail.length-1].x,trail[i].y-trail[trail.length-1].y);
+      ctx.beginPath();ctx.arc(0,0,size,0,Math.PI*2);ctx.fill();
+      ctx.restore();
+    }
+  }
+  // Head — bright white-gold core
+  const grad=ctx.createRadialGradient(0,0,0,0,0,r);
+  grad.addColorStop(0,"#ffffff");grad.addColorStop(0.3,"#fde68a");grad.addColorStop(0.7,"#f59e0b");grad.addColorStop(1,"#92400e");
+  ctx.save();ctx.fillStyle=grad;ctx.shadowColor="#fde68a";ctx.shadowBlur=18+pulse*12;
+  ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  // Star symbol ★
+  ctx.fillStyle="#ffffff";ctx.shadowBlur=0;
+  ctx.font=`bold ${Math.floor(r*0.9)}px sans-serif`;
+  ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.fillText("★",0,1);
+  ctx.restore();
+}
+
 // ── Prism target — refracts light into 3 rainbow beams when tapped ──
 function drawPrism(ctx, r, ts) {
   const spin=ts*0.0009;
@@ -2469,6 +2501,7 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="siphon")     drawSiphon(ctx,t.radius,ts,1-(now-t.spawnedAt)/t.lifetime);
   else if(t.type==="glitch")     drawGlitch(ctx,t.radius,ts);
   else if(t.type==="prism")      drawPrism(ctx,t.radius,ts);
+  else if(t.type==="comet")      drawComet(ctx,t.radius,ts,t.trail);
   else{
     const nm=t.rarity?.name;
     if     (nm==="common")    drawCommon(ctx,t.radius,t.color,t.glow,ts,timeLeft);
@@ -3753,6 +3786,17 @@ export default function NexusTap(){
       // 2.2% Morph — cycles through rarity tiers every 1.4s; catch during legendary = jackpot
       type="morph";color="#ffffff";glow="#ffffff";moving=Math.random()<0.3;
       if(moving){const a=Math.random()*Math.PI*2,sp=0.5+Math.random()*0.8;vx=Math.cos(a)*sp;vy=Math.sin(a)*sp;}
+    } else if((cfg.id||0)>=20&&Math.random()<0.018&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.8% Comet — streaks across the screen, 3.5s lifetime; trail particles
+      type="comet";color="#fde68a";glow="#f59e0b";moving=true;
+      // Start from a random edge and fly to the opposite side
+      const fromSide=Math.floor(Math.random()*2); // 0=top, 1=left
+      // We'll set position via pickPos override below, vx/vy set here
+      const speed=2.2+Math.random()*1.2;
+      const angle=fromSide===0
+        ?(Math.PI*0.3+Math.random()*Math.PI*0.4) // top → down-ish
+        :(Math.random()*Math.PI*0.6-Math.PI*0.3); // left → right-ish
+      vx=Math.cos(angle)*speed;vy=Math.sin(angle)*speed;
     } else if((cfg.id||0)>=25&&Math.random()<0.013&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1.3% Prism — beautiful rainbow diamond; splits score into 3 rainbow beams
       type="prism";color="#f0abfc";glow="#a21caf";
@@ -3789,7 +3833,7 @@ export default function NexusTap(){
       }
       if(!moving&&Math.random()<effGhost)ghost=true;
     }
-    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="divider"?BASE_R*1.65:type==="vanishing"?BASE_R*1.1:type==="homing"?BASE_R*1.2:type==="gemstone"?BASE_R*1.1:type==="poison"?BASE_R*1.15:type==="morph"?BASE_R*1.2:type==="conductor"?BASE_R*1.25:type==="siphon"?BASE_R*1.3:type==="glitch"?BASE_R*1.1:type==="prism"?BASE_R*1.2:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
+    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="divider"?BASE_R*1.65:type==="vanishing"?BASE_R*1.1:type==="homing"?BASE_R*1.2:type==="gemstone"?BASE_R*1.1:type==="poison"?BASE_R*1.15:type==="morph"?BASE_R*1.2:type==="conductor"?BASE_R*1.25:type==="siphon"?BASE_R*1.3:type==="glitch"?BASE_R*1.1:type==="prism"?BASE_R*1.2:type==="comet"?BASE_R*1.15:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
     // World modifiers: Ocean Deep (8) — slower targets (calmer waters), longer lifetimes
@@ -3804,6 +3848,8 @@ export default function NexusTap(){
     if(type==="volatile")lifetime=2200;
     // Ninja targets: longer lifetime (3500ms) so visible window is still ~700ms
     if(type==="ninja")lifetime=3500;
+    // Comet targets: very short lifetime (2800ms) — it flies across fast!
+    if(type==="comet")lifetime=2800;
     // Skill: target_sense — extra lifetime
     const tsk=(saveRef.current.skills||{}).target_sense||0;
     if(tsk>=1)lifetime+=500;if(tsk>=2)lifetime+=500;if(tsk>=3)lifetime+=1000;
@@ -4445,6 +4491,34 @@ export default function NexusTap(){
       else{sfx("tap");vibrate([8]);}
       unlock("morph_tap");
       mascotHappyRef.current+=phase>=4?5:1;
+      const cfg=levelCfgRef.current;
+      if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
+    // COMET — streaks across screen; tap mid-flight for bonus
+    if(hit.type==="comet"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      // Early-flight bonus: more points if caught in first 50% of lifetime
+      const lifeLeft=Math.max(0,1-(Date.now()-hit.spawnedAt)/hit.lifetime);
+      const earlyBonus=lifeLeft>0.5?Math.round(lifeLeft*300):0;
+      const pts=Math.round((300+earlyBonus)*combo*feverMult*prestigeMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;gs.sessionStats.rareHits++;
+      // Gold comet burst
+      ["#ffd700","#fde68a","#ffffff","#f59e0b"].forEach((c,i)=>
+        setTimeout(()=>spawnParticles(hit.x,hit.y,c,8,"spark"),i*35));
+      const label=earlyBonus>0?`🌠 COMET! +${pts} EARLY BONUS!`:`🌠 COMET! +${pts}`;
+      spawnPopup(hit.x,hit.y-40,label,"#fde68a",earlyBonus>0?22:18);
+      sfx(earlyBonus>0?"legendary":"epic");
+      if(earlyBonus>0){setEpicFlash(true);setTimeout(()=>setEpicFlash(false),600);}
+      vibrate([12,8,12,8,20]);
+      unlock("comet_tap");
+      if(earlyBonus>150)unlock("comet_early");
+      mascotHappyRef.current+=earlyBonus>0?4:2;
       const cfg=levelCfgRef.current;
       if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
       return;
@@ -5635,6 +5709,11 @@ export default function NexusTap(){
           }
         } else {
           const timeWarpMult=gs._timeWarpEndsAt&&Date.now()<gs._timeWarpEndsAt?0.2:1;
+          // Comet flies straight without bouncing
+          if(t.type==="comet"){
+            t.x+=t.vx*dt*0.072*timeWarpMult;t.y+=t.vy*dt*0.072*timeWarpMult;
+            // Off-screen removal (handled by expiry)
+          } else
           // Rage target accelerates over its lifetime
           if(t.type==="rage"){
             const rl=Math.min(1,(now-t.spawnedAt)/(t.lifetime*0.9));
@@ -8312,7 +8391,7 @@ export default function NexusTap(){
   // Achievement tab state — "all" | "gameplay" | "progression" | "social"
   const [achTab, setAchTab] = React.useState("all");
   const ACH_CATS = {
-    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect","prism_tap"],
+    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect","prism_tap","comet_tap","comet_early"],
     progression: ["level_10","level_50","level_100","prestige_1","three_stars_5","mascot_lv10","streak_25","streak_50","streak_10","streak_5","score_2000","world_complete"],
     social:      ["missions_all","daily_7","friday_fever","weekend_warrior","all_worlds","streak_saver","loot_chest"],
   };
