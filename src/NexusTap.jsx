@@ -439,6 +439,7 @@ const ACHIEVEMENTS = [
   { id:"divider_tap",        label:"Cell Division",  desc:"Tap a Divider to split it",            icon:"÷",  xp:25  },
   { id:"vanishing_tap",      label:"Ghost Buster",   desc:"Tap a Vanishing target",               icon:"👻", xp:30  },
   { id:"vanishing_blind",    label:"Sixth Sense",    desc:"Tap a Vanishing target while invisible",icon:"🎯", xp:90  },
+  { id:"tap_frenzy",         label:"Tap Frenzy",     desc:"Hit 5 targets in 2 seconds",           icon:"⚡", xp:35  },
 ];
 
 const MISSION_TEMPLATES = [
@@ -4560,6 +4561,20 @@ export default function NexusTap(){
       }
     }
     gs._lastTapX=hit.x;gs._lastTapY=hit.y;gs._lastTapMs=nowMs;
+    // Tap Frenzy — 5 hits within 2s triggers bonus
+    if(!gs._recentTaps)gs._recentTaps=[];
+    gs._recentTaps.push(nowMs);
+    gs._recentTaps=gs._recentTaps.filter(t=>nowMs-t<2000);
+    if(gs._recentTaps.length>=5&&!gs._frenzyAt){
+      gs._frenzyAt=nowMs;
+      const frenzyBonus=Math.round(150*(gs.feverActive?2:1)*(1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05)));
+      gs.score+=frenzyBonus;
+      const canvas=canvasRef.current;
+      spawnPopup(canvas?.width/2||195,(canvas?.height||700)*0.38,`⚡ TAP FRENZY! +${frenzyBonus}`,"#f97316",22);
+      sfx("chainBonus");vibrate([15,8,15,8,30]);
+      setTimeout(()=>{if(gsRef.current)gsRef.current._frenzyAt=null;},2000);
+      unlock("tap_frenzy");
+    }
     // Track last rarity for Mimic targets
     gs.lastRarityMult=hit.rarity.mult;
     gs.lastRarityColor=hit.color;
@@ -6875,6 +6890,19 @@ export default function NexusTap(){
               border:"4px solid #ffd700",
               boxShadow:"inset 0 0 70px #ffd70025,0 0 70px #ffd70025",
               animation:"scorePulse 0.45s ease-in-out infinite alternate"}}/>
+            {/* Falling coin rain during bonus round */}
+            <div className="absolute inset-0 pointer-events-none z-7 overflow-hidden">
+              {[...Array(14)].map((_,i)=>(
+                <div key={i} style={{
+                  position:"absolute",top:-20,
+                  left:`${(i*7+3)%100}%`,
+                  fontSize:12+Math.floor(i%3)*4,
+                  animation:`coinFall ${1.8+i*0.22}s ${i*0.18}s linear infinite`,
+                  opacity:0.75,pointerEvents:"none"}}>
+                  🪙
+                </div>
+              ))}
+            </div>
             <div className="absolute left-0 right-0 flex justify-center pointer-events-none z-30" style={{top:88}}>
               <div style={{
                 display:"inline-block",padding:"6px 20px",borderRadius:12,
@@ -7601,7 +7629,7 @@ export default function NexusTap(){
   // Achievement tab state — "all" | "gameplay" | "progression" | "social"
   const [achTab, setAchTab] = React.useState("all");
   const ACH_CATS = {
-    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind"],
+    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy"],
     progression: ["level_10","level_50","level_100","prestige_1","three_stars_5","mascot_lv10","streak_25","streak_50","streak_10","streak_5","score_2000"],
     social:      ["missions_all","daily_7","friday_fever","weekend_warrior","all_worlds","streak_saver","loot_chest"],
   };
