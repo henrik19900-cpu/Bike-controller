@@ -2590,6 +2590,7 @@ export default function NexusTap(){
   const [luckyMode,         setLuckyMode]         = useState(false);
   const [newRecord,         setNewRecord]         = useState(false);
   const [rushMode,          setRushMode]          = useState(false);
+  const [bossTaunt,         setBossTaunt]         = useState(null); // {text, phase}
   const [closeBanner,       setCloseBanner]       = useState(false); // "SO CLOSE!" banner
   const luckyRef    = useRef(null);   // null | "active" | "countdown"
   const luckyTimer  = useRef(null);
@@ -3783,7 +3784,7 @@ export default function NexusTap(){
         sfx("bossPhase");vibrate([20,10,20]);
         spawnPopup(hit.x,hit.y-50,"💨 PHASE 2!",hit.color||"#ff6030",18);
         const taunt2=BOSS_TAUNTS.phase2[Math.floor(Math.random()*BOSS_TAUNTS.phase2.length)];
-        setTimeout(()=>setNotif(`👹 "${taunt2}"`),600);
+        setBossTaunt({text:taunt2,phase:2});setTimeout(()=>setBossTaunt(null),3500);
         setScreenShake(true);setTimeout(()=>setScreenShake(false),350);
         // New random direction, also remember new anchor for orbit pattern
         const a2=Math.random()*Math.PI*2;
@@ -3813,7 +3814,7 @@ export default function NexusTap(){
         sfx("bossPhase");vibrate([30,15,30,15,60]);
         spawnPopup(hit.x,hit.y-50,"⚠️ RAGE MODE!","#ff0000",20);
         const taunt3=BOSS_TAUNTS.phase3[Math.floor(Math.random()*BOSS_TAUNTS.phase3.length)];
-        setTimeout(()=>setNotif(`😡 "${taunt3}"`),600);
+        setBossTaunt({text:taunt3,phase:3});setTimeout(()=>setBossTaunt(null),4000);
         setScreenShake(true);setTimeout(()=>setScreenShake(false),500);
         // Speed up spawning
         if(levelCfgRef.current)levelCfgRef.current._rageSpawn=true;
@@ -3833,7 +3834,7 @@ export default function NexusTap(){
         _bgBlast={x:hit.x,y:hit.y,at:performance.now()}; // explode bg particles
         spawnPopup(hit.x,hit.y-28,`🏆 BOSS! +${pts}`,"#ffd700",24);
         const dyingTaunt=BOSS_TAUNTS.dying[Math.floor(Math.random()*BOSS_TAUNTS.dying.length)];
-        setTimeout(()=>setNotif(`💀 "${dyingTaunt}"`),400);
+        setBossTaunt({text:dyingTaunt,phase:"dying"});setTimeout(()=>setBossTaunt(null),3000);
         unlock("boss_kill");
         // Boss loot drop — guaranteed rare reward
         {
@@ -4188,7 +4189,7 @@ export default function NexusTap(){
     targetsRef.current=[];particlesRef.current=[];activePwrRef.current=[];ripplesRef.current=[];tapTrailRef.current=[];
     spawnTimer.current=0;pausedRef.current=false;setPaused(false);
     mascotHappyRef.current=0; // reset session happiness
-    streakShRef.current=false;setStreakShieldActive(false);setNewRecord(false);setCloseBanner(false);setRushMode(false);
+    streakShRef.current=false;setStreakShieldActive(false);setNewRecord(false);setCloseBanner(false);setRushMode(false);setBossTaunt(null);
     luckyRef.current=null;if(luckyTimer.current)clearTimeout(luckyTimer.current);
     // Schedule first lucky event 45-70 seconds in
     luckyTimer.current=setTimeout(()=>triggerLucky(),45000+Math.random()*25000);
@@ -5897,6 +5898,27 @@ export default function NexusTap(){
             </div>
           </div>
         )}
+        {/* Boss Speech Bubble — shows during phase transitions */}
+        {bossTaunt&&hud.boss&&(
+          <div className="absolute left-0 right-0 flex justify-center z-30 pointer-events-none" style={{top:130}}>
+            <div className="relative px-4 py-2 rounded-2xl max-w-xs text-center"
+              style={{
+                background:bossTaunt.phase===3?"#ff000022":bossTaunt.phase===2?"#fbbf2418":"#2a2a3a",
+                border:`1px solid ${bossTaunt.phase===3?"#ff0000":bossTaunt.phase===2?"#fbbf24":"#666666"}88`,
+                color:bossTaunt.phase===3?"#ff4444":bossTaunt.phase===2?"#fbbf24":"#aaaaaa",
+                fontSize:13,fontWeight:"bold",
+                animation:"speechBubble 0.3s cubic-bezier(0.34,1.5,0.64,1) both",
+                boxShadow:`0 0 20px ${bossTaunt.phase===3?"#ff000066":bossTaunt.phase===2?"#fbbf2444":"#44444444"}`,
+              }}>
+              {bossTaunt.phase==="dying"?"💀":bossTaunt.phase===3?"😡":"😤"} "{bossTaunt.text}"
+              {/* Speech bubble tail */}
+              <div style={{position:"absolute",top:-7,left:"50%",transform:"translateX(-50%)",
+                width:0,height:0,
+                borderLeft:"8px solid transparent",borderRight:"8px solid transparent",
+                borderBottom:`8px solid ${bossTaunt.phase===3?"#ff000044":bossTaunt.phase===2?"#fbbf2430":"#44444444"}`}}/>
+            </div>
+          </div>
+        )}
         {/* Modifier goal hint */}
         {hud.modGoal&&(
           <div className="absolute left-0 right-0 flex justify-center z-20" style={{top:hud.boss?120:76}}>
@@ -6068,6 +6090,19 @@ export default function NexusTap(){
           </div>
         )}
         {/* Score Tension Ramp — border glow escalates toward goal */}
+        {/* Last-life danger border — persistent red pulse when 1 life remaining */}
+        {hud.lives===1&&!cfg?.isZen&&(
+          <div className="absolute inset-0 pointer-events-none z-5" style={{
+            border:"3px solid #ef4444",
+            boxShadow:"inset 0 0 50px #ef444428,0 0 30px #ef444422",
+            animation:"heartbeat 0.7s ease-in-out infinite"}}/>
+        )}
+        {hud.lives===1&&!cfg?.isZen&&(
+          <div className="absolute left-0 right-0 top-16 flex justify-center pointer-events-none z-25">
+            <span style={{fontSize:9,fontWeight:"black",color:"#ef4444",letterSpacing:"0.15em",
+              textShadow:"0 0 8px #ef4444",animation:"heartbeat 0.7s ease-in-out infinite"}}>⚠️ LAST LIFE</span>
+          </div>
+        )}
         {tensionLevel>=1&&(
           <div className="absolute inset-0 pointer-events-none z-6" style={{
             border:`${tensionLevel+1}px solid`,
