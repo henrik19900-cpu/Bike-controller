@@ -1760,14 +1760,25 @@ function drawShielded(ctx, r, shieldUp, ts) {
   ctx.restore();
 }
 
-// ── Motion trail for moving targets ──
+// ── Motion trail + ghost afterimages for moving targets ──
 function drawTrail(ctx, t) {
   if(!t.trail||t.trail.length<2) return;
+  // Ghost afterimages every 3 frames
+  const step=Math.max(1,Math.floor(t.trail.length/4));
+  for(let i=0;i<t.trail.length-step;i+=step){
+    const tp=t.trail[i];
+    const af=i/t.trail.length;
+    ctx.save();ctx.globalAlpha=af*0.18;
+    ctx.fillStyle=t.color;ctx.shadowColor=t.glow||t.color;ctx.shadowBlur=t.radius*af;
+    ctx.beginPath();ctx.arc(tp.x,tp.y,t.radius*(0.4+af*0.5),0,Math.PI*2);ctx.fill();
+    ctx.restore();
+  }
+  // Line trail
   for(let i=1;i<t.trail.length;i++){
     const a=i/t.trail.length;
-    ctx.save(); ctx.globalAlpha=a*0.3;
-    ctx.strokeStyle=t.color; ctx.lineWidth=t.radius*1.8*a; ctx.lineCap="round";
-    ctx.shadowColor=t.color; ctx.shadowBlur=t.radius*a;
+    ctx.save(); ctx.globalAlpha=a*0.25;
+    ctx.strokeStyle=t.color; ctx.lineWidth=t.radius*1.4*a; ctx.lineCap="round";
+    ctx.shadowColor=t.color; ctx.shadowBlur=t.radius*a*0.7;
     ctx.beginPath(); ctx.moveTo(t.trail[i-1].x,t.trail[i-1].y); ctx.lineTo(t.trail[i].x,t.trail[i].y);
     ctx.stroke(); ctx.restore();
   }
@@ -2498,6 +2509,7 @@ export default function NexusTap(){
   const [streakShieldActive,setStreakShieldActive] = useState(false);
   const [luckyMode,         setLuckyMode]         = useState(false);
   const [newRecord,         setNewRecord]         = useState(false);
+  const [rushMode,          setRushMode]          = useState(false);
   const [closeBanner,       setCloseBanner]       = useState(false); // "SO CLOSE!" banner
   const luckyRef    = useRef(null);   // null | "active" | "countdown"
   const luckyTimer  = useRef(null);
@@ -4017,7 +4029,7 @@ export default function NexusTap(){
     targetsRef.current=[];particlesRef.current=[];activePwrRef.current=[];ripplesRef.current=[];tapTrailRef.current=[];
     spawnTimer.current=0;pausedRef.current=false;setPaused(false);
     mascotHappyRef.current=0; // reset session happiness
-    streakShRef.current=false;setStreakShieldActive(false);setNewRecord(false);setCloseBanner(false);
+    streakShRef.current=false;setStreakShieldActive(false);setNewRecord(false);setCloseBanner(false);setRushMode(false);
     luckyRef.current=null;if(luckyTimer.current)clearTimeout(luckyTimer.current);
     // Schedule first lucky event 45-70 seconds in
     luckyTimer.current=setTimeout(()=>triggerLucky(),45000+Math.random()*25000);
@@ -4367,10 +4379,19 @@ export default function NexusTap(){
       }
     }
 
+    // Target Rush — when score hits 90% of goal, spawn at 1.5× rate for 8s
+    if(!cfg.isBoss&&!cfg.isZen&&cfg.scoreGoal&&gs.score>=cfg.scoreGoal*0.9&&!gs._rushStarted){
+      gs._rushStarted=true;gs._rushEndsAt=now+8000;
+      spawnPopup(cw/2,ch/3,"⚡ RUSH! GET IT!","#f97316",20);sfx("feverStart");vibrate([15,8,15]);
+      setRushMode(true);setTimeout(()=>setRushMode(false),8000);
+    }
+    const isRush=gs._rushEndsAt&&now<gs._rushEndsAt;
+
     // Spawn — rage boss speeds up spawn
     const rageSpawn=cfg._rageSpawn&&targetsRef.current.some(t=>t.rage);
     spawnTimer.current+=dt;
-    if(spawnTimer.current>=(rageSpawn?cfg.spawnInterval*0.5:cfg.spawnInterval)){spawnTimer.current=0;spawnTarget();}
+    const rushSpawnMult=isRush?0.65:1;
+    if(spawnTimer.current>=(rageSpawn?cfg.spawnInterval*0.5:cfg.spawnInterval*rushSpawnMult)){spawnTimer.current=0;spawnTarget();}
 
     // Bounty Target — once per level, designate one normal target as a bounty (3× coins)
     if(!cfg.isBoss&&!cfg.isZen&&!cfg.isGauntlet&&!gs.bountySet){
@@ -5565,30 +5586,36 @@ export default function NexusTap(){
             {/* Mascot HUD chip — tiny */}
             <span style={{fontSize:16,lineHeight:1}}>{currentMascot.e[mascotMood]||currentMascot.e.idle}</span>
           </div>
-          <div className="flex-1 flex flex-col items-center justify-center py-2 px-1">
-            <div className="text-xs opacity-35 tracking-widest uppercase" style={{color:wc}}>Streak</div>
+          <div className="flex-1 flex flex-col items-center justify-center py-2 px-1" style={{position:"relative"}}>
+            {hud.streak>0&&(()=>{
+              const dp=Math.max(0,hud.decayPct??1);
+              const r=29,s=3,cx=31,cy=31;
+              const circ=2*Math.PI*r;
+              const dash=dp*circ;
+              const clr=streakDecaying?"#ef4444":streakColor();
+              return(
+                <svg width={62} height={62} style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",pointerEvents:"none",overflow:"visible",zIndex:0}}>
+                  <circle cx={cx} cy={cy} r={r} fill="none" stroke="#ffffff06" strokeWidth={s}/>
+                  <circle cx={cx} cy={cy} r={r} fill="none" stroke={clr} strokeWidth={s}
+                    strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
+                    transform={`rotate(-90 ${cx} ${cy})`}
+                    style={{transition:"stroke-dasharray 0.12s linear",filter:`drop-shadow(0 0 4px ${clr})`}}/>
+                </svg>
+              );
+            })()}
+            <div className="text-xs opacity-35 tracking-widest uppercase" style={{color:wc,position:"relative",zIndex:1}}>Streak</div>
             <div className="text-xl font-black tabular-nums"
               style={{
                 color:streakDecaying&&hud.streak>0?"#ef4444":streakColor(),
                 textShadow:hud.streak>=5?`0 0 14px ${streakDecaying?"#ef4444":streakColor()}`:"none",
                 animation:streakDecaying&&hud.streak>0?"heartbeat 0.6s ease-in-out infinite":"none",
+                position:"relative",zIndex:1,
               }}>
               {hud.streak}×{streakDecaying&&hud.streak>0?"⚠️":""}
             </div>
-            {hud.streak>=5&&<div style={{fontSize:9,fontWeight:"black",color:streakColor(),opacity:0.8,letterSpacing:"0.04em"}}>
+            {hud.streak>=5&&<div style={{fontSize:9,fontWeight:"black",color:streakColor(),opacity:0.8,letterSpacing:"0.04em",position:"relative",zIndex:1}}>
               ×{Math.min(10,1+Math.floor(hud.streak/5))} MULT
             </div>}
-            {/* Streak decay bar — only visible when streak > 0 */}
-            {hud.streak>0&&(
-              <div style={{width:44,height:3,background:"#ffffff18",borderRadius:2,marginTop:2,overflow:"hidden"}}>
-                <div style={{
-                  width:`${Math.max(0,(hud.decayPct??1))*100}%`,height:"100%",borderRadius:2,
-                  background:streakDecaying?"#ef4444":streakColor(),
-                  boxShadow:streakDecaying?`0 0 4px #ef4444`:`0 0 4px ${streakColor()}`,
-                  transition:"width 0.12s linear",
-                }}/>
-              </div>
-            )}
           </div>
           <button onTouchStart={e=>{e.stopPropagation();togglePause();}} onClick={e=>{e.stopPropagation();togglePause();}}
             className="flex items-center justify-center px-4"
@@ -5733,6 +5760,10 @@ export default function NexusTap(){
           </div>
         )}
         {/* Fever */}
+        {rushMode&&!feverBorder&&<div className="absolute inset-0 pointer-events-none z-10" style={{border:"3px solid #f97316",boxShadow:"inset 0 0 40px #f9731633,0 0 40px #f9731633",animation:"feverPulse 0.45s ease-in-out infinite alternate"}}/>}
+        {rushMode&&<div className="absolute left-0 right-0 flex justify-center pointer-events-none z-30" style={{top:luckyMode||newRecord?184:feverBorder?166:140}}>
+          <span className="font-black text-sm px-3 py-1 rounded-full" style={{color:"#f97316",textShadow:"0 0 16px #f97316",background:"#f9731620",border:"1px solid #f9731666",animation:"heartbeat 0.55s ease-in-out infinite"}}>⚡ RUSH MODE!</span>
+        </div>}
         {feverBorder&&<div className="absolute inset-0 pointer-events-none z-10" style={{border:"4px solid #fbbf24",boxShadow:"inset 0 0 60px #fbbf2445,0 0 60px #fbbf2445",animation:"feverPulse 0.6s ease-in-out infinite alternate"}}/>}
         {feverBorder&&<div className="absolute left-0 right-0 flex justify-center pointer-events-none z-30" style={{top:luckyMode||newRecord?184:140}}>
           <span className="font-black text-base px-4 py-1 rounded-full" style={{color:"#fbbf24",textShadow:"0 0 20px #fbbf24",background:"#fbbf2420",animation:"feverPulse 0.5s infinite alternate"}}>✨ MAGIC MODE!</span>
@@ -6143,6 +6174,27 @@ export default function NexusTap(){
             </div>
           </div>
         </div>
+
+        {/* 11C — Animated coins earned overlay */}
+        {coinsEarned>0&&(
+          <div className="w-full rounded-2xl px-4 py-3 flex items-center justify-between gap-3"
+            style={{background:"#ffd70014",border:"1px solid #ffd70044",backdropFilter:"blur(8px)"}}>
+            <div className="flex items-center gap-2">
+              <span style={{fontSize:22,animation:"coinFall 0.6s ease-out both,floatGlow 1.2s ease-in-out 0.6s infinite"}}>🪙</span>
+              <div>
+                <div className="text-xs opacity-55 font-bold tracking-widest uppercase" style={{color:"#ffd700"}}>Coins Earned</div>
+                <div className="text-2xl font-black tabular-nums" style={{color:"#ffd700",
+                  textShadow:"0 0 16px #ffd700",animation:"scorePulse 0.5s cubic-bezier(0.34,1.5,0.64,1) both"}}>
+                  +{coinsEarned}
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-col items-end gap-1">
+              <div className="text-xs opacity-40" style={{color:"#ffd700"}}>Balance</div>
+              <div className="text-sm font-black" style={{color:"#ffd700"}}>🪙 {(sv.coins||0).toLocaleString()}</div>
+            </div>
+          </div>
+        )}
 
         {/* Boss victory story */}
         {isBossLevel&&(()=>{const ws=WORLD_STORIES.find(s=>s.worldId===cfg.world);return ws?(
