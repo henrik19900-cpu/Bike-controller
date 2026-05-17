@@ -444,6 +444,7 @@ const ACHIEVEMENTS = [
   { id:"homing_center",      label:"Bullseye",        desc:"Tap a Homing target near screen center",icon:"🎯", xp:60  },
   { id:"world_complete",     label:"World Conqueror", desc:"Complete all levels in any world",      icon:"🌍", xp:100 },
   { id:"gemstone_tap",       label:"Gem Collector",   desc:"Find and tap a Gemstone",              icon:"💎", xp:120 },
+  { id:"poison_tap",         label:"Antidote",        desc:"Neutralize a Poison target",           icon:"☣️", xp:30  },
 ];
 
 const MISSION_TEMPLATES = [
@@ -1365,6 +1366,34 @@ function drawMystery(ctx, r, ts) {
   ctx.restore();
 }
 
+// ── Poison target — avoid it; if it expires, next target gives 50% score ──
+function drawPoison(ctx, r, ts) {
+  const pulse=0.5+0.5*Math.sin(ts*0.009);
+  const drip=Math.sin(ts*0.015)*2;
+  ctx.save();
+  // Toxic aura
+  ctx.globalAlpha=0.18+pulse*0.18;ctx.fillStyle="#4ade80";ctx.shadowColor="#16a34a";ctx.shadowBlur=22+pulse*14;
+  ctx.beginPath();ctx.arc(0,0,r*1.28,0,Math.PI*2);ctx.fill();
+  // Core — sickly green
+  ctx.globalAlpha=1;
+  const pg=ctx.createRadialGradient(0,0,0,0,0,r);
+  pg.addColorStop(0,"rgba(187,247,208,0.92)");pg.addColorStop(0.5,"rgba(74,222,128,0.88)");pg.addColorStop(1,"rgba(22,101,52,0.82)");
+  ctx.fillStyle=pg;ctx.shadowColor="#22c55e";ctx.shadowBlur=14;
+  ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  // Biohazard-ish symbol (3 arcs)
+  ctx.globalAlpha=0.6+pulse*0.2;ctx.strokeStyle="#14532d";ctx.lineWidth=2.5;ctx.shadowBlur=0;
+  ctx.beginPath();ctx.arc(0,0,r*0.28,0,Math.PI*2);ctx.stroke();
+  [0,Math.PI*2/3,Math.PI*4/3].forEach(a=>{
+    ctx.beginPath();ctx.arc(Math.cos(a)*r*0.45,Math.sin(a)*r*0.45,r*0.22,a-0.3,a+Math.PI*0.65);ctx.stroke();
+  });
+  // Drip at bottom
+  ctx.globalAlpha=0.7+pulse*0.2;ctx.translate(0,drip);
+  ctx.fillStyle="#bbf7d0";
+  ctx.beginPath();ctx.arc(0,r*0.68,r*0.1,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(r*0.3,r*0.62,r*0.07,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+}
+
 function drawAnchor(ctx, r, ts) {
   const pulse=0.5+0.5*Math.sin(ts*0.0035);
   const spin=ts*0.0008;
@@ -2227,6 +2256,7 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="vanishing") drawVanishing(ctx,t.radius,ts);
   else if(t.type==="homing")   drawHoming(ctx,t.radius,ts);
   else if(t.type==="gemstone") drawGemstone(ctx,t.radius,ts);
+  else if(t.type==="poison")   drawPoison(ctx,t.radius,ts);
   else{
     const nm=t.rarity?.name;
     if     (nm==="common")    drawCommon(ctx,t.radius,t.color,t.glow,ts,timeLeft);
@@ -3490,6 +3520,9 @@ export default function NexusTap(){
     } else if((cfg.id||0)>=40&&Math.random()<0.01&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1% Gemstone — rare prismatic gem; scores 500+ base pts (like legendary rarity)
       type="gemstone";color="#e879f9";glow="#9333ea";
+    } else if((cfg.id||0)>=20&&Math.random()<0.018&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&effBomb>0&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.8% Poison — DON'T tap it (or tap to neutralize); expires = next target 50% score
+      type="poison";color="#4ade80";glow="#16a34a";
       const homingAngle=Math.random()*Math.PI*2;
       vx=Math.cos(homingAngle)*0.4;vy=Math.sin(homingAngle)*0.4;
       const initSpd=0.6+Math.random()*0.4;const angle=Math.random()*Math.PI*2;
@@ -3506,7 +3539,7 @@ export default function NexusTap(){
       }
       if(!moving&&Math.random()<effGhost)ghost=true;
     }
-    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="divider"?BASE_R*1.65:type==="vanishing"?BASE_R*1.1:type==="homing"?BASE_R*1.2:type==="gemstone"?BASE_R*1.1:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
+    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="divider"?BASE_R*1.65:type==="vanishing"?BASE_R*1.1:type==="homing"?BASE_R*1.2:type==="gemstone"?BASE_R*1.1:type==="poison"?BASE_R*1.15:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
     // World modifiers: Ocean Deep (8) — slower targets (calmer waters), longer lifetimes
@@ -4094,6 +4127,23 @@ export default function NexusTap(){
       spawnParticles(hit.x,hit.y,"#7c3aed",6,"dot");
       spawnPopup(hit.x,hit.y-32,`✨ ECHO BONUS! +${pts}`,"#e9d5ff",18);
       unlock("echo_bonus");
+      const cfg=levelCfgRef.current;
+      if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
+    // POISON — tapping neutralizes it (small reward); missing applies poison debuff
+    if(hit.type==="poison"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const pts=Math.round(50*combo*feverMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;
+      sfx("comboNote",gs.streak);vibrate([8,4,8]);
+      spawnParticles(hit.x,hit.y,"#4ade80",10,"spark");
+      spawnPopup(hit.x,hit.y-24,`☣️ NEUTRALIZED +${pts}`,"#86efac",14);
+      unlock("poison_tap");
       const cfg=levelCfgRef.current;
       if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
       return;
@@ -4692,7 +4742,9 @@ export default function NexusTap(){
     // Prestige score multiplier (+5% per prestige level, max 5 prestiges = +25%)
     const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
     const shardMult=hit._isShard?0.5:1; // splitter shards award half points
-    const pts=Math.round(hit.rarity.mult*combo*feverMult*(isDouble?2:1)*(isMultiplier?3:1)*(isPerfect?1.5:1)*(isLastBreath?1.5:1)*prestigeMult*shardMult);
+    const poisonMult=gs._poisonedUntil&&Date.now()<gs._poisonedUntil?0.5:1; // poison debuff
+    if(poisonMult<1)gs._poisonedUntil=null; // consume debuff after one hit
+    const pts=Math.round(hit.rarity.mult*combo*feverMult*(isDouble?2:1)*(isMultiplier?3:1)*(isPerfect?1.5:1)*(isLastBreath?1.5:1)*prestigeMult*shardMult*poisonMult);
     gs.score+=pts;
     // Prestige aura — golden shockwave on each tap when prestige ≥ 1
     if((saveRef.current.prestigeLevel||0)>=1){
@@ -5261,6 +5313,14 @@ export default function NexusTap(){
       // Expiry
       if((now-t.spawnedAt)>=t.lifetime){
         if(t.type==="powerup"||t.type==="bomb"||t.type==="boss"||t.type==="treasure")return false;
+        // POISON expired — apply poison debuff (next target gives 50% pts)
+        if(t.type==="poison"){
+          gs._poisonedUntil=Date.now()+4000;
+          spawnParticles(t.x,t.y,"#4ade80",14,"dot");
+          spawnPopup(t.x,t.y-26,"☣️ POISONED! -50%","#4ade80",16);
+          sfx("miss");vibrate([15,8,15]);
+          return false;
+        }
         // VOLATILE explosion on expiry — costs a life, removes nearby targets
         if(t.type==="volatile"){
           const BLAST_R=90;
