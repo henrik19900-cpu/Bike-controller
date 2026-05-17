@@ -471,6 +471,8 @@ const ACHIEVEMENTS = [
   { id:"ricochet_double",    label:"Bank Shot",        desc:"Ricochet kills 2 targets at once",         icon:"💫",xp:75 },
   { id:"aurora_tap",         label:"Borealis Bop",     desc:"Tap an Aurora target",                    icon:"🌌",xp:35 },
   { id:"aurora_perfect",     label:"Perfect Rhythm",   desc:"Tap Aurora with perfect timing rhythm",   icon:"✨",xp:100 },
+  { id:"fury_mode",          label:"Fury Mode",        desc:"Reach a 35× streak — unleash the fury!",  icon:"🌑",xp:90 },
+  { id:"score_10k",          label:"Ten Thousand",     desc:"Score 10,000 points in a single session", icon:"💎",xp:100 },
 ];
 
 const MISSION_TEMPLATES = [
@@ -6033,8 +6035,25 @@ export default function NexusTap(){
     }
     // Activate streak shield at streak 10
     if(gs.streak===10&&!streakShRef.current){streakShRef.current=true;setStreakShieldActive(true);sfx("lucky");}
+    // Combo Shield auto-recharge at streak 15 (if shield was lost)
+    if(gs.streak===15&&!streakShRef.current){
+      streakShRef.current=true;setStreakShieldActive(true);sfx("lucky");
+      const canvas3=canvasRef.current;
+      spawnPopup(canvas3?.width/2||195,(canvas3?.height||700)*0.28,"🛡 SHIELD RECHARGED!","#fbbf24",18);
+      vibrate([15,8,15]);
+    }
+    // Fury Mode: streak ≥35 triggers a purple border effect + bonus
+    if(gs.streak===35){
+      const canvas3=canvasRef.current;const cw35=canvas3?.width||390;const ch35=canvas3?.height||700;
+      const furyColors=["#a855f7","#7c3aed","#f97316","#ffd700"];
+      furyColors.forEach((c,i)=>setTimeout(()=>spawnParticles(cw35/2,ch35/2,c,14,"spark"),i*65));
+      sfx("legendary");vibrate([25,10,25,10,50]);
+      spawnPopup(cw35/2,ch35*0.22,"🌑 FURY MODE!","#a855f7",24);
+      unlock("fury_mode");
+    }
     // Mascot mood
-    if(gs.streak>=20)setMascotMood("fire");
+    if(gs.streak>=35)setMascotMood("fire");
+    else if(gs.streak>=20)setMascotMood("fire");
     else if(gs.streak>=10)setMascotMood("excited");
     else if(gs.streak>=5)setMascotMood("happy");
     else setMascotMood("idle");
@@ -6089,7 +6108,7 @@ export default function NexusTap(){
       const milestoneColor=isEpic?"#ffd700":crossed>=5000?"#c084fc":crossed>=2500?"#f97316":"#34d399";
       spawnPopup(cw4/2,ch4*0.28,`🏅 ${crossed.toLocaleString()} PTS!`,milestoneColor,isEpic?24:20);
       spawnParticles(cw4/2,ch4*0.3,milestoneColor,isEpic?20:12,"spark");
-      if(isEpic){sfx("legendary");setEpicFlash(true);setTimeout(()=>setEpicFlash(false),400);}
+      if(isEpic){sfx("legendary");setEpicFlash(true);setTimeout(()=>setEpicFlash(false),400);unlock("score_10k");}
       else sfx("chainBonus");
       vibrate(isEpic?[15,8,15,8,25]:[10,5,15]);
     }}
@@ -9179,7 +9198,7 @@ export default function NexusTap(){
   // Achievement tab state — "all" | "gameplay" | "progression" | "social"
   const [achTab, setAchTab] = React.useState("all");
   const ACH_CATS = {
-    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect","prism_tap","comet_tap","comet_early","mirrorball_tap","nexus_tap","phoenix_tap","phoenix_risen","icecomet_tap","voltage_tap","void_tap","void_master","clover_tap","clover_jackpot","ricochet_tap","ricochet_double","aurora_tap","aurora_perfect"],
+    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect","prism_tap","comet_tap","comet_early","mirrorball_tap","nexus_tap","phoenix_tap","phoenix_risen","icecomet_tap","voltage_tap","void_tap","void_master","clover_tap","clover_jackpot","ricochet_tap","ricochet_double","aurora_tap","aurora_perfect","fury_mode","score_10k"],
     progression: ["level_10","level_50","level_100","prestige_1","three_stars_5","mascot_lv10","streak_25","streak_50","streak_10","streak_5","score_2000","world_complete"],
     social:      ["missions_all","daily_7","friday_fever","weekend_warrior","all_worlds","streak_saver","loot_chest"],
   };
