@@ -436,6 +436,7 @@ const ACHIEVEMENTS = [
   { id:"chain_lightning_hit",label:"Lightning Rod",  desc:"Use the Chain Lightning power-up",     icon:"⚡", xp:45  },
   { id:"rage_tap",           label:"Anger Manager",  desc:"Tap a Rage target",                    icon:"😠", xp:30  },
   { id:"rage_max",           label:"Rage Quit",      desc:"Tap a Rage target at maximum rage",    icon:"😡", xp:75  },
+  { id:"divider_tap",        label:"Cell Division",  desc:"Tap a Divider to split it",            icon:"÷",  xp:25  },
 ];
 
 const MISSION_TEMPLATES = [
@@ -1391,6 +1392,36 @@ function drawAnchor(ctx, r, ts) {
   ctx.restore();
 }
 
+// ── Divider target — large orb with crack; splits into 2 medium targets ──
+function drawDivider(ctx, r, ts) {
+  const pulse=0.5+0.5*Math.sin(ts*0.005);
+  const crackShift=Math.sin(ts*0.015)*1.2; // crack vibrates
+  ctx.save();
+  // Outer halo
+  ctx.globalAlpha=0.18+pulse*0.14;ctx.fillStyle="#fb923c";ctx.shadowColor="#ea580c";ctx.shadowBlur=28;
+  ctx.beginPath();ctx.arc(0,0,r*1.28,0,Math.PI*2);ctx.fill();
+  // Main body
+  ctx.globalAlpha=1;
+  const dg=ctx.createRadialGradient(0,0,0,0,0,r);
+  dg.addColorStop(0,"rgba(253,186,116,0.95)");dg.addColorStop(0.55,"rgba(251,146,60,0.9)");dg.addColorStop(1,"rgba(234,88,12,0.85)");
+  ctx.fillStyle=dg;ctx.shadowColor="#f97316";ctx.shadowBlur=16;
+  ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  // Crack line through center
+  ctx.globalAlpha=0.85+pulse*0.12;ctx.strokeStyle="#fef3c7";ctx.lineWidth=2.5;
+  ctx.shadowColor="#fbbf24";ctx.shadowBlur=8;
+  ctx.beginPath();
+  ctx.moveTo(-r*0.05+crackShift,-r*0.85);
+  ctx.lineTo(r*0.12+crackShift,-r*0.25);
+  ctx.lineTo(-r*0.08+crackShift,r*0.15);
+  ctx.lineTo(r*0.1+crackShift,r*0.82);
+  ctx.stroke();
+  // ÷ symbol hint
+  ctx.globalAlpha=0.65+pulse*0.2;ctx.fillStyle="#fff7ed";ctx.shadowBlur=4;
+  ctx.font=`bold ${Math.round(r*0.5)}px sans-serif`;ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.fillText("÷",-r*0.2,0);
+  ctx.restore();
+}
+
 function drawSplitter(ctx, r, ts) {
   const pulse=0.5+0.5*Math.sin(ts*0.005);
   const spin=ts*0.0022;
@@ -2085,6 +2116,7 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="crystal")  drawCrystalTarget(ctx,t.radius,ts);
   else if(t.type==="crystal_shard") drawCrystalShard(ctx,t.radius,ts,t._shardBorn);
   else if(t.type==="rage")     {const rl=Math.min(1,(now-t.spawnedAt)/(t.lifetime*0.9));drawRage(ctx,t.radius,ts,rl);}
+  else if(t.type==="divider")  drawDivider(ctx,t.radius,ts);
   else{
     const nm=t.rarity?.name;
     if     (nm==="common")    drawCommon(ctx,t.radius,t.color,t.glow,ts,timeLeft);
@@ -3336,6 +3368,9 @@ export default function NexusTap(){
     } else if((cfg.id||0)>=25&&Math.random()<0.016&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1.6% Rage — starts calm, grows angry/faster over lifetime; worth more points when tapped at high rage
       type="rage";color="#ef4444";glow="#dc2626";moving=true;
+    } else if((cfg.id||0)>=15&&Math.random()<0.02&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 2% Divider — large orange orb; splits into 2 medium targets when tapped
+      type="divider";color="#fb923c";glow="#ea580c";
       const initSpd=0.6+Math.random()*0.4;const angle=Math.random()*Math.PI*2;
       vx=Math.cos(angle)*initSpd;vy=Math.sin(angle)*initSpd;
     } else if(Math.random()<0.035&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")&&!gs.mysteryPause){
@@ -3350,7 +3385,7 @@ export default function NexusTap(){
       }
       if(!moving&&Math.random()<effGhost)ghost=true;
     }
-    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
+    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="divider"?BASE_R*1.65:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
     // World modifiers: Ocean Deep (8) — slower targets (calmer waters), longer lifetimes
@@ -3930,6 +3965,42 @@ export default function NexusTap(){
       spawnParticles(hit.x,hit.y,"#7c3aed",6,"dot");
       spawnPopup(hit.x,hit.y-32,`✨ ECHO BONUS! +${pts}`,"#e9d5ff",18);
       unlock("echo_bonus");
+      const cfg=levelCfgRef.current;
+      if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
+    // DIVIDER — scores points then splits into 2 medium moving targets
+    if(hit.type==="divider"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      const pts=Math.round(70*combo*feverMult*prestigeMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;
+      sfx("rare");vibrate([12,6,12]);
+      const canvas=canvasRef.current;const cw=canvas?.width||390,ch=canvas?.height||700;
+      spawnParticles(hit.x,hit.y,"#fb923c",12,"spark");
+      spawnPopup(hit.x,hit.y-28,`÷ SPLIT! +${pts}`,"#fdba74",15);
+      // Spawn 2 medium sub-targets flying outward
+      [0,1].forEach(si=>{
+        const angle=(si===0?-0.4:0.4)+Math.random()*0.3-0.15;
+        const speed=1.8+Math.random()*1.2;
+        const subX=Math.max(hit.radius+20,Math.min(cw-hit.radius-20,hit.x));
+        const subY=Math.max(hit.radius+100,Math.min(ch-hit.radius-20,hit.y));
+        const subRar=RARITY.find(r=>r.name==="common");
+        targetsRef.current.push({
+          id:Math.random().toString(36).slice(2),type:"normal",
+          x:subX,y:subY,radius:Math.round(hit.radius*0.62),
+          color:"#fdba74",glow:"#f97316",rarity:subRar||RARITY[0],
+          lifetime:2800,spawnedAt:Date.now(),born:performance.now(),
+          moving:true,ghost:false,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,
+          trail:[],hitsLeft:1,maxHits:1,dying:null,_isShard:true,
+        });
+      });
+      unlock("divider_tap");
+      mascotHappyRef.current++;
       const cfg=levelCfgRef.current;
       if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
       return;
