@@ -1949,6 +1949,17 @@ function drawTarget(ctx, t, ts) {
     else if(nm==="epic")      drawEpic(ctx,t.radius,t.color,t.glow,ts,timeLeft);
     else if(nm==="legendary") drawLegendary(ctx,t.radius,t.color,t.glow,ts,timeLeft);
   }
+  // Perfect zone sweet-spot dot — subtle center glow on normal targets
+  if(t.type==="normal"&&t.rarity&&t.rarity.name!=="common"){
+    const tlNow=Math.max(0,1-(Date.now()-t.spawnedAt)/t.lifetime);
+    const inPZ=tlNow>0.36&&tlNow<0.67;
+    if(inPZ){
+      ctx.save();ctx.globalAlpha=0.45+0.3*Math.abs(Math.sin(ts/90));
+      ctx.fillStyle="#ffffff";ctx.shadowColor="#ffd700";ctx.shadowBlur=8;
+      ctx.beginPath();ctx.arc(0,0,t.radius*0.22,0,Math.PI*2);ctx.fill();
+      ctx.restore();
+    }
+  }
   // Colorblind rarity symbols
   if(_colorblindOn&&t.type==="normal"&&t.rarity){
     const symbols={common:"●",uncommon:"■",rare:"◆",epic:"★",legendary:"♛"};
@@ -5593,6 +5604,49 @@ export default function NexusTap(){
             {cfg.modifier&&<span className="font-bold" style={{color:"#fbbf24"}}>⚡ {cfg.modifier.desc}</span>}
           </div>
         </div>
+        {/* Target type preview — show which special targets may appear in this level */}
+        {(()=>{
+          const id=cfg.id||1;
+          const previews=[];
+          if(id>=1) previews.push({icon:"🟣",label:"Normal",desc:"Standard tap target"});
+          if(id>=1) previews.push({icon:"💣",label:"Bomb",desc:"DON'T tap! Costs a life"});
+          if(id>=3) previews.push({icon:"⚡",label:"Power-up",desc:"Special abilities"});
+          if(id>=5) previews.push({icon:"🫧",label:"Bubble",desc:"Easy pop, wide zone"});
+          if(id>=5) previews.push({icon:"❓",label:"Mystery",desc:"Spin for surprise!"});
+          if(id>=8) previews.push({icon:"🪙",label:"Chest",desc:"Drops 3-5 coins"});
+          if(id>=10) previews.push({icon:"🔮",label:"Treasure",desc:"Jackpot score bonus"});
+          if(id>=12) previews.push({icon:"🎭",label:"Mimic",desc:"Copies last rarity"});
+          if(id>=14) previews.push({icon:"🧲",label:"Magnet",desc:"Pulls nearby targets"});
+          if(id>=16) previews.push({icon:"🌀",label:"Anchor",desc:"Freezes all movers"});
+          if(id>=18) previews.push({icon:"💚",label:"Healer",desc:"Restore 1 life"});
+          if(id>=16) previews.push({icon:"⚡",label:"Bouncy",desc:"Fast! Bounces around"});
+          if(id>=20) previews.push({icon:"👻",label:"Phantom",desc:"Ultra-short 1.1s life"});
+          if(id>=22) previews.push({icon:"✦",label:"Twin",desc:"Tap one, score two!"});
+          if(id>=24) previews.push({icon:"❄️",label:"Frozen",desc:"Tiny hitbox, 3× pts"});
+          if(id>=24) previews.push({icon:"🌀",label:"Tornado",desc:"Scatters all targets"});
+          if(id>=25) previews.push({icon:"💥",label:"Volatile",desc:"Defuse it before boom!"});
+          if(id>=28) previews.push({icon:"🟣",label:"Shielded",desc:"Needs 2 taps"});
+          if(id>=30) previews.push({icon:"🌈",label:"Rainbow",desc:"Cycling rarity tiers"});
+          if(id>=35) previews.push({icon:"🥷",label:"Ninja",desc:"Invisible mostly!"});
+          if(id>=40) previews.push({icon:"💥",label:"Splitter",desc:"Splits into 3!"});
+          if(cfg.isBoss) previews.push({icon:WORLDS[cfg.world-1].emoji,label:"BOSS",desc:"Multi-hit epic fight!"});
+          const show=previews.slice(-8); // Show last 8 relevant types for this level
+          return(
+            <div className="rounded-2xl px-4 py-3" style={{background:`${cfg.worldColor}08`,border:`1px solid ${cfg.worldColor}22`}}>
+              <div className="text-xs font-bold opacity-40 mb-2 uppercase tracking-widest" style={{color:cfg.worldColor}}>🎯 Targets in this level</div>
+              <div className="flex flex-wrap gap-1.5">
+                {show.map((t,i)=>(
+                  <div key={i} className="flex items-center gap-1 px-2 py-1 rounded-lg"
+                    style={{background:`${cfg.worldColor}12`,border:`1px solid ${cfg.worldColor}25`}}>
+                    <span style={{fontSize:12}}>{t.icon}</span>
+                    <span className="text-xs font-bold" style={{color:cfg.worldColor,opacity:0.8}}>{t.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Boss incoming warning — level X9 means next level is a boss */}
         {cfg.id%10===9&&!cfg.isBoss&&(
           <div className="rounded-2xl px-4 py-3 flex items-center gap-3"
