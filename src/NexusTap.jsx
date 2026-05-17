@@ -415,6 +415,7 @@ const ACHIEVEMENTS = [
   { id:"first_tap_fever",label:"Hot Start",          desc:"Get First Tap Fever on a rare+ target",icon:"🔥", xp:40  },
   { id:"bounty_hit",     label:"Bounty Hunter",      desc:"Tap a crowned Bounty target",          icon:"👑", xp:30  },
   { id:"tornado_catch",  label:"Eye of the Storm",   desc:"Tap a Tornado target",                 icon:"🌀", xp:45  },
+  { id:"bubble_pop",     label:"Pop Star",           desc:"Pop a soap Bubble target",             icon:"🫧", xp:15  },
 ];
 
 const MISSION_TEMPLATES = [
@@ -1635,6 +1636,33 @@ function drawLootChest(ctx, r, ts) {
   ctx.restore();
 }
 
+// ── Bubble target — large translucent soap bubble, generous hit zone ──
+function drawBubble(ctx, r, ts) {
+  const shimmer=0.5+0.5*Math.sin(ts*0.006);
+  const drift=Math.sin(ts*0.0045)*2;
+  ctx.save();
+  ctx.translate(0,drift);
+  // Outer translucent bubble
+  ctx.globalAlpha=0.12+shimmer*0.08;
+  ctx.fillStyle="#e0f7ff";ctx.shadowColor="#67e8f9";ctx.shadowBlur=20;
+  ctx.beginPath();ctx.arc(0,0,r*1.25,0,Math.PI*2);ctx.fill();
+  // Iridescent rim ring
+  ctx.globalAlpha=0.5+shimmer*0.3;
+  const rimGrad=ctx.createLinearGradient(-r,-r,r,r);
+  rimGrad.addColorStop(0,"#f472b6");rimGrad.addColorStop(0.25,"#67e8f9");
+  rimGrad.addColorStop(0.5,"#c084fc");rimGrad.addColorStop(0.75,"#4ade80");rimGrad.addColorStop(1,"#fbbf24");
+  ctx.strokeStyle=rimGrad;ctx.lineWidth=3.5;ctx.shadowColor="#60a5fa";ctx.shadowBlur=10;
+  ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.stroke();
+  // Inner sheen (half-moon highlight)
+  ctx.globalAlpha=0.35+shimmer*0.2;
+  ctx.fillStyle="#ffffff";ctx.shadowBlur=0;
+  ctx.beginPath();ctx.ellipse(-r*0.28,-r*0.32,r*0.38,r*0.22,Math.PI*0.35,0,Math.PI*2);ctx.fill();
+  // Small secondary highlight
+  ctx.globalAlpha=0.25;
+  ctx.beginPath();ctx.ellipse(r*0.2,r*0.3,r*0.12,r*0.07,Math.PI*0.1,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+}
+
 // ── Tornado target — blue spinning vortex, scrambles nearby target positions ──
 function drawTornado(ctx, r, ts) {
   const spin=ts*0.003;
@@ -1912,6 +1940,7 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="ninja")    drawNinja(ctx,t.radius,ts,timeLeft);
   else if(t.type==="lootchest") drawLootChest(ctx,t.radius,ts);
   else if(t.type==="tornado")  drawTornado(ctx,t.radius,ts);
+  else if(t.type==="bubble")   drawBubble(ctx,t.radius,ts);
   else{
     const nm=t.rarity?.name;
     if     (nm==="common")    drawCommon(ctx,t.radius,t.color,t.glow,ts,timeLeft);
@@ -2943,6 +2972,9 @@ export default function NexusTap(){
     } else if((cfg.id||0)>=25&&Math.random()<0.018&&!gs.bonusRoundActive&&effBomb>0&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1.8% Volatile — tap to defuse (scores 250pts), or it explodes on expiry (costs a life)
       type="volatile";color="#ff4500";glow="#dc2626";
+    } else if((cfg.id||0)>=5&&Math.random()<0.028&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 2.8% Bubble — large hit zone (1.8× radius), pops for points (easy/fun target for beginners)
+      type="bubble";color="#e0f7ff";glow="#67e8f9";
     } else if((cfg.id||0)>=24&&Math.random()<0.012&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1.2% Tornado — scrambles nearby target positions in a vortex effect
       type="tornado";color="#67e8f9";glow="#06b6d4";
@@ -2961,7 +2993,7 @@ export default function NexusTap(){
       }
       if(!moving&&Math.random()<effGhost)ghost=true;
     }
-    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
+    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
     // World modifiers: Ocean Deep (8) — slower targets (calmer waters), longer lifetimes
@@ -3200,7 +3232,7 @@ export default function NexusTap(){
       if(t.ghost&&Math.sin(performance.now()/200)>0.25)continue;
       const d=Math.hypot(t.x-tx,t.y-ty);
       // Frozen targets have 70% smaller effective hit zone (precision challenge)
-      const effectiveR=t.type==="frozen"?t.radius*0.70*1.35:t.radius*1.35;
+      const effectiveR=t.type==="frozen"?t.radius*0.70*1.35:t.type==="bubble"?t.radius*1.8:t.radius*1.35;
       if(d<effectiveR&&d<hitDist){hit=t;hitDist=d;}
     }
     ripplesRef.current.push({x:tx,y:ty,r:12,alpha:0.7,color:hit?(hit.color||"#a78bfa"):"#ffffff44"});
@@ -3462,6 +3494,29 @@ export default function NexusTap(){
       spawnPopup(hit.x,hit.y-32,`👻 PHANTOM! +${pts}`,"#e879f9",22);
       setEpicFlash(true);setTimeout(()=>setEpicFlash(false),500);
       unlock("phantom_catch");
+      mascotHappyRef.current++;
+      const cfg=levelCfgRef.current;
+      if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
+    // BUBBLE — large hit zone, pops with a satisfying burst; decent points
+    if(hit.type==="bubble"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      const isMultiplierBub=activePwrRef.current.some(p=>p.type==="MULTIPLIER"&&p.endsAt>Date.now());
+      const pts=Math.round(60*combo*feverMult*prestigeMult*(isMultiplierBub?3:1));
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;
+      hit.dying=performance.now();
+      sfx("rare");vibrate(10);
+      // Pop burst — rainbow iridescent particles
+      const bubColors=["#f472b6","#67e8f9","#c084fc","#4ade80","#fbbf24"];
+      bubColors.forEach((c,i)=>setTimeout(()=>spawnParticles(hit.x,hit.y,c,8,"dot"),i*20));
+      spawnPopup(hit.x,hit.y-26,`🫧 POP! +${pts}`,"#67e8f9",16);
+      unlock("bubble_pop");
       mascotHappyRef.current++;
       const cfg=levelCfgRef.current;
       if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
@@ -4539,6 +4594,19 @@ export default function NexusTap(){
       gs.streak=Math.max(0,gs.streak-1);
       gs.lastTapTime=Date.now()-decayMs;
       setStreakDecaying(gs.streak>0);
+    }
+
+    // Score milestone popups — HALFWAY / SO CLOSE (shown once per level)
+    if(cfg.scoreGoal&&!cfg.isInfinity&&!cfg.isZen){
+      const scorePct=gs.score/cfg.scoreGoal;
+      if(scorePct>=0.5&&!gs._shownHalfway){
+        gs._shownHalfway=true;
+        spawnPopup(cw/2,ch*0.42,"🎯 HALFWAY THERE!","#4ade80",18);sfx("tap");
+      }
+      if(scorePct>=0.9&&!gs._shownClose){
+        gs._shownClose=true;
+        spawnPopup(cw/2,ch*0.38,"🔥 SO CLOSE! PUSH IT!","#f97316",20);sfx("lucky");vibrate([15,8,15]);
+      }
     }
 
     // HUD update 20fps
