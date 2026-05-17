@@ -6276,6 +6276,24 @@ export default function NexusTap(){
       }
     }
 
+    // Lightning Storm — triggered by hitting streak 25+ milestone (max once per level)
+    if(!cfg.isBoss&&gs.streak>=25&&!gs._stormTriggered&&!gs._stormEndsAt){
+      gs._stormTriggered=true;gs._stormEndsAt=now+4000;
+      spawnPopup(cw/2,ch*0.3,"⚡ LIGHTNING STORM!","#fbbf24",22);
+      setNotif("⚡ LIGHTNING STORM! All targets get zapped!");
+      sfx("chainBonus");vibrate([15,8,15,8,25]);
+      // Zap all current normal targets for free
+      const eligible=targetsRef.current.filter(t=>!t.dying&&t.type==="normal"&&!t._isShard);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));const feverMult=gs.feverActive?2:1;
+      eligible.slice(0,5).forEach((t,i)=>{setTimeout(()=>{
+        if(!t.dying){t.dying=performance.now();
+          const pts=Math.round(40*combo*feverMult);gs.score+=pts;gs.sessionStats.score=gs.score;
+          spawnParticles(t.x,t.y,"#fbbf24",10,"spark");spawnPopup(t.x,t.y-20,`⚡+${pts}`,"#fbbf24",13);
+          sfx("comboNote",i+2);
+        }
+      },i*120);});
+    }
+
     // Target Rush — when score hits 90% of goal, spawn at 1.5× rate for 8s
     if(!cfg.isBoss&&!cfg.isZen&&cfg.scoreGoal&&gs.score>=cfg.scoreGoal*0.9&&!gs._rushStarted){
       gs._rushStarted=true;gs._rushEndsAt=now+8000;
@@ -7832,6 +7850,13 @@ export default function NexusTap(){
               ×5 SCORE BOOST — {gsRef.current._scoreBoostTaps} tap{gsRef.current._scoreBoostTaps!==1?"s":""} left!
             </span>
           </div>
+        )}
+        {/* Lightning Storm visual — yellow border flash */}
+        {gsRef.current?._stormEndsAt&&Date.now()<gsRef.current._stormEndsAt&&(
+          <div className="absolute inset-0 pointer-events-none z-10" style={{
+            border:"3px solid #fbbf24",
+            boxShadow:"inset 0 0 60px #fbbf2428,0 0 60px #fbbf2428",
+            animation:"feverPulse 0.25s ease-in-out infinite alternate"}}/>
         )}
         {/* Time Warp — deep purple slowdown border + banner */}
         {activePwrDisp.some(p=>p.type==="TIME_WARP"&&p.endsAt>Date.now())&&(
