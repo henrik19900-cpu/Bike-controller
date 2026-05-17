@@ -410,6 +410,7 @@ const ACHIEVEMENTS = [
   { id:"rainbow_legendary",label:"Perfect Rainbow",  desc:"Tap a Rainbow at Legendary tier",     icon:"🌟", xp:60  },
   { id:"frozen_catch",    label:"Ice Breaker",       desc:"Tap a Frozen target's small zone",    icon:"❄️", xp:45  },
   { id:"bouncy_catch",    label:"Reflex Master",     desc:"Catch a fast Bouncy target",          icon:"⚡", xp:30  },
+  { id:"ninja_catch",     label:"Ninja Hunter",      desc:"Catch a Ninja target when it appears",icon:"🥷", xp:75  },
 ];
 
 const MISSION_TEMPLATES = [
@@ -1430,6 +1431,37 @@ function drawMagnet(ctx, r, ts) {
   ctx.restore();
 }
 
+// ── Ninja target — nearly invisible, materializes in last 20% of lifetime ──
+function drawNinja(ctx, r, ts, lifeRatio) {
+  // Only fully visible in last 20%; faint shimmer hint for 80-40%; invisible for 40-20%
+  let alpha;
+  if(lifeRatio>0.6) alpha=0.04+0.06*Math.sin(ts*0.004); // barely visible shimmer hint
+  else if(lifeRatio>0.2) alpha=0.0; // completely invisible
+  else alpha=Math.pow(1-lifeRatio/0.2,2)*0.95; // materializes rapidly in final 20%
+  if(alpha<=0.01) return; // skip draw
+  ctx.save();ctx.globalAlpha=alpha;
+  // Dark smoke body
+  const bg=ctx.createRadialGradient(0,0,0,0,0,r);
+  bg.addColorStop(0,"#9ca3af");bg.addColorStop(0.5,"#6b7280");bg.addColorStop(1,"#111827");
+  ctx.fillStyle=bg;ctx.shadowColor="#374151";ctx.shadowBlur=12;
+  ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  // Ninja mask eyes
+  ctx.fillStyle="#ffffff";ctx.shadowBlur=0;
+  ctx.beginPath();ctx.arc(-r*0.25,-r*0.1,r*0.13,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(r*0.25,-r*0.1,r*0.13,0,Math.PI*2);ctx.fill();
+  // Shuriken star shape
+  if(lifeRatio<0.2){
+    const spin=ts*0.012;ctx.strokeStyle="#e2e8f0";ctx.lineWidth=1.5;
+    for(let i=0;i<4;i++){
+      const a=i*Math.PI/2+spin;
+      ctx.beginPath();ctx.moveTo(Math.cos(a)*r*0.6,Math.sin(a)*r*0.6);
+      ctx.lineTo(Math.cos(a+Math.PI/4)*r*0.25,Math.sin(a+Math.PI/4)*r*0.25);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
 // ── Bouncy target — fast-moving elastic ball with squish trails ──
 function drawBouncy(ctx, r, ts) {
   const bounce=0.5+0.5*Math.sin(ts*0.014);
@@ -1780,6 +1812,7 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="rainbow")  drawRainbow(ctx,t.radius,ts);
   else if(t.type==="frozen")   drawFrozen(ctx,t.radius,ts);
   else if(t.type==="bouncy")   drawBouncy(ctx,t.radius,ts);
+  else if(t.type==="ninja")    drawNinja(ctx,t.radius,ts,timeLeft);
   else{
     const nm=t.rarity?.name;
     if     (nm==="common")    drawCommon(ctx,t.radius,t.color,t.glow,ts,timeLeft);
@@ -2767,6 +2800,9 @@ export default function NexusTap(){
     } else if((cfg.id||0)>=20&&Math.random()<0.022&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 2.2% Phantom — ultra-short lifetime (1.1s), huge points, ghostly appearance
       type="phantom";color="#e879f9";glow="#a21caf";
+    } else if((cfg.id||0)>=35&&Math.random()<0.012&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.2% Ninja — invisible 80% of lifetime, visible only last 20%; huge score reward
+      type="ninja";color="#6b7280";glow="#374151";
     } else if((cfg.id||0)>=16&&Math.random()<0.025&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 2.5% Bouncy — fast bouncing target, higher points for catching something hard to hit
       type="bouncy";color="#fde047";glow="#eab308";
@@ -2805,7 +2841,7 @@ export default function NexusTap(){
       }
       if(!moving&&Math.random()<effGhost)ghost=true;
     }
-    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
+    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
     // World modifiers: Ocean Deep (8) — slower targets (calmer waters), longer lifetimes
@@ -2818,6 +2854,8 @@ export default function NexusTap(){
     if(type==="phantom")lifetime=1100;
     // Volatile targets: medium-short lifetime (2200ms) — defuse or explode
     if(type==="volatile")lifetime=2200;
+    // Ninja targets: longer lifetime (3500ms) so visible window is still ~700ms
+    if(type==="ninja")lifetime=3500;
     // Skill: target_sense — extra lifetime
     const tsk=(saveRef.current.skills||{}).target_sense||0;
     if(tsk>=1)lifetime+=500;if(tsk>=2)lifetime+=500;if(tsk>=3)lifetime+=1000;
@@ -3190,6 +3228,34 @@ export default function NexusTap(){
       unlock("frozen_catch");mascotHappyRef.current++;
       const cfgFz=levelCfgRef.current;
       if(cfgFz){if(gs.score>=cfgFz.scoreGoal&&(!cfgFz.modifier||checkModGoal(cfgFz.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
+    // NINJA — nearly invisible, materializes last 20%; enormous point reward
+    if(hit.type==="ninja"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const timeLeftNinja=1-(Date.now()-hit.spawnedAt)/hit.lifetime;
+      if(timeLeftNinja>0.2){
+        // Tapped while still invisible — counts as a miss (can't game it)
+        sfx("miss");vibrate(20);
+        spawnPopup(hit.x,hit.y-22,"👁️ WHERE IS IT?","#9ca3af",14);
+        return;
+      }
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      const isMultiplierNj=activePwrRef.current.some(p=>p.type==="MULTIPLIER"&&p.endsAt>Date.now());
+      const pts=Math.round(600*combo*feverMult*prestigeMult*(isMultiplierNj?3:1));
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;gs.sessionStats.rareHits++;
+      hit.dying=performance.now();
+      sfx("legendary");vibrate([20,8,20,8,40]);
+      spawnParticles(hit.x,hit.y,"#9ca3af",30,"spark");spawnParticles(hit.x,hit.y,"#ffffff",12,"dot");
+      spawnPopup(hit.x,hit.y-32,`🥷 NINJA! +${pts}`,"#e2e8f0",22);
+      setLegendaryFlash(true);setTimeout(()=>setLegendaryFlash(false),700);
+      unlock("ninja_catch");mascotHappyRef.current++;
+      const cfgNj=levelCfgRef.current;
+      if(cfgNj){if(gs.score>=cfgNj.scoreGoal&&(!cfgNj.modifier||checkModGoal(cfgNj.modifier,gs))){endLevel(true);return;}}
       return;
     }
 
