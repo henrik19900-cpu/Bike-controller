@@ -6207,7 +6207,37 @@ export default function NexusTap(){
           </div>
         </NeonButton>
       </div>
-      <div className="border-t border-white border-opacity-10 pt-4">
+      {/* Data management */}
+      <div className="border-t border-white border-opacity-10 pt-4 flex flex-col gap-2">
+        <p className="text-xs font-bold opacity-40 uppercase tracking-widest mb-1" style={{color:theme.accent}}>Data</p>
+        <NeonButton onClick={()=>{
+          const data=JSON.stringify(saveRef.current,null,2);
+          const blob=new Blob([data],{type:"application/json"});
+          const url=URL.createObjectURL(blob);
+          const a=document.createElement("a");a.href=url;a.download="nexustap_save.json";a.click();
+          URL.revokeObjectURL(url);
+          setNotif("💾 Save exported!");
+        }} className="w-full py-3 text-sm" style={{background:"#3b82f618",border:"1px solid #3b82f655",color:"#60a5fa"}}>
+          💾 Export Save Data
+        </NeonButton>
+        <NeonButton onClick={()=>{
+          const inp=document.createElement("input");inp.type="file";inp.accept=".json";
+          inp.onchange=e=>{
+            const file=e.target.files[0];if(!file)return;
+            const reader=new FileReader();
+            reader.onload=ev=>{
+              try{
+                const imported=JSON.parse(ev.target.result);
+                if(imported.highScore!==undefined&&imported.coins!==undefined){
+                  Object.assign(saveRef.current,imported);flushSave();
+                  setNotif("✅ Save imported!");go("menu");
+                } else setNotif("❌ Invalid save file");
+              } catch{setNotif("❌ Could not read file");}
+            };reader.readAsText(file);
+          };inp.click();
+        }} className="w-full py-3 text-sm" style={{background:"#8b5cf618",border:"1px solid #8b5cf655",color:"#a78bfa"}}>
+          📂 Import Save Data
+        </NeonButton>
         <NeonButton onClick={()=>{if(window.confirm("Reset ALL progress? Cannot be undone.")){saveRef.current={...DEFAULT_SAVE};flushSave();setTheme(THEMES[0]);setSoundOn(true);go("menu");}}}
           className="w-full py-3 text-sm" style={{background:"#ef444418",border:"1px solid #ef444455",color:"#ef4444"}}>
           Reset All Progress
