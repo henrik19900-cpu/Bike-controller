@@ -405,6 +405,7 @@ const ACHIEVEMENTS = [
   { id:"volatile_defuse", label:"Bomb Squad",        desc:"Defuse a Volatile target",            icon:"💣", xp:35 },
   { id:"healer_catch",    label:"First Aid",         desc:"Tap a Healer to restore a life",      icon:"❤️", xp:25 },
   { id:"overkill_5x",    label:"OVERKILL",          desc:"Score 5× the level goal",             icon:"🌟", xp:80 },
+  { id:"twin_hit",        label:"Dynamic Duo",       desc:"Tap a Twin target pair",              icon:"✦", xp:30  },
 ];
 
 const MISSION_TEMPLATES = [
@@ -1425,6 +1426,35 @@ function drawMagnet(ctx, r, ts) {
   ctx.restore();
 }
 
+// ── Twin target — golden amber, tapping one scores both ──
+function drawTwin(ctx, r, ts) {
+  const pulse=0.5+0.5*Math.sin(ts*0.006);
+  const spin=ts*0.0012;
+  ctx.save();
+  // Outer glow
+  ctx.globalAlpha=0.3+pulse*0.2;
+  ctx.strokeStyle="#f59e0b";ctx.lineWidth=3;ctx.shadowColor="#fbbf24";ctx.shadowBlur=20;
+  ctx.setLineDash([6,4]);ctx.lineDashOffset=spin*50;
+  ctx.beginPath();ctx.arc(0,0,r*1.45,0,Math.PI*2);ctx.stroke();
+  ctx.setLineDash([]);ctx.globalAlpha=1;
+  // Body
+  const bg=ctx.createRadialGradient(0,0,0,0,0,r);
+  bg.addColorStop(0,"#fde68a");bg.addColorStop(0.5,"#f59e0b");bg.addColorStop(1,"#b45309");
+  ctx.fillStyle=bg;ctx.shadowColor="#f59e0b";ctx.shadowBlur=14+pulse*8;
+  ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  // ∞ or ✦ symbol
+  ctx.fillStyle="#ffffff";ctx.font=`bold ${r*0.8}px serif`;
+  ctx.textAlign="center";ctx.textBaseline="middle";ctx.shadowBlur=0;
+  ctx.fillText("✦",0,0);
+  // Two small orbiting dots
+  for(let i=0;i<2;i++){
+    const a=spin*3+i*Math.PI;const d=r*1.25;
+    ctx.fillStyle="#fde68a";ctx.globalAlpha=0.8;
+    ctx.beginPath();ctx.arc(Math.cos(a)*d,Math.sin(a)*d,3.5,0,Math.PI*2);ctx.fill();
+  }
+  ctx.restore();
+}
+
 // ── Healer target — glowing green cross, restores 1 life when tapped ──
 function drawHealer(ctx, r, ts) {
   const pulse=0.5+0.5*Math.sin(ts*0.005);
@@ -1646,6 +1676,7 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="phantom")  drawPhantom(ctx,t.radius,ts,timeLeft);
   else if(t.type==="volatile") drawVolatile(ctx,t.radius,ts,timeLeft);
   else if(t.type==="healer")   drawHealer(ctx,t.radius,ts);
+  else if(t.type==="twin")     drawTwin(ctx,t.radius,ts);
   else{
     const nm=t.rarity?.name;
     if     (nm==="common")    drawCommon(ctx,t.radius,t.color,t.glow,ts,timeLeft);
@@ -2626,6 +2657,15 @@ export default function NexusTap(){
     } else if((cfg.id||0)>=20&&Math.random()<0.022&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 2.2% Phantom — ultra-short lifetime (1.1s), huge points, ghostly appearance
       type="phantom";color="#e879f9";glow="#a21caf";
+    } else if((cfg.id||0)>=22&&Math.random()<0.02&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 2% Twin — spawns as a pair; tapping one scores both (bonus points for efficiency)
+      type="twin";color="#f59e0b";glow="#d97706";
+      // Spawn a matching partner at a nearby position
+      const partnerPos=pickPos(BASE_R*1.1);
+      const twinId=Math.random().toString(36).slice(2);
+      const twinId2=Math.random().toString(36).slice(2);
+      // We'll link them by sharing a twinGroupId; handled in tap handler
+      gs._pendingTwin={id:twinId2,pos:partnerPos,groupId:twinId,lt:lifetime};
     } else if((cfg.id||0)>=18&&Math.random()<0.015&&gs.lives<cfg.lives&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1.5% Healer — only spawns if player has lost lives; restores 1 life when tapped
       type="healer";color="#34d399";glow="#059669";
@@ -2644,7 +2684,7 @@ export default function NexusTap(){
       }
       if(!moving&&Math.random()<effGhost)ghost=true;
     }
-    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
+    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
     // World modifiers: Ocean Deep (8) — slower targets (calmer waters), longer lifetimes
@@ -2664,8 +2704,12 @@ export default function NexusTap(){
     const anticipateMs=type==="normal"?260:0;
     // Boss pattern: 4 patterns based on worldId, advances phases as HP drops
     const bossPattern=type==="boss"?(cfg.world%4):null;
+    const mainId=Math.random().toString(36).slice(2);
+    const twinGroupId=type==="twin"?mainId:undefined;
+    const pendingTwin=type==="twin"?gs._pendingTwin:null;
+    if(type==="twin"&&gs._pendingTwin)delete gs._pendingTwin;
     targetsRef.current.push({
-      id:Math.random().toString(36).slice(2),type,rarity:type==="normal"?rarity:null,
+      id:mainId,type,rarity:type==="normal"?rarity:null,
       x:pos.x,y:pos.y,radius:baseR,color,glow,lifetime,
       spawnedAt:Date.now()+anticipateMs, // lifetime starts after anticipation
       born:performance.now(),anticipateMs,
@@ -2673,7 +2717,19 @@ export default function NexusTap(){
       worldId:cfg.world, worldColor:cfg.worldColor,
       bossPattern, bossPhase:1, // phase 1 = full HP, 2 = mid, 3 = rage
       cx:pos.x, cy:pos.y, // anchor for orbit patterns
+      twinGroupId,
     });
+    // Spawn twin partner immediately
+    if(type==="twin"&&pendingTwin){
+      targetsRef.current.push({
+        id:pendingTwin.id,type:"twin",rarity:null,
+        x:pendingTwin.pos.x,y:pendingTwin.pos.y,radius:baseR,color,glow,lifetime,
+        spawnedAt:Date.now(),born:performance.now(),anticipateMs:0,
+        moving:false,ghost:false,vx:0,vy:0,pwrType:null,hitsLeft:1,maxHits:1,trail:null,
+        worldId:cfg.world,worldColor:cfg.worldColor,bossPattern:null,bossPhase:1,
+        cx:pendingTwin.pos.x,cy:pendingTwin.pos.y,twinGroupId:mainId,
+      });
+    }
   },[sfx,pickPos]);
 
   // Level complete / game over
@@ -2934,6 +2990,35 @@ export default function NexusTap(){
       unlock("shielded_hit");
       const cfg=levelCfgRef.current;
       if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
+    // TWIN — tapping one scores both twins for bonus points
+    if(hit.type==="twin"){
+      const partner=targetsRef.current.find(t=>t!==hit&&t.type==="twin"&&t.twinGroupId===hit.twinGroupId&&!t.dying);
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      const isMultiplierT=activePwrRef.current.some(p=>p.type==="MULTIPLIER"&&p.endsAt>Date.now());
+      const basePts=120*combo*feverMult*prestigeMult*(isMultiplierT?3:1);
+      let totalPts=Math.round(basePts);
+      if(partner){
+        partner.dying=performance.now();
+        totalPts=Math.round(basePts*2.2); // bonus for finding both
+        spawnParticles(partner.x,partner.y,"#f59e0b",15,"spark");
+        spawnParticles(partner.x,partner.y,"#fbbf24",6,"dot");
+        spawnPopup(partner.x,partner.y-22,"✦ TWIN!","#f59e0b",15);
+      }
+      gs.score+=totalPts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;
+      sfx("coin");vibrate([10,8,10,8,20]);
+      spawnParticles(hit.x,hit.y,"#f59e0b",20,"spark");
+      spawnPopup(hit.x,hit.y-30,partner?`✦×2 +${totalPts}`:`✦ TWIN +${totalPts}`,"#fbbf24",18);
+      if(partner)setEpicFlash(true),setTimeout(()=>setEpicFlash(false),400);
+      unlock("twin_hit");mascotHappyRef.current++;
+      const cfg2=levelCfgRef.current;
+      if(cfg2){if(gs.score>=cfg2.scoreGoal&&(!cfg2.modifier||checkModGoal(cfg2.modifier,gs))){endLevel(true);return;}}
       return;
     }
 
