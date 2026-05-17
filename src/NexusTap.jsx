@@ -440,6 +440,8 @@ const ACHIEVEMENTS = [
   { id:"vanishing_tap",      label:"Ghost Buster",   desc:"Tap a Vanishing target",               icon:"👻", xp:30  },
   { id:"vanishing_blind",    label:"Sixth Sense",    desc:"Tap a Vanishing target while invisible",icon:"🎯", xp:90  },
   { id:"tap_frenzy",         label:"Tap Frenzy",     desc:"Hit 5 targets in 2 seconds",           icon:"⚡", xp:35  },
+  { id:"homing_tap",         label:"Target Acquired", desc:"Tap a Homing target",                  icon:"🎯", xp:20  },
+  { id:"homing_center",      label:"Bullseye",        desc:"Tap a Homing target near screen center",icon:"🎯", xp:60  },
 ];
 
 const MISSION_TEMPLATES = [
@@ -1548,6 +1550,39 @@ function drawNinja(ctx, r, ts, lifeRatio) {
   ctx.restore();
 }
 
+// ── Homing target — drifts toward screen center; arrows show direction ──
+function drawHoming(ctx, r, ts) {
+  const pulse=0.5+0.5*Math.sin(ts*0.007);
+  const spin=ts*0.0022;
+  ctx.save();
+  // Outer orbit ring with arrow markers
+  ctx.globalAlpha=0.22+pulse*0.18;ctx.strokeStyle="#34d399";ctx.lineWidth=2.5;
+  ctx.shadowColor="#059669";ctx.shadowBlur=18+pulse*12;
+  ctx.setLineDash([6,5]);ctx.lineDashOffset=-spin*80;
+  ctx.beginPath();ctx.arc(0,0,r*1.38,0,Math.PI*2);ctx.stroke();
+  ctx.setLineDash([]);
+  // Direction arrows on orbit ring (pointing inward = target moves to center)
+  ctx.globalAlpha=0.6+pulse*0.25;ctx.fillStyle="#4ade80";ctx.shadowBlur=6;
+  [0,Math.PI*0.66,Math.PI*1.32].forEach(a=>{
+    const rx=Math.cos(a+spin)*r*1.38,ry=Math.sin(a+spin)*r*1.38;
+    ctx.save();ctx.translate(rx,ry);ctx.rotate(a+spin+Math.PI); // pointing inward
+    ctx.beginPath();ctx.moveTo(0,-4.5);ctx.lineTo(3.5,3);ctx.lineTo(-3.5,3);ctx.closePath();ctx.fill();
+    ctx.restore();
+  });
+  ctx.globalAlpha=1;
+  // Core — green gradient
+  const hg=ctx.createRadialGradient(0,0,0,0,0,r);
+  hg.addColorStop(0,"rgba(134,239,172,0.95)");hg.addColorStop(0.6,"rgba(52,211,153,0.88)");hg.addColorStop(1,"rgba(5,150,105,0.8)");
+  ctx.fillStyle=hg;ctx.shadowColor="#10b981";ctx.shadowBlur=14;
+  ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  // Target crosshair
+  ctx.globalAlpha=0.7+pulse*0.2;ctx.strokeStyle="#d1fae5";ctx.lineWidth=1.5;ctx.shadowBlur=4;
+  ctx.beginPath();ctx.moveTo(-r*0.55,0);ctx.lineTo(r*0.55,0);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(0,-r*0.55);ctx.lineTo(0,r*0.55);ctx.stroke();
+  ctx.beginPath();ctx.arc(0,0,r*0.3,0,Math.PI*2);ctx.stroke();
+  ctx.restore();
+}
+
 // ── Bouncy target — fast-moving elastic ball with squish trails ──
 function drawBouncy(ctx, r, ts) {
   const bounce=0.5+0.5*Math.sin(ts*0.014);
@@ -2147,6 +2182,7 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="rage")     {const rl=Math.min(1,(now-t.spawnedAt)/(t.lifetime*0.9));drawRage(ctx,t.radius,ts,rl);}
   else if(t.type==="divider")  drawDivider(ctx,t.radius,ts);
   else if(t.type==="vanishing") drawVanishing(ctx,t.radius,ts);
+  else if(t.type==="homing")   drawHoming(ctx,t.radius,ts);
   else{
     const nm=t.rarity?.name;
     if     (nm==="common")    drawCommon(ctx,t.radius,t.color,t.glow,ts,timeLeft);
@@ -3404,6 +3440,11 @@ export default function NexusTap(){
     } else if((cfg.id||0)>=22&&Math.random()<0.016&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1.6% Vanishing — blinks in/out of visibility; big reward for blind timing
       type="vanishing";color="#67e8f9";glow="#0ea5e9";
+    } else if((cfg.id||0)>=12&&Math.random()<0.02&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 2% Homing — slowly drifts toward screen center; strategic since it comes to you
+      type="homing";color="#34d399";glow="#059669";moving=true;
+      const homingAngle=Math.random()*Math.PI*2;
+      vx=Math.cos(homingAngle)*0.4;vy=Math.sin(homingAngle)*0.4;
       const initSpd=0.6+Math.random()*0.4;const angle=Math.random()*Math.PI*2;
       vx=Math.cos(angle)*initSpd;vy=Math.sin(angle)*initSpd;
     } else if(Math.random()<0.035&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")&&!gs.mysteryPause){
@@ -3418,7 +3459,7 @@ export default function NexusTap(){
       }
       if(!moving&&Math.random()<effGhost)ghost=true;
     }
-    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="divider"?BASE_R*1.65:type==="vanishing"?BASE_R*1.1:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
+    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="divider"?BASE_R*1.65:type==="vanishing"?BASE_R*1.1:type==="homing"?BASE_R*1.2:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
     // World modifiers: Ocean Deep (8) — slower targets (calmer waters), longer lifetimes
@@ -3998,6 +4039,31 @@ export default function NexusTap(){
       spawnParticles(hit.x,hit.y,"#7c3aed",6,"dot");
       spawnPopup(hit.x,hit.y-32,`✨ ECHO BONUS! +${pts}`,"#e9d5ff",18);
       unlock("echo_bonus");
+      const cfg=levelCfgRef.current;
+      if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
+    // HOMING — scores based on how close it is to center when tapped
+    if(hit.type==="homing"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const canvas=canvasRef.current;const cw=canvas?.width||390,ch=canvas?.height||700;
+      const centerDist=Math.hypot(hit.x-cw/2,hit.y-ch/2);
+      const maxDist=Math.hypot(cw/2,ch/2);
+      const proximityBonus=Math.max(0,1-centerDist/maxDist); // 0=edge, 1=center
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      const pts=Math.round((60+proximityBonus*140)*combo*feverMult*prestigeMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;
+      sfx("comboNote",gs.streak);vibrate([10,5,10]);
+      spawnParticles(hit.x,hit.y,"#34d399",12,"spark");
+      const prxLabel=proximityBonus>0.8?"🎯 BULLSEYE!":proximityBonus>0.5?"✅ CLOSE!":"🟡 NEAR";
+      spawnPopup(hit.x,hit.y-28,`${prxLabel} +${pts}`,"#4ade80",15+Math.floor(proximityBonus*6));
+      if(proximityBonus>0.85)unlock("homing_center");
+      unlock("homing_tap");
+      mascotHappyRef.current++;
       const cfg=levelCfgRef.current;
       if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
       return;
@@ -5041,6 +5107,16 @@ export default function NexusTap(){
             const rl=Math.min(1,(now-t.spawnedAt)/(t.lifetime*0.9));
             const speedScale=0.056*(1+rl*3.5); // up to 4.5× faster at max rage
             t.x+=t.vx*dt*speedScale;t.y+=t.vy*dt*speedScale;
+          } else if(t.type==="homing"){
+            // Homing: gently steers toward screen center
+            const cx2=w/2,cy2=Math.min(h*0.52,h-80);
+            const dx2=cx2-t.x,dy2=cy2-t.y;
+            const dist2=Math.hypot(dx2,dy2)||1;
+            const steer=0.018;
+            t.vx+=dx2/dist2*steer;t.vy+=dy2/dist2*steer;
+            // Cap speed
+            const spd=Math.hypot(t.vx,t.vy);if(spd>1.4){t.vx=t.vx/spd*1.4;t.vy=t.vy/spd*1.4;}
+            t.x+=t.vx*dt*0.056;t.y+=t.vy*dt*0.056;
           } else {
             t.x+=t.vx*dt*0.056;t.y+=t.vy*dt*0.056;
           }
@@ -7629,7 +7705,7 @@ export default function NexusTap(){
   // Achievement tab state — "all" | "gameplay" | "progression" | "social"
   const [achTab, setAchTab] = React.useState("all");
   const ACH_CATS = {
-    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy"],
+    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center"],
     progression: ["level_10","level_50","level_100","prestige_1","three_stars_5","mascot_lv10","streak_25","streak_50","streak_10","streak_5","score_2000"],
     social:      ["missions_all","daily_7","friday_fever","weekend_warrior","all_worlds","streak_saver","loot_chest"],
   };
