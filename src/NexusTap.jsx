@@ -442,6 +442,7 @@ const ACHIEVEMENTS = [
   { id:"tap_frenzy",         label:"Tap Frenzy",     desc:"Hit 5 targets in 2 seconds",           icon:"⚡", xp:35  },
   { id:"homing_tap",         label:"Target Acquired", desc:"Tap a Homing target",                  icon:"🎯", xp:20  },
   { id:"homing_center",      label:"Bullseye",        desc:"Tap a Homing target near screen center",icon:"🎯", xp:60  },
+  { id:"world_complete",     label:"World Conqueror", desc:"Complete all levels in any world",      icon:"🌍", xp:100 },
 ];
 
 const MISSION_TEMPLATES = [
@@ -3636,6 +3637,14 @@ export default function NexusTap(){
       // Track world visits — all_worlds achievement
       const visitedWorlds=new Set(Object.keys(sv.levelStars||{}).map(id=>getLevelConfig(Number(id)).world));
       if(visitedWorlds.size>=10)unlock("all_worlds");
+      // World completion — all 10 levels in a world with at least 1 star
+      const worldId=cfg.world;
+      const worldLevels=Array.from({length:10},(_,i)=>((worldId-1)*10+i+1));
+      const worldDone=worldLevels.every(lid=>(sv.levelStars[lid]||0)>=1);
+      if(worldDone){unlock(`world_${worldId}_complete`);unlock("world_complete");}
+      // Perfect world — all 10 levels with 3 stars
+      const worldPerfect=worldLevels.every(lid=>(sv.levelStars[lid]||0)>=3);
+      if(worldPerfect)unlock(`world_${worldId}_perfect`);
       // Perfect run bonus — no misses AND lives unchanged → triple coins
       const missedCount=gs.sessionStats.missedTargets||0;
       const startLives=cfg.lives+(gs._extraLifeUsed?-1:0);
@@ -4616,6 +4625,11 @@ export default function NexusTap(){
     const shardMult=hit._isShard?0.5:1; // splitter shards award half points
     const pts=Math.round(hit.rarity.mult*combo*feverMult*(isDouble?2:1)*(isMultiplier?3:1)*(isPerfect?1.5:1)*(isLastBreath?1.5:1)*prestigeMult*shardMult);
     gs.score+=pts;
+    // Prestige aura — golden shockwave on each tap when prestige ≥ 1
+    if((saveRef.current.prestigeLevel||0)>=1){
+      particlesRef.current.push({type:"shockwave",x:hit.x,y:hit.y,color:"#ffd700",
+        size:hit.radius*1.2,born:performance.now(),duration:500,alpha:0.55+(saveRef.current.prestigeLevel||0)*0.06});
+    }
     // Proximity chain bonus — if tapped within 300ms AND within 80px of last tap
     const nowMs=Date.now();
     if(gs._lastTapX!==undefined&&gs._lastTapY!==undefined&&gs._lastTapMs&&
@@ -7706,7 +7720,7 @@ export default function NexusTap(){
   const [achTab, setAchTab] = React.useState("all");
   const ACH_CATS = {
     gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center"],
-    progression: ["level_10","level_50","level_100","prestige_1","three_stars_5","mascot_lv10","streak_25","streak_50","streak_10","streak_5","score_2000"],
+    progression: ["level_10","level_50","level_100","prestige_1","three_stars_5","mascot_lv10","streak_25","streak_50","streak_10","streak_5","score_2000","world_complete"],
     social:      ["missions_all","daily_7","friday_fever","weekend_warrior","all_worlds","streak_saver","loot_chest"],
   };
   const renderAchievements=()=>{
