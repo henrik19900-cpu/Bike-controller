@@ -427,6 +427,7 @@ const ACHIEVEMENTS = [
   { id:"bounty_hit",     label:"Bounty Hunter",      desc:"Tap a crowned Bounty target",          icon:"👑", xp:30  },
   { id:"tornado_catch",  label:"Eye of the Storm",   desc:"Tap a Tornado target",                 icon:"🌀", xp:45  },
   { id:"bubble_pop",     label:"Pop Star",           desc:"Pop a soap Bubble target",             icon:"🫧", xp:15  },
+  { id:"bomb_defuse",    label:"Bomb Squad",         desc:"Double-tap a bomb to defuse it!",      icon:"💚", xp:50  },
 ];
 
 const MISSION_TEMPLATES = [
@@ -3770,6 +3771,21 @@ export default function NexusTap(){
     }
     // BOMB
     if(hit.type==="bomb"){
+      // Double-tap defuse: tapping same bomb twice within 200ms defuses it for 25pts
+      const nowBomb=Date.now();
+      if(hit._firstTap&&(nowBomb-hit._firstTap)<200){
+        // Defuse! Remove without penalty
+        targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+        sfx("rare");vibrate([10,5,10]);
+        spawnParticles(hit.x,hit.y,"#4ade80",14,"spark");
+        spawnPopup(hit.x,hit.y-22,"💚 DEFUSED! +25","#4ade80",16);
+        gs.score+=25;gs.sessionStats.score=gs.score;
+        unlock("bomb_defuse");
+        return;
+      }
+      hit._firstTap=nowBomb;
+      setTimeout(()=>{if(hit._firstTap===nowBomb)hit._firstTap=null;},200);
+      // Normal bomb hit
       targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
       sfx("bombHit");vibrate(55);spawnParticles(hit.x,hit.y,"#ef4444",16,"spark");
       const hasShield=activePwrRef.current.some(p=>p.type==="SHIELD"&&p.endsAt>Date.now());
@@ -4496,6 +4512,19 @@ export default function NexusTap(){
           if(cfg?.modifier?.type==="no_miss"){endLevel(false);return false;}
         }
         return false;
+      }
+      // Bomb danger zone — subtle pulsing red ring around bombs showing tap-exclusion zone
+      if(t.type==="bomb"&&!t.dying){
+        const bdPulse=0.4+0.4*Math.abs(Math.sin(ts*0.006));
+        ctx.save();ctx.globalAlpha=bdPulse*0.18;
+        ctx.fillStyle="#ef4444";ctx.shadowColor="#ef4444";ctx.shadowBlur=0;
+        ctx.beginPath();ctx.arc(t.x,t.y,t.radius*2.2,0,Math.PI*2);ctx.fill();
+        ctx.globalAlpha=bdPulse*0.5;
+        ctx.strokeStyle="#ef4444";ctx.lineWidth=1.5;
+        ctx.setLineDash([5,4]);
+        ctx.beginPath();ctx.arc(t.x,t.y,t.radius*2.2,0,Math.PI*2);ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
       }
       // Bounty target indicator — golden crown + pulsing ring above the target
       if(t._isBounty&&!t.dying){
@@ -5648,7 +5677,21 @@ export default function NexusTap(){
         <div className="rounded-2xl p-4" style={{background:`${cfg.worldColor}12`,border:`1px solid ${cfg.worldColor}44`}}>
           <div className="flex justify-between items-center mb-2">
             <span className="text-sm font-bold" style={{color:cfg.worldColor}}>Goal: {cfg.scoreGoal.toLocaleString()} pts</span>
-            <div className="flex gap-0.5">{[1,2,3].map(s=><span key={s} style={{fontSize:12,opacity:(sv.levelStars[cfg.id]||0)>=s?1:0.2,color:"#fbbf24"}}>★</span>)}</div>
+            <div className="flex items-center gap-2">
+              {/* Difficulty rating D1-D5 */}
+              {(()=>{
+                const diff=Math.min(5,Math.ceil((cfg.id||1)/20));
+                const diffColors=["","#4ade80","#fbbf24","#f97316","#ef4444","#a855f7"];
+                const diffLabels=["","Easy","Medium","Hard","Expert","Legendary"];
+                return(
+                  <span className="text-xs font-black px-1.5 py-0.5 rounded"
+                    style={{background:diffColors[diff]+"22",color:diffColors[diff],border:`1px solid ${diffColors[diff]}55`}}>
+                    D{diff} {diffLabels[diff]}
+                  </span>
+                );
+              })()}
+              <div className="flex gap-0.5">{[1,2,3].map(s=><span key={s} style={{fontSize:12,opacity:(sv.levelStars[cfg.id]||0)>=s?1:0.2,color:"#fbbf24"}}>★</span>)}</div>
+            </div>
           </div>
           <div className="flex gap-4 text-xs opacity-60" style={{color:cfg.worldColor}}>
             <span>❤️ {cfg.lives} lives</span>
