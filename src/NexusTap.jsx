@@ -434,6 +434,8 @@ const ACHIEVEMENTS = [
   { id:"crystal_shatter",label:"Gem Hunter",         desc:"Shatter a Crystal target",             icon:"💎", xp:30  },
   { id:"crystal_chain",  label:"Full Crystal",       desc:"Tap all 3 crystal shards after shattering",icon:"💠",xp:80 },
   { id:"chain_lightning_hit",label:"Lightning Rod",  desc:"Use the Chain Lightning power-up",     icon:"⚡", xp:45  },
+  { id:"rage_tap",           label:"Anger Manager",  desc:"Tap a Rage target",                    icon:"😠", xp:30  },
+  { id:"rage_max",           label:"Rage Quit",      desc:"Tap a Rage target at maximum rage",    icon:"😡", xp:75  },
 ];
 
 const MISSION_TEMPLATES = [
@@ -1682,6 +1684,42 @@ function drawBubble(ctx, r, ts) {
   ctx.restore();
 }
 
+// ── Rage target — grows angrier (red, faster) the longer it lives ──
+function drawRage(ctx, r, ts, rageLevel) {
+  const rl=Math.min(1,rageLevel||0); // 0=calm, 1=max rage
+  const pulse=0.5+0.5*Math.sin(ts*0.01*(1+rl*3));
+  const shake=rl>0.5?Math.sin(ts*0.04)*2.5*rl:0;
+  ctx.save();ctx.translate(shake,0);
+  // Outer aura — grows redder with rage
+  ctx.globalAlpha=0.2+rl*0.35;
+  const auraColor=rl<0.5?`rgba(251,146,60,${0.5+pulse*0.3})`:`rgba(239,68,68,${0.5+pulse*0.3})`;
+  ctx.fillStyle=auraColor;ctx.shadowColor=rl<0.5?"#fb923c":"#ef4444";ctx.shadowBlur=20+rl*28;
+  ctx.beginPath();ctx.arc(0,0,r*(1.2+rl*0.35),0,Math.PI*2);ctx.fill();
+  // Core body — orange to red gradient
+  ctx.globalAlpha=1;
+  const cg=ctx.createRadialGradient(0,0,0,0,0,r);
+  const innerColor=rl<0.5?`rgba(251,113,133,${0.9+pulse*0.08})`:`rgba(220,38,38,${0.9+pulse*0.08})`;
+  const outerColor=rl<0.5?"rgba(239,68,68,0.85)":"rgba(127,29,29,0.85)";
+  cg.addColorStop(0,innerColor);cg.addColorStop(1,outerColor);
+  ctx.fillStyle=cg;ctx.shadowColor=rl<0.5?"#f97316":"#dc2626";ctx.shadowBlur=12+rl*12;
+  ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  // Rage veins (jagged lines radiating out)
+  if(rl>0.3){
+    ctx.globalAlpha=(rl-0.3)*0.8+0.1;ctx.strokeStyle="#fca5a5";ctx.lineWidth=1.2;ctx.shadowBlur=4;
+    for(let i=0;i<Math.floor(3+rl*5);i++){
+      const angle=(i/8)*Math.PI*2+ts*0.002;
+      const inner=r*0.45;const outer=r*0.82;
+      ctx.beginPath();ctx.moveTo(Math.cos(angle)*inner,Math.sin(angle)*inner);
+      ctx.lineTo(Math.cos(angle+0.25)*outer,Math.sin(angle+0.25)*outer);ctx.stroke();
+    }
+  }
+  // Rage face (👿 emoji approximation)
+  ctx.globalAlpha=0.85+rl*0.1;ctx.fillStyle="#fff";ctx.shadowBlur=0;
+  ctx.font=`bold ${Math.round(r*0.7)}px sans-serif`;ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.fillText(rl>0.6?"😡":rl>0.3?"😠":"😤",0,0);
+  ctx.restore();
+}
+
 // ── Crystal target — hexagonal gem that shatters into 3 scoreable shards ──
 function drawCrystalTarget(ctx, r, ts) {
   const spin=ts*0.0012;const pulse=0.5+0.5*Math.sin(ts*0.006);
@@ -2046,6 +2084,7 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="echo_ghost") drawEchoGhost(ctx,t.radius,ts,t._ghostBorn);
   else if(t.type==="crystal")  drawCrystalTarget(ctx,t.radius,ts);
   else if(t.type==="crystal_shard") drawCrystalShard(ctx,t.radius,ts,t._shardBorn);
+  else if(t.type==="rage")     {const rl=Math.min(1,(now-t.spawnedAt)/(t.lifetime*0.9));drawRage(ctx,t.radius,ts,rl);}
   else{
     const nm=t.rarity?.name;
     if     (nm==="common")    drawCommon(ctx,t.radius,t.color,t.glow,ts,timeLeft);
@@ -3294,6 +3333,11 @@ export default function NexusTap(){
     } else if((cfg.id||0)>=8&&Math.random()<0.014&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1.4% Loot Chest — big golden chest, drops 3-5 coins on tap
       type="lootchest";color="#ffd700";glow="#b45309";
+    } else if((cfg.id||0)>=25&&Math.random()<0.016&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.6% Rage — starts calm, grows angry/faster over lifetime; worth more points when tapped at high rage
+      type="rage";color="#ef4444";glow="#dc2626";moving=true;
+      const initSpd=0.6+Math.random()*0.4;const angle=Math.random()*Math.PI*2;
+      vx=Math.cos(angle)*initSpd;vy=Math.sin(angle)*initSpd;
     } else if(Math.random()<0.035&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")&&!gs.mysteryPause){
       // 3.5% Mystery Box — Las Vegas variable-ratio slot machine
       type="mystery";color="#ffd700";glow="#b8860b";
@@ -3306,7 +3350,7 @@ export default function NexusTap(){
       }
       if(!moving&&Math.random()<effGhost)ghost=true;
     }
-    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
+    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
     // World modifiers: Ocean Deep (8) — slower targets (calmer waters), longer lifetimes
@@ -3886,6 +3930,30 @@ export default function NexusTap(){
       spawnParticles(hit.x,hit.y,"#7c3aed",6,"dot");
       spawnPopup(hit.x,hit.y-32,`✨ ECHO BONUS! +${pts}`,"#e9d5ff",18);
       unlock("echo_bonus");
+      const cfg=levelCfgRef.current;
+      if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
+    // RAGE — scores more points the more enraged (higher rageLevel) it is
+    if(hit.type==="rage"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const rageLevel=Math.min(1,(Date.now()-hit.spawnedAt)/(hit.lifetime*0.9));
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      const pts=Math.round((80+rageLevel*220)*combo*feverMult*prestigeMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;
+      const rageColor=rageLevel>0.7?"#dc2626":rageLevel>0.4?"#f97316":"#fbbf24";
+      sfx("bossKill");vibrate([20,10,20]);
+      spawnParticles(hit.x,hit.y,rageColor,14,"spark");
+      spawnParticles(hit.x,hit.y,"#fca5a5",6,"dot");
+      const rageLabel=rageLevel>0.8?"😡 MAX RAGE!":rageLevel>0.5?"😠 ENRAGED!":"😤 ANGRY!";
+      spawnPopup(hit.x,hit.y-30,`${rageLabel} +${pts}`,rageColor,16+Math.floor(rageLevel*6));
+      if(rageLevel>=0.8)unlock("rage_max");
+      else unlock("rage_tap");
+      mascotHappyRef.current++;
       const cfg=levelCfgRef.current;
       if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
       return;
@@ -4824,7 +4892,14 @@ export default function NexusTap(){
             if(t.y<t.radius+95||t.y>h-margin){t.vy*=-1;t.y=Math.max(t.radius+95,Math.min(h-margin,t.y));}
           }
         } else {
-          t.x+=t.vx*dt*0.056;t.y+=t.vy*dt*0.056;
+          // Rage target accelerates over its lifetime
+          if(t.type==="rage"){
+            const rl=Math.min(1,(now-t.spawnedAt)/(t.lifetime*0.9));
+            const speedScale=0.056*(1+rl*3.5); // up to 4.5× faster at max rage
+            t.x+=t.vx*dt*speedScale;t.y+=t.vy*dt*speedScale;
+          } else {
+            t.x+=t.vx*dt*0.056;t.y+=t.vy*dt*0.056;
+          }
           const margin=t.radius+5;
           if(t.x<margin||t.x>w-margin){t.vx*=-1;t.x=Math.max(margin,Math.min(w-margin,t.x));}
           if(t.y<t.radius+95||t.y>h-margin){t.vy*=-1;t.y=Math.max(t.radius+95,Math.min(h-margin,t.y));}
@@ -4973,6 +5048,19 @@ export default function NexusTap(){
         ctx.shadowColor="#ef4444";ctx.shadowBlur=12+edgeFrac*10;
         ctx.beginPath();ctx.arc(t.x,t.y,t.radius+4,0,Math.PI*2);ctx.stroke();
         ctx.restore();
+      }
+      // Near-expiry warning — target flashes orange when < 20% lifetime remains
+      if(t.type==="normal"&&!t.dying&&!t._edgeWarnAt&&t.lifetime>0){
+        const lifeLeft=(t.spawnedAt+t.lifetime-now)/t.lifetime;
+        if(lifeLeft<0.2&&lifeLeft>0){
+          const urgency=1-lifeLeft/0.2;
+          const expAlpha=(0.3+0.5*urgency)*Math.abs(Math.sin(ts*0.03*(1+urgency*2)));
+          ctx.save();ctx.globalAlpha=expAlpha;
+          ctx.strokeStyle=lifeLeft<0.08?"#ef4444":"#f97316";
+          ctx.lineWidth=2.5;ctx.shadowColor=lifeLeft<0.08?"#ef4444":"#f97316";ctx.shadowBlur=8+urgency*8;
+          ctx.beginPath();ctx.arc(t.x,t.y,t.radius+3,0,Math.PI*2);ctx.stroke();
+          ctx.restore();
+        }
       }
       drawTarget(ctx,t,ts);return true;
     });
