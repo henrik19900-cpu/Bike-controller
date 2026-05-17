@@ -3304,11 +3304,23 @@ export default function NexusTap(){
     const ceLevel=(saveRef.current.skills||{}).critical_eye||0;
     const perfectZone=0.38*(ceLevel===3?1.35:ceLevel===2?1.20:ceLevel===1?1.10:1.0);
     const isPerfect=hitDist<hit.radius*perfectZone&&timeLeft>0.36&&timeLeft<0.67;
+    const isLastBreath=timeLeft<0.08&&hit.type==="normal"; // caught in last 8% of life
     // Prestige score multiplier (+5% per prestige level, max 5 prestiges = +25%)
     const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
     const shardMult=hit._isShard?0.5:1; // splitter shards award half points
-    const pts=Math.round(hit.rarity.mult*combo*feverMult*(isDouble?2:1)*(isMultiplier?3:1)*(isPerfect?1.5:1)*prestigeMult*shardMult);
+    const pts=Math.round(hit.rarity.mult*combo*feverMult*(isDouble?2:1)*(isMultiplier?3:1)*(isPerfect?1.5:1)*(isLastBreath?1.5:1)*prestigeMult*shardMult);
     gs.score+=pts;
+    // Proximity chain bonus — if tapped within 300ms AND within 80px of last tap
+    const nowMs=Date.now();
+    if(gs._lastTapX!==undefined&&gs._lastTapY!==undefined&&gs._lastTapMs&&
+       (nowMs-gs._lastTapMs)<300&&Math.hypot(hit.x-gs._lastTapX,hit.y-gs._lastTapY)<80){
+      const chainPts=Math.round(pts*0.4);
+      if(chainPts>0){
+        gs.score+=chainPts;
+        spawnPopup(hit.x,hit.y-42,`🔗 CHAIN +${chainPts}`,"#a78bfa",13);
+      }
+    }
+    gs._lastTapX=hit.x;gs._lastTapY=hit.y;gs._lastTapMs=nowMs;
     // Track last rarity for Mimic targets
     gs.lastRarityMult=hit.rarity.mult;
     gs.lastRarityColor=hit.color;
@@ -3466,6 +3478,11 @@ export default function NexusTap(){
       particlesRef.current.push({type:"shockwave",x:hit.x,y:hit.y,r:1,color:"#ffd700",born:_pnow,duration:500,alpha:0.85});
     } else if(hit.rarity.label){
       spawnPopup(hit.x,hit.y,hit.rarity.label,hit.color,14);
+    }
+    // Last-Breath bonus visual
+    if(isLastBreath){
+      spawnPopup(hit.x,hit.y-38,"⏰ LAST BREATH! ×1.5","#fb923c",15);
+      sfx("nearMiss"); // distinctive sound for near-miss catch
     }
     // Combo label
     const cl=COMBO_LABELS.find(([n])=>gs.streak>=n);
