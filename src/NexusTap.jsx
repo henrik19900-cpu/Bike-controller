@@ -401,6 +401,7 @@ const ACHIEVEMENTS = [
   { id:"friday_fever",    label:"Friday Fever",      desc:"Play on a Friday for 2× XP",       icon:"🔥", xp:25  },
   { id:"weekend_warrior", label:"Weekend Warrior",   desc:"Play on a weekend for bonus coins", icon:"🎉", xp:25  },
   { id:"speed_demon",     label:"Speed Demon",       desc:"Complete a level with a speed bonus", icon:"⚡", xp:30 },
+  { id:"phantom_catch",   label:"Ghost Hunter",      desc:"Catch a Phantom target",              icon:"👻", xp:40 },
 ];
 
 const MISSION_TEMPLATES = [
@@ -1412,6 +1413,29 @@ function drawMagnet(ctx, r, ts) {
   ctx.restore();
 }
 
+// ── Phantom target — ultra-short lifetime, huge points, ghostly flicker ──
+function drawPhantom(ctx, r, ts, lifeRatio) {
+  // Flicker faster as time runs out
+  const flicker=lifeRatio>0.4?1:0.4+0.6*Math.abs(Math.sin(ts*0.04*(1-lifeRatio+0.5)));
+  const pulse=0.4+0.6*Math.sin(ts*0.009);
+  ctx.save();
+  ctx.globalAlpha=flicker*0.85*(0.5+0.5*lifeRatio);
+  // Outer glow ring
+  const grad=ctx.createRadialGradient(0,0,r*0.3,0,0,r*1.5);
+  grad.addColorStop(0,"#e879f988");grad.addColorStop(1,"transparent");
+  ctx.fillStyle=grad;ctx.beginPath();ctx.arc(0,0,r*1.5,0,Math.PI*2);ctx.fill();
+  // Body
+  const bg=ctx.createRadialGradient(0,0,0,0,0,r);
+  bg.addColorStop(0,"#f0abfc");bg.addColorStop(0.6,"#e879f9");bg.addColorStop(1,"#a21caf");
+  ctx.fillStyle=bg;
+  ctx.shadowColor="#e879f9";ctx.shadowBlur=20+pulse*12;
+  ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  // Ghost symbol (∞)
+  ctx.globalAlpha*=0.9;ctx.fillStyle="#ffffff";ctx.font=`bold ${r*0.8}px serif`;
+  ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("👻",0,0);
+  ctx.restore();
+}
+
 // ── Shielded target — 2 taps (shield absorbs first) ──
 function drawShielded(ctx, r, shieldUp, ts) {
   const pulse=0.5+0.5*Math.sin(ts*0.004);
@@ -1549,6 +1573,7 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="splitter") drawSplitter(ctx,t.radius,ts);
   else if(t.type==="shielded") drawShielded(ctx,t.radius,t.hitsLeft>=2,ts);
   else if(t.type==="magnet")   drawMagnet(ctx,t.radius,ts);
+  else if(t.type==="phantom")  drawPhantom(ctx,t.radius,ts,timeLeft);
   else{
     const nm=t.rarity?.name;
     if     (nm==="common")    drawCommon(ctx,t.radius,t.color,t.glow,ts,timeLeft);
@@ -2526,6 +2551,9 @@ export default function NexusTap(){
     } else if((cfg.id||0)>=14&&Math.random()<0.025&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 2.5% Magnet — pulls nearby targets toward it
       type="magnet";color="#ec4899";glow="#9d174d";
+    } else if((cfg.id||0)>=20&&Math.random()<0.022&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 2.2% Phantom — ultra-short lifetime (1.1s), huge points, ghostly appearance
+      type="phantom";color="#e879f9";glow="#a21caf";
     } else if(Math.random()<0.035&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")&&!gs.mysteryPause){
       // 3.5% Mystery Box — Las Vegas variable-ratio slot machine
       type="mystery";color="#ffd700";glow="#b8860b";
@@ -2538,7 +2566,7 @@ export default function NexusTap(){
       }
       if(!moving&&Math.random()<effGhost)ghost=true;
     }
-    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
+    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
     // World modifiers: Ocean Deep (8) — slower targets (calmer waters), longer lifetimes
@@ -2547,6 +2575,8 @@ export default function NexusTap(){
     if(cfg.world===6)lifetime*=0.92;
     if(activePwrRef.current.some(p=>p.type==="SLOW"&&p.endsAt>Date.now()))lifetime*=1.6;
     if(activePwrRef.current.some(p=>p.type==="FREEZE"&&p.endsAt>Date.now())){vx=0;vy=0;}
+    // Phantom targets: very short lifetime (1100ms fixed) — catch it or lose it!
+    if(type==="phantom")lifetime=1100;
     // Skill: target_sense — extra lifetime
     const tsk=(saveRef.current.skills||{}).target_sense||0;
     if(tsk>=1)lifetime+=500;if(tsk>=2)lifetime+=500;if(tsk>=3)lifetime+=1000;
@@ -2815,6 +2845,29 @@ export default function NexusTap(){
       setEpicFlash(true);setTimeout(()=>setEpicFlash(false),600);
       sfx("comboNote",gs.streak);
       unlock("shielded_hit");
+      const cfg=levelCfgRef.current;
+      if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
+    // PHANTOM — ultra-short lifetime, huge score reward for catching it
+    if(hit.type==="phantom"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      const isMultiplier2=activePwrRef.current.some(p=>p.type==="MULTIPLIER"&&p.endsAt>Date.now());
+      const pts=Math.round(500*combo*feverMult*prestigeMult*(isMultiplier2?3:1));
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;gs.sessionStats.rareHits++;
+      hit.dying=performance.now();
+      sfx("legendary");vibrate([20,10,20,10,40]);
+      spawnParticles(hit.x,hit.y,"#e879f9",30,"spark");
+      spawnParticles(hit.x,hit.y,"#f0abfc",12,"dot");
+      spawnPopup(hit.x,hit.y-32,`👻 PHANTOM! +${pts}`,"#e879f9",22);
+      setEpicFlash(true);setTimeout(()=>setEpicFlash(false),500);
+      unlock("phantom_catch");
+      mascotHappyRef.current++;
       const cfg=levelCfgRef.current;
       if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
       return;
@@ -5750,7 +5803,7 @@ export default function NexusTap(){
   // Achievement tab state — "all" | "gameplay" | "progression" | "social"
   const [achTab, setAchTab] = React.useState("all");
   const ACH_CATS = {
-    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon"],
+    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch"],
     progression: ["level_10","level_50","level_100","prestige_1","three_stars_5","mascot_lv10"],
     social:      ["missions_all","daily_7","score_2000","friday_fever","weekend_warrior","all_worlds"],
   };
