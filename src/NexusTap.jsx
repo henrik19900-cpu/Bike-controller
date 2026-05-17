@@ -3038,6 +3038,8 @@ export default function NexusTap(){
     if(tsk>=1)lifetime+=500;if(tsk>=2)lifetime+=500;if(tsk>=3)lifetime+=1000;
     // Normal targets telegraph their position 260ms before becoming active
     const anticipateMs=type==="normal"?260:0;
+    // Size scaling: normal targets shrink by up to 20% at level 100 (0.8 at L100, 1.0 at L1)
+    const finalR=type==="normal"?Math.round(baseR*(1-Math.min(0.20,(cfg.id||1)/100*0.20))):baseR;
     // Boss pattern: 4 patterns based on worldId, advances phases as HP drops
     const bossPattern=type==="boss"?(cfg.world%4):null;
     const mainId=Math.random().toString(36).slice(2);
@@ -3046,7 +3048,7 @@ export default function NexusTap(){
     if(type==="twin"&&gs._pendingTwin)delete gs._pendingTwin;
     targetsRef.current.push({
       id:mainId,type,rarity:type==="normal"?rarity:null,
-      x:pos.x,y:pos.y,radius:baseR,color,glow,lifetime,
+      x:pos.x,y:pos.y,radius:finalR,color,glow,lifetime,
       spawnedAt:Date.now()+anticipateMs, // lifetime starts after anticipation
       born:performance.now(),anticipateMs,
       moving,ghost,vx,vy,pwrType,hitsLeft,maxHits,trail:moving?[]:null,
@@ -4008,6 +4010,12 @@ export default function NexusTap(){
       unlock("first_tap_fever");
     }
 
+    // New personal best streak notification
+    if(gs.streak>5&&gs.streak>(saveRef.current.bestStreak||0)&&!gs._streakPBNotified){
+      gs._streakPBNotified=gs.streak;
+      spawnPopup(hit.x,hit.y-58,`🏆 NEW STREAK PB: ${gs.streak}×!`,"#34d399",15);
+      saveRef.current.bestStreak=gs.streak;
+    }
     // Activate streak shield at streak 10
     if(gs.streak===10&&!streakShRef.current){streakShRef.current=true;setStreakShieldActive(true);sfx("lucky");}
     // Mascot mood
