@@ -454,6 +454,7 @@ const ACHIEVEMENTS = [
   { id:"glitch_perfect",     label:"Mid-Glitch!",     desc:"Tap a Glitch target mid-teleport",     icon:"⚡", xp:90  },
   { id:"prism_tap",          label:"Prism Hunter",    desc:"Tap a Prism target",                   icon:"🔮", xp:35  },
   { id:"lucky_streak",       label:"Lucky Seven",     desc:"Hit 7 targets in a row for lucky coins",icon:"🍀", xp:30  },
+  { id:"score_boost_use",    label:"Rocket Launch",   desc:"Use the Score Boost power-up",         icon:"🚀", xp:25  },
 ];
 
 const MISSION_TEMPLATES = [
@@ -1160,7 +1161,7 @@ function drawPowerup(ctx, r, pwrType, ts) {
   ctx.setLineDash([r*0.35,r*0.18]); ctx.beginPath(); ctx.arc(0,0,r-4,0,Math.PI*2); ctx.stroke();
   ctx.setLineDash([]); ctx.restore();
   // Icon
-  const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",LIFE:"❤️",FREEZE:"❄️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐",CHAIN_LIGHTNING:"⚡",TIME_WARP:"⏱️"};
+  const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",LIFE:"❤️",FREEZE:"❄️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐",CHAIN_LIGHTNING:"⚡",TIME_WARP:"⏱️",SCORE_BOOST:"×5"};
   if(pwrType==="LUCKY"){ctx.shadowColor="#ffd700";ctx.shadowBlur=r*(1.2+pulse*0.8);}
   const label=icons[pwrType]||"⚡";
   ctx.font=`bold ${r*0.9}px serif`; ctx.textAlign="center"; ctx.textBaseline="middle";
@@ -3612,6 +3613,14 @@ export default function NexusTap(){
       vibrate([10,8,10,8,25]);sfx("chainBonus");
       unlock("chain_lightning_hit");
       setNotif(`⚡ CHAIN LIGHTNING! Zapping ${toZap.length} targets!`);
+    } else if(ptype==="SCORE_BOOST"){
+      // SCORE BOOST — next 3 taps score 5× normal
+      gs._scoreBoostTaps=3;
+      spawnPopup(x,y,"×5 SCORE BOOST!","#f43f5e",22);
+      spawnParticles(x,y,"#f43f5e",16,"spark");
+      sfx("powerUp");vibrate([10,6,10,6,25]);
+      setNotif("×5 SCORE BOOST! Next 3 taps × 5!");
+      unlock("score_boost_use");
     } else if(ptype==="TIME_WARP"){
       // TIME WARP — drastically slows all targets for 6 seconds
       gs._timeWarpEndsAt=Date.now()+6000;
@@ -3661,7 +3670,7 @@ export default function NexusTap(){
       type="bomb";color="#ef4444";glow="#dc2626";sfx("bombSpawn");
     } else if(r<(bossRate||0)+effBomb+0.07){
       type="powerup";color="#60a5fa";glow="#3b82f6";
-      const pt=["SHIELD","SLOW","DOUBLE","LIFE","FREEZE","LUCKY","MIRROR","MULTIPLIER","COMBO_FREEZE","GRAVITY","CHAIN_LIGHTNING","TIME_WARP"];
+      const pt=["SHIELD","SLOW","DOUBLE","LIFE","FREEZE","LUCKY","MIRROR","MULTIPLIER","COMBO_FREEZE","GRAVITY","CHAIN_LIGHTNING","TIME_WARP","SCORE_BOOST"];
       pwrType=pt[Math.floor(Math.random()*pt.length)];
     } else if(r<(bossRate||0)+effBomb+0.07+0.045&&(gs.score>0||Math.random()<0.3)&&luckyRef.current!=="active"){
       // 4.5% treasure chest — the variable reward slot machine
@@ -5116,8 +5125,11 @@ export default function NexusTap(){
     const shardMult=hit._isShard?0.5:1; // splitter shards award half points
     const poisonMult=gs._poisonedUntil&&Date.now()<gs._poisonedUntil?0.5:1; // poison debuff
     if(poisonMult<1)gs._poisonedUntil=null; // consume debuff after one hit
-    const pts=Math.round(hit.rarity.mult*combo*feverMult*(isDouble?2:1)*(isMultiplier?3:1)*(isPerfect?1.5:1)*(isLastBreath?1.5:1)*prestigeMult*shardMult*poisonMult);
+    const scoreBoostMult=(gs._scoreBoostTaps||0)>0?5:1;
+    if(scoreBoostMult>1){gs._scoreBoostTaps--;if(gs._scoreBoostTaps<=0)setNotif("×5 boost ended!");}
+    const pts=Math.round(hit.rarity.mult*combo*feverMult*(isDouble?2:1)*(isMultiplier?3:1)*(isPerfect?1.5:1)*(isLastBreath?1.5:1)*prestigeMult*shardMult*poisonMult*scoreBoostMult);
     gs.score+=pts;
+    if(scoreBoostMult>1){spawnParticles(hit.x,hit.y,"#f43f5e",8,"spark");}
     // Prestige aura — golden shockwave on each tap when prestige ≥ 1
     if((saveRef.current.prestigeLevel||0)>=1){
       particlesRef.current.push({type:"shockwave",x:hit.x,y:hit.y,color:"#ffd700",
@@ -7358,8 +7370,8 @@ export default function NexusTap(){
               const secsLeft=Math.max(0,Math.ceil((p.endsAt-Date.now())/1000));
               const totalSecs=p.type==="SHIELD"?25:p.type==="SLOW"?8:p.type==="DOUBLE"?10:p.type==="FREEZE"?4:p.type==="MULTIPLIER"?8:p.type==="COMBO_FREEZE"?10:p.type==="TIME_WARP"?6:12;
               const pct=Math.min(100,Math.round(secsLeft/totalSecs*100));
-              const colors={SHIELD:"#fbbf24",SLOW:"#60a5fa",DOUBLE:"#f97316",FREEZE:"#06b6d4",LIFE:"#4ade80",LUCKY:"#ffd700",MIRROR:"#c084fc",MULTIPLIER:"#f43f5e",COMBO_FREEZE:"#67e8f9",GRAVITY:"#a78bfa",TIME_WARP:"#818cf8"};
-              const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",FREEZE:"❄️",LIFE:"❤️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐",TIME_WARP:"⏱️"};
+              const colors={SHIELD:"#fbbf24",SLOW:"#60a5fa",DOUBLE:"#f97316",FREEZE:"#06b6d4",LIFE:"#4ade80",LUCKY:"#ffd700",MIRROR:"#c084fc",MULTIPLIER:"#f43f5e",COMBO_FREEZE:"#67e8f9",GRAVITY:"#a78bfa",TIME_WARP:"#818cf8",SCORE_BOOST:"#f43f5e"};
+              const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",FREEZE:"❄️",LIFE:"❤️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐",TIME_WARP:"⏱️",SCORE_BOOST:"×5"};
               const c=colors[p.type]||"#60a5fa";
               return(
                 <div key={p.type} className="flex flex-col items-center gap-0.5"
@@ -7412,6 +7424,14 @@ export default function NexusTap(){
         {goldRushMode&&<div className="absolute left-0 right-0 flex justify-center pointer-events-none z-30" style={{top:feverBorder?178:rushMode?158:140}}>
           <span className="font-black text-sm px-3 py-1 rounded-full" style={{color:"#ffd700",textShadow:"0 0 18px #ffd700",background:"#ffd70018",border:"1px solid #ffd70066",animation:"heartbeat 0.6s ease-in-out infinite"}}>🥇 GOLD RUSH! 3× COINS!</span>
         </div>}
+        {/* Score Boost — rose border + tap counter */}
+        {(gsRef.current?._scoreBoostTaps||0)>0&&(
+          <div className="absolute left-0 right-0 flex justify-center pointer-events-none z-29" style={{top:feverBorder?200:goldRushMode?178:158}}>
+            <span className="font-black text-xs px-3 py-1 rounded-full" style={{color:"#f43f5e",textShadow:"0 0 12px #f43f5e",background:"#f43f5e18",border:"1px solid #f43f5e66",letterSpacing:"0.06em",animation:"heartbeat 0.5s ease-in-out infinite"}}>
+              ×5 SCORE BOOST — {gsRef.current._scoreBoostTaps} tap{gsRef.current._scoreBoostTaps!==1?"s":""} left!
+            </span>
+          </div>
+        )}
         {/* Time Warp — deep purple slowdown border + banner */}
         {activePwrDisp.some(p=>p.type==="TIME_WARP"&&p.endsAt>Date.now())&&(
           <>
