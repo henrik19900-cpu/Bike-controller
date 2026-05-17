@@ -495,6 +495,9 @@ const ACHIEVEMENTS = [
   { id:"gravityorb_tap",     label:"Gravity Surfer",   desc:"Tap a Gravity Orb target",               icon:"🌐",xp:35 },
   { id:"gravityorb_cluster", label:"Black Hole Master",desc:"Tap Gravity Orb with 4+ pulled targets", icon:"🕳️",xp:110 },
   { id:"crystalball_tap",    label:"Fortune Teller",   desc:"Tap a Crystal Ball to see the future",   icon:"🔮",xp:45 },
+  { id:"quantum_tap",        label:"Quantum Mechanic", desc:"Hit a Quantum target twice",              icon:"⚛️",xp:30 },
+  { id:"quantum_stable",     label:"Wave Collapse",    desc:"Stabilize a Quantum target (3rd hit)",   icon:"🌀",xp:100 },
+  { id:"clockwork_tap",      label:"Timekeeper",       desc:"Tap a Clockwork target to slow time",    icon:"⏰",xp:35 },
 ];
 
 const MISSION_TEMPLATES = [
@@ -2654,6 +2657,56 @@ function drawVoid(ctx, r, ts) {
   ctx.fillText("🌀",0,1);ctx.restore();
 }
 
+// ── Quantum — flickers between positions; needs 3 taps to stabilize and score ──
+function drawQuantum(ctx,r,ts,hitsLeft,maxHits){
+  const flicker=0.4+0.6*Math.abs(Math.sin(ts*0.025));
+  const hue=(ts*0.09)%360;
+  ctx.save();
+  ctx.globalAlpha=flicker;
+  ctx.shadowBlur=16;ctx.shadowColor=`hsl(${hue},100%,70%)`;
+  const grad=ctx.createRadialGradient(0,0,0,0,0,r);
+  grad.addColorStop(0,"#ffffff");
+  grad.addColorStop(0.4,`hsl(${hue},100%,70%)`);
+  grad.addColorStop(1,`hsl(${(hue+180)%360},100%,30%)`);
+  ctx.fillStyle=grad;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  // Quantum uncertainty rings
+  ctx.strokeStyle=`hsl(${hue},100%,80%)`;ctx.lineWidth=1.5;
+  ctx.globalAlpha=0.3*flicker;
+  ctx.beginPath();ctx.arc(0,0,r*1.2,0,Math.PI*2);ctx.stroke();
+  ctx.beginPath();ctx.arc(0,0,r*1.5,0,Math.PI*2);ctx.stroke();
+  ctx.globalAlpha=1;
+  // Tap counter
+  const remaining=hitsLeft||1;
+  ctx.fillStyle="#ffffff";ctx.font=`bold ${Math.round(r*0.55)}px sans-serif`;
+  ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(`${remaining}`,0,0);
+  ctx.restore();
+}
+// ── Clockwork — slows time when tapped; gear-like design ──
+function drawClockwork(ctx,r,ts){
+  const rot=ts*0.0008;
+  ctx.save();
+  ctx.shadowBlur=14;ctx.shadowColor="#94a3b8";
+  const grad=ctx.createRadialGradient(0,0,0,0,0,r);
+  grad.addColorStop(0,"#e2e8f0");grad.addColorStop(0.6,"#64748b");grad.addColorStop(1,"#1e293b");
+  ctx.fillStyle=grad;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  // Gear teeth
+  ctx.save();ctx.rotate(rot);ctx.strokeStyle="#94a3b8";ctx.lineWidth=r*0.22;
+  const teeth=8;
+  for(let i=0;i<teeth;i++){
+    const a=(i/teeth)*Math.PI*2;
+    ctx.beginPath();ctx.moveTo(Math.cos(a)*r*0.78,Math.sin(a)*r*0.78);ctx.lineTo(Math.cos(a)*r*1.08,Math.sin(a)*r*1.08);ctx.stroke();
+  }
+  ctx.restore();
+  // Clock hands
+  ctx.strokeStyle="#e2e8f0";ctx.lineWidth=1.8;ctx.lineCap="round";
+  const sec=ts/500;
+  ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(Math.cos(sec)*r*0.55,Math.sin(sec)*r*0.55);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(Math.cos(sec*0.0833)*r*0.38,Math.sin(sec*0.0833)*r*0.38);ctx.stroke();
+  // Center dot
+  ctx.fillStyle="#ffffff";ctx.beginPath();ctx.arc(0,0,r*0.08,0,Math.PI*2);ctx.fill();
+  ctx.globalAlpha=1;ctx.font=`${Math.round(r*0.82)}px serif`;ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.fillText("⏰",0,0);ctx.restore();
+}
 // ── Thunderbolt — lightning bolt falling from top; tap fast or lose a life ──
 function drawThunderbolt(ctx,r,ts){
   const pulse=0.7+0.3*Math.abs(Math.sin(ts*0.02));
@@ -3184,6 +3237,8 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="thunderbolt") drawThunderbolt(ctx,t.radius,ts);
   else if(t.type==="gravityorb")  drawGravityOrb(ctx,t.radius,ts);
   else if(t.type==="crystalball") drawCrystalBall(ctx,t.radius,ts);
+  else if(t.type==="quantum")     drawQuantum(ctx,t.radius,ts,t.hitsLeft,t.maxHits);
+  else if(t.type==="clockwork")   drawClockwork(ctx,t.radius,ts);
   else{
     const nm=t.rarity?.name;
     if     (nm==="common")    drawCommon(ctx,t.radius,t.color,t.glow,ts,timeLeft);
@@ -4612,6 +4667,13 @@ export default function NexusTap(){
     } else if((cfg.id||0)>=35&&Math.random()<0.01&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1% Void — absorbs up to 5 nearby targets for massive bonus score
       type="void";color="#7c3aed";glow="#4c1d95";
+    } else if((cfg.id||0)>=32&&Math.random()<0.012&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.2% Quantum — requires 3 taps; teleports on each hit until stabilized
+      type="quantum";color="#a78bfa";glow="#7c3aed";hitsLeft=3;maxHits=3;
+      moving=true;const qa=Math.random()*Math.PI*2,qs=0.5+Math.random()*0.8;vx=Math.cos(qa)*qs;vy=Math.sin(qa)*qs;
+    } else if((cfg.id||0)>=20&&Math.random()<0.015&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.5% Clockwork — slows all targets to 30% speed for 3s when tapped
+      type="clockwork";color="#94a3b8";glow="#cbd5e1";
     } else if((cfg.id||0)>=22&&!cfg.isZen&&Math.random()<0.016&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1.6% Thunderbolt — fast falling target; defuse for 700pts or it exits and costs a life
       type="thunderbolt";color="#facc15";glow="#fef08a";moving=true;
@@ -4646,7 +4708,7 @@ export default function NexusTap(){
       }
       if(!moving&&Math.random()<effGhost)ghost=true;
     }
-    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="divider"?BASE_R*1.65:type==="vanishing"?BASE_R*1.1:type==="homing"?BASE_R*1.2:type==="gemstone"?BASE_R*1.1:type==="poison"?BASE_R*1.15:type==="morph"?BASE_R*1.2:type==="conductor"?BASE_R*1.25:type==="siphon"?BASE_R*1.3:type==="glitch"?BASE_R*1.1:type==="prism"?BASE_R*1.2:type==="comet"?BASE_R*1.15:type==="mirrorball"?BASE_R*1.45:type==="nexus"?BASE_R*1.8:type==="phoenix"?BASE_R*1.25:type==="phoenix2"?BASE_R*1.4:type==="icecomet"?BASE_R*1.2:type==="voltage"?BASE_R*1.2:type==="void"?BASE_R*1.5:type==="clover"?BASE_R*1.1:type==="ricochet"?BASE_R*1.15:type==="aurora"?BASE_R*1.35:type==="portal"?BASE_R*1.4:type==="particlebomb"?BASE_R*1.25:type==="beacon"?BASE_R*1.3:type==="shadow"?BASE_R*1.1:type==="shadow_clone"?BASE_R*0.9:type==="spectral"?BASE_R*1.1:type==="heart"?BASE_R*1.2:type==="nova"?BASE_R*1.4:type==="firefly"?BASE_R*0.78:type==="geode"?BASE_R*1.3:type==="timebomb"?BASE_R*1.25:type==="thunderbolt"?BASE_R*1.1:type==="gravityorb"?BASE_R*1.5:type==="crystalball"?BASE_R*1.35:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
+    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="divider"?BASE_R*1.65:type==="vanishing"?BASE_R*1.1:type==="homing"?BASE_R*1.2:type==="gemstone"?BASE_R*1.1:type==="poison"?BASE_R*1.15:type==="morph"?BASE_R*1.2:type==="conductor"?BASE_R*1.25:type==="siphon"?BASE_R*1.3:type==="glitch"?BASE_R*1.1:type==="prism"?BASE_R*1.2:type==="comet"?BASE_R*1.15:type==="mirrorball"?BASE_R*1.45:type==="nexus"?BASE_R*1.8:type==="phoenix"?BASE_R*1.25:type==="phoenix2"?BASE_R*1.4:type==="icecomet"?BASE_R*1.2:type==="voltage"?BASE_R*1.2:type==="void"?BASE_R*1.5:type==="clover"?BASE_R*1.1:type==="ricochet"?BASE_R*1.15:type==="aurora"?BASE_R*1.35:type==="portal"?BASE_R*1.4:type==="particlebomb"?BASE_R*1.25:type==="beacon"?BASE_R*1.3:type==="shadow"?BASE_R*1.1:type==="shadow_clone"?BASE_R*0.9:type==="spectral"?BASE_R*1.1:type==="heart"?BASE_R*1.2:type==="nova"?BASE_R*1.4:type==="firefly"?BASE_R*0.78:type==="geode"?BASE_R*1.3:type==="timebomb"?BASE_R*1.25:type==="thunderbolt"?BASE_R*1.1:type==="gravityorb"?BASE_R*1.5:type==="crystalball"?BASE_R*1.35:type==="quantum"?BASE_R*1.2:type==="clockwork"?BASE_R*1.3:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
     // World modifiers: Ocean Deep (8) — slower targets (calmer waters), longer lifetimes
@@ -4673,6 +4735,10 @@ export default function NexusTap(){
     if(type==="geode")lifetime=Math.max(lifetime,3400);
     // Thunderbolt: very short (2s) — it falls fast
     if(type==="thunderbolt")lifetime=Math.min(lifetime,2000);
+    // Quantum: medium lifetime — 3 taps needed before it vanishes
+    if(type==="quantum")lifetime=Math.max(lifetime,4500);
+    // Clockwork: medium-long so player can catch it
+    if(type==="clockwork")lifetime=Math.max(lifetime,3600);
     // Gravity Orb: medium lifetime (allows it to pull targets for a while)
     if(type==="gravityorb")lifetime=Math.max(lifetime,3200);
     // Crystal Ball: medium-long (gives time to plan the tap)
@@ -5790,6 +5856,58 @@ export default function NexusTap(){
       return;
     }
 
+    // QUANTUM — 3-tap target; teleports to random pos on each hit, big score on 3rd tap
+    if(hit.type==="quantum"){
+      const canvas=canvasRef.current;const cw2=canvas?.width||390,ch2=canvas?.height||700;
+      if(hit.hitsLeft>1){
+        // Teleport to new random position
+        hit.hitsLeft--;
+        const margin=hit.radius+20;
+        hit.x=margin+Math.random()*(cw2-margin*2);
+        hit.y=(hit.radius+100)+Math.random()*(ch2-(hit.radius+100)-margin-30);
+        spawnParticles(hit.x,hit.y,"#a78bfa",8,"spark");
+        spawnPopup(hit.x,hit.y-30,`🔀 QUANTUM! ${hit.hitsLeft} more!`,"#a78bfa",14);
+        sfx("tap");vibrate(6);
+      } else {
+        // Final hit — big score
+        targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+        const combo=Math.min(10,1+Math.floor(gs.streak/5));
+        const feverMult=gs.feverActive?2:1;
+        const pts=Math.round(900*combo*feverMult);
+        gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+        spawnPopup(hit.x,hit.y-34,`⚛️ STABILIZED! +${pts}`,"#c4b5fd",24);
+        spawnParticles(hit.x,hit.y,"#a78bfa",20,"spark");spawnParticles(hit.x,hit.y,"#ffffff",8,"dot");
+        sfx("legendary");vibrate([15,8,20]);
+        unlock("quantum_tap");unlock("quantum_stable");
+        mascotHappyRef.current+=4;
+      }
+      updateMissions(gs.sessionStats);
+      const cfgQ=levelCfgRef.current;
+      if(cfgQ){if(gs.score>=cfgQ.scoreGoal&&(!cfgQ.modifier||checkModGoal(cfgQ.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+    // CLOCKWORK — slows all targets to 30% speed for 4s when tapped
+    if(hit.type==="clockwork"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const pts=Math.round(450*combo*feverMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      // Apply time-slow: use SLOW power-up mechanic + extra lifetime on all targets
+      activePwrRef.current=activePwrRef.current.filter(p=>p.type!=="SLOW");
+      activePwrRef.current.push({type:"SLOW",endsAt:Date.now()+4000});
+      setActivePwrDisp([...activePwrRef.current]);
+      spawnPopup(hit.x,hit.y-32,`⏰ TIME SLOW! +${pts}`,"#94a3b8",20);
+      spawnParticles(hit.x,hit.y,"#94a3b8",16,"spark");
+      particlesRef.current.push({type:"shockwave",x:hit.x,y:hit.y,color:"#94a3b8",size:300,born:performance.now(),duration:700,alpha:0.5});
+      sfx("powerUp");vibrate([10,8,14]);
+      unlock("clockwork_tap");
+      mascotHappyRef.current+=2;
+      updateMissions(gs.sessionStats);
+      const cfgCW=levelCfgRef.current;
+      if(cfgCW){if(gs.score>=cfgCW.scoreGoal&&(!cfgCW.modifier||checkModGoal(cfgCW.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
     // THUNDERBOLT — tap to catch lightning; big pts; clutch bonus if nearly off-screen
     if(hit.type==="thunderbolt"){
       targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
@@ -7403,6 +7521,17 @@ export default function NexusTap(){
           }
         } else {
           t._edgeWarnAt=null;
+        }
+      }
+      // Quantum — micro-teleports every 1.8s when alive (between player taps)
+      if(t.type==="quantum"&&!t.dying){
+        if(!t._lastQTeleport)t._lastQTeleport=now;
+        if(now-t._lastQTeleport>=1800){
+          t._lastQTeleport=now;
+          const margin=t.radius+20;
+          t.x=margin+Math.random()*(w-margin*2);
+          t.y=(t.radius+100)+Math.random()*(h-(t.radius+100)-margin-30);
+          spawnParticles(t.x,t.y,"#a78bfa",4,"spark");
         }
       }
       // Gravity Orb — pulls ALL non-bomb targets toward its center
@@ -10177,7 +10306,7 @@ export default function NexusTap(){
   // Achievement tab state — "all" | "gameplay" | "progression" | "social"
   const [achTab, setAchTab] = React.useState("all");
   const ACH_CATS = {
-    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect","prism_tap","comet_tap","comet_early","mirrorball_tap","nexus_tap","phoenix_tap","phoenix_risen","icecomet_tap","voltage_tap","void_tap","void_master","clover_tap","clover_jackpot","ricochet_tap","ricochet_double","aurora_tap","aurora_perfect","fury_mode","score_10k","portal_tap","portal_chaos","particlebomb_tap","beacon_tap","beacon_surge","shadow_tap","shadow_clone_catch","spectral_tap","spectral_perfect","heart_tap","nova_tap","firefly_tap","firefly_swift","geode_crack","geode_gem","timebomb_defuse","timebomb_clutch","thunderbolt_tap","thunderbolt_clutch","gravityorb_tap","gravityorb_cluster","crystalball_tap"],
+    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect","prism_tap","comet_tap","comet_early","mirrorball_tap","nexus_tap","phoenix_tap","phoenix_risen","icecomet_tap","voltage_tap","void_tap","void_master","clover_tap","clover_jackpot","ricochet_tap","ricochet_double","aurora_tap","aurora_perfect","fury_mode","score_10k","portal_tap","portal_chaos","particlebomb_tap","beacon_tap","beacon_surge","shadow_tap","shadow_clone_catch","spectral_tap","spectral_perfect","heart_tap","nova_tap","firefly_tap","firefly_swift","geode_crack","geode_gem","timebomb_defuse","timebomb_clutch","thunderbolt_tap","thunderbolt_clutch","gravityorb_tap","gravityorb_cluster","crystalball_tap","quantum_tap","quantum_stable","clockwork_tap"],
     progression: ["level_10","level_50","level_100","prestige_1","three_stars_5","mascot_lv10","streak_25","streak_50","streak_10","streak_5","score_2000","world_complete"],
     social:      ["missions_all","daily_7","friday_fever","weekend_warrior","all_worlds","streak_saver","loot_chest"],
   };
