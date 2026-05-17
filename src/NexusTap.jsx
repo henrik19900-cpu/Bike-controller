@@ -2622,10 +2622,22 @@ export default function NexusTap(){
       // Track world visits — all_worlds achievement
       const visitedWorlds=new Set(Object.keys(sv.levelStars||{}).map(id=>getLevelConfig(Number(id)).world));
       if(visitedWorlds.size>=10)unlock("all_worlds");
+      // Perfect run bonus — no misses AND lives unchanged → triple coins
+      const missedCount=gs.sessionStats.missedTargets||0;
+      const startLives=cfg.lives+(gs._extraLifeUsed?-1:0);
+      const isPerfectRun=missedCount===0&&gs.lives>=startLives&&(gs.sessionStats.tapsTotal||0)>=5&&!cfg.isInfinity;
+      if(isPerfectRun&&!cfg.isZen){
+        const perfectBonus=Math.floor(coinsEarned*2);
+        coinsEarned+=perfectBonus;
+        sv.coins=(sv.coins||0)+perfectBonus;
+        sv.totalCoins=(sv.totalCoins||0)+perfectBonus;
+        sfx("flawless");
+        setTimeout(()=>setNotif(`🎯 PERFECT LEVEL! +${perfectBonus}🪙 bonus!`),800);
+      }
       flushSave();
       const canPrestige=cfg.id===100&&(sv.prestigeLevel||0)<5;
       setLevelCompleteData({score,stars,newStars,xpEarned,coinsEarned,levelId:cfg.id,isLast:cfg.isLast,
-        bestStreak:sv.bestStreak,sessionStats:{...gs.sessionStats,timeSurvived},canPrestige});
+        bestStreak:sv.bestStreak,sessionStats:{...gs.sessionStats,timeSurvived},canPrestige,isPerfectRun});
       setScrollToLevel(cfg.id);
       setMascotMood("victory");setMascotDancing(true);
       // Check mascot unlocks AFTER save is flushed
@@ -5025,7 +5037,7 @@ export default function NexusTap(){
   // ── Level Complete ──
   const renderLevelComplete=()=>{
     if(!levelCompleteData)return null;
-    const{score,stars,newStars,xpEarned,coinsEarned,levelId,isLast,sessionStats}=levelCompleteData;
+    const{score,stars,newStars,xpEarned,coinsEarned,levelId,isLast,sessionStats,isPerfectRun}=levelCompleteData;
     const cfg=getLevelConfig(levelId);
     const wld=WORLDS[cfg.world-1];
     const isBossLevel=cfg.isBoss;
@@ -5103,6 +5115,7 @@ export default function NexusTap(){
             ))}
           </div>
           {newStars>stars&&<div className="text-center text-xs" style={{color:"#fbbf24",opacity:0.7}}>Personal best: {newStars}★</div>}
+          {isPerfectRun&&<div className="text-center text-xs font-black mt-1" style={{color:"#4ade80",textShadow:"0 0 12px #4ade80",animation:"floatGlow 1s ease-in-out infinite",letterSpacing:"0.06em"}}>🎯 PERFECT RUN! 3× COIN BONUS!</div>}
           {/* Score */}
           <div className="text-center mt-2">
             <div className="text-xs uppercase opacity-40 tracking-widest mb-0.5" style={{color:wld.color}}>Score</div>
