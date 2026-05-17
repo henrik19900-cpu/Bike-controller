@@ -431,6 +431,8 @@ const ACHIEVEMENTS = [
   { id:"echo_tap",       label:"Resonance",          desc:"Tap an Echo target",                   icon:"◎",  xp:25  },
   { id:"echo_bonus",     label:"Double Echo",        desc:"Catch the Echo ghost for bonus points",icon:"🔮", xp:55  },
   { id:"gold_rush",      label:"Gold Rush!",          desc:"Trigger a Gold Rush Mode",             icon:"🥇", xp:40  },
+  { id:"crystal_shatter",label:"Gem Hunter",         desc:"Shatter a Crystal target",             icon:"💎", xp:30  },
+  { id:"crystal_chain",  label:"Full Crystal",       desc:"Tap all 3 crystal shards after shattering",icon:"💠",xp:80 },
 ];
 
 const MISSION_TEMPLATES = [
@@ -1679,6 +1681,41 @@ function drawBubble(ctx, r, ts) {
   ctx.restore();
 }
 
+// ── Crystal target — hexagonal gem that shatters into 3 scoreable shards ──
+function drawCrystalTarget(ctx, r, ts) {
+  const spin=ts*0.0012;const pulse=0.5+0.5*Math.sin(ts*0.006);
+  ctx.save();
+  // Outer glow halo
+  ctx.globalAlpha=0.2+pulse*0.18;ctx.shadowColor="#60a5fa";ctx.shadowBlur=28+pulse*18;
+  ctx.strokeStyle="#93c5fd";ctx.lineWidth=3.5;
+  ctx.beginPath();for(let i=0;i<6;i++){const a=spin+i*Math.PI/3;const x2=Math.cos(a)*(r*1.35),y2=Math.sin(a)*(r*1.35);i===0?ctx.moveTo(x2,y2):ctx.lineTo(x2,y2);}ctx.closePath();ctx.stroke();
+  // Crystal body hexagon
+  ctx.globalAlpha=1;
+  const hexGrad=ctx.createLinearGradient(-r,-r,r,r);
+  hexGrad.addColorStop(0,"rgba(191,219,254,0.95)");hexGrad.addColorStop(0.4,"rgba(96,165,250,0.85)");hexGrad.addColorStop(1,"rgba(37,99,235,0.8)");
+  ctx.fillStyle=hexGrad;ctx.shadowColor="#60a5fa";ctx.shadowBlur=16;
+  ctx.beginPath();for(let i=0;i<6;i++){const a=spin+i*Math.PI/3;const x2=Math.cos(a)*r*1.0,y2=Math.sin(a)*r*1.0;i===0?ctx.moveTo(x2,y2):ctx.lineTo(x2,y2);}ctx.closePath();ctx.fill();
+  // Facet lines — inner reflections
+  ctx.globalAlpha=0.35+pulse*0.2;ctx.strokeStyle="#dbeafe";ctx.lineWidth=1;ctx.shadowBlur=0;
+  for(let i=0;i<6;i++){const a=spin+i*Math.PI/3;ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(Math.cos(a)*r*0.85,Math.sin(a)*r*0.85);ctx.stroke();}
+  // Bright glint
+  ctx.globalAlpha=0.7+pulse*0.25;ctx.fillStyle="#eff6ff";ctx.shadowColor="#ffffff";ctx.shadowBlur=8;
+  ctx.beginPath();ctx.arc(-r*0.25,-r*0.3,r*0.15,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+}
+function drawCrystalShard(ctx, r, ts, bornAt) {
+  const age=performance.now()-(bornAt||performance.now());
+  const life=Math.max(0,1-age/2000);if(life<=0)return;
+  const spin=ts*0.004;
+  ctx.save();ctx.globalAlpha=life*0.9;
+  const sg=ctx.createLinearGradient(-r,-r,r,r);
+  sg.addColorStop(0,"rgba(219,234,254,0.95)");sg.addColorStop(1,"rgba(96,165,250,0.8)");
+  ctx.fillStyle=sg;ctx.shadowColor="#60a5fa";ctx.shadowBlur=10*life;
+  ctx.beginPath();ctx.moveTo(0,-r);ctx.lineTo(r*0.6,r*0.6);ctx.lineTo(-r*0.6,r*0.6);ctx.closePath();ctx.fill();
+  ctx.globalAlpha=life*0.55;ctx.strokeStyle="#bfdbfe";ctx.lineWidth=1.2;ctx.stroke();
+  ctx.restore();
+}
+
 // ── Echo target — leaves a ghost echo on tap; tap the echo for bonus ──
 function drawEcho(ctx, r, ts) {
   const pulse=0.5+0.5*Math.sin(ts*0.008);
@@ -2006,6 +2043,8 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="bubble")   drawBubble(ctx,t.radius,ts);
   else if(t.type==="echo")     drawEcho(ctx,t.radius,ts);
   else if(t.type==="echo_ghost") drawEchoGhost(ctx,t.radius,ts,t._ghostBorn);
+  else if(t.type==="crystal")  drawCrystalTarget(ctx,t.radius,ts);
+  else if(t.type==="crystal_shard") drawCrystalShard(ctx,t.radius,ts,t._shardBorn);
   else{
     const nm=t.rarity?.name;
     if     (nm==="common")    drawCommon(ctx,t.radius,t.color,t.glow,ts,timeLeft);
@@ -3222,6 +3261,9 @@ export default function NexusTap(){
     } else if((cfg.id||0)>=20&&Math.random()<0.022&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 2.2% Echo — tap it to score, then a ghost echo appears for a bonus second tap
       type="echo";color="#a78bfa";glow="#7c3aed";
+    } else if((cfg.id||0)>=30&&Math.random()<0.018&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.8% Crystal — hexagonal gem; shatters into 3 scoreable shards on tap
+      type="crystal";color="#bfdbfe";glow="#3b82f6";
     } else if((cfg.id||0)>=24&&Math.random()<0.012&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1.2% Tornado — scrambles nearby target positions in a vortex effect
       type="tornado";color="#67e8f9";glow="#06b6d4";
@@ -3240,7 +3282,7 @@ export default function NexusTap(){
       }
       if(!moving&&Math.random()<effGhost)ghost=true;
     }
-    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
+    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
     // World modifiers: Ocean Deep (8) — slower targets (calmer waters), longer lifetimes
@@ -3820,6 +3862,71 @@ export default function NexusTap(){
       spawnParticles(hit.x,hit.y,"#7c3aed",6,"dot");
       spawnPopup(hit.x,hit.y-32,`✨ ECHO BONUS! +${pts}`,"#e9d5ff",18);
       unlock("echo_bonus");
+      const cfg=levelCfgRef.current;
+      if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
+    // CRYSTAL — shatters into 3 scoreable shards flying outward
+    if(hit.type==="crystal"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      const pts=Math.round(80*combo*feverMult*prestigeMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;
+      sfx("epic");vibrate([15,8,15]);
+      const canvas=canvasRef.current;const cw=canvas?.width||390,ch=canvas?.height||700;
+      spawnParticles(hit.x,hit.y,"#bfdbfe",12,"spark");
+      spawnParticles(hit.x,hit.y,"#60a5fa",6,"dot");
+      spawnPopup(hit.x,hit.y-30,`💎 CRYSTAL +${pts}`,"#93c5fd",16);
+      // Spawn 3 shards flying outward
+      const shardBorn=performance.now();
+      const groupId=Math.random().toString(36).slice(2);
+      [0,1,2].forEach(si=>{
+        const angle=(si/3)*Math.PI*2+Math.random()*0.5;
+        const flyDist=55+Math.random()*45;
+        const sx=Math.max(hit.radius+20,Math.min(cw-hit.radius-20,hit.x+Math.cos(angle)*flyDist));
+        const sy=Math.max(hit.radius+100,Math.min(ch-hit.radius-20,hit.y+Math.sin(angle)*flyDist));
+        targetsRef.current.push({
+          id:Math.random().toString(36).slice(2),type:"crystal_shard",
+          x:sx,y:sy,radius:18,color:"#93c5fd",glow:"#3b82f6",
+          rarity:hit.rarity,lifetime:2000,spawnedAt:Date.now(),born:shardBorn,
+          moving:false,ghost:false,vx:0,vy:0,trail:[],
+          hitsLeft:1,maxHits:1,dying:null,_shardBorn:shardBorn,_shardGroup:groupId,
+        });
+      });
+      gs._crystalGroupId=groupId;gs._crystalShardsHit=0;
+      unlock("crystal_shatter");
+      mascotHappyRef.current++;
+      const cfg=levelCfgRef.current;
+      if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+    // CRYSTAL SHARD — bonus score after crystal shatter
+    if(hit.type==="crystal_shard"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      const pts=Math.round(45*combo*feverMult*prestigeMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;
+      sfx("comboNote",gs.streak);vibrate(8);
+      spawnParticles(hit.x,hit.y,"#bfdbfe",7,"spark");
+      spawnPopup(hit.x,hit.y-24,`✨ SHARD +${pts}`,"#bfdbfe",13);
+      // Check if this is the third shard in the group
+      if(hit._shardGroup&&gs._crystalGroupId===hit._shardGroup){
+        gs._crystalShardsHit=(gs._crystalShardsHit||0)+1;
+        if(gs._crystalShardsHit>=3){
+          const bonus=Math.round(200*combo*feverMult*prestigeMult);
+          gs.score+=bonus;
+          spawnPopup(hit.x,hit.y-50,`💠 FULL CRYSTAL! +${bonus}`,"#60a5fa",20);
+          sfx("legendary");vibrate([20,10,20,10,40]);
+          unlock("crystal_chain");
+        }
+      }
       const cfg=levelCfgRef.current;
       if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
       return;
