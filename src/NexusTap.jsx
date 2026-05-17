@@ -458,6 +458,7 @@ const ACHIEVEMENTS = [
   { id:"comet_tap",          label:"Star Gazer",      desc:"Tap a Comet target",                   icon:"🌠", xp:30  },
   { id:"comet_early",        label:"Shooting Star",   desc:"Catch a Comet in the first half of its flight",icon:"⭐",xp:75 },
   { id:"mirrorball_tap",     label:"Disco King",      desc:"Tap a Mirror Ball target",             icon:"🪩", xp:35  },
+  { id:"nexus_tap",          label:"NEXUS!",           desc:"Find and tap the legendary Nexus",     icon:"🌟", xp:500 },
 ];
 
 const MISSION_TEMPLATES = [
@@ -1164,7 +1165,7 @@ function drawPowerup(ctx, r, pwrType, ts) {
   ctx.setLineDash([r*0.35,r*0.18]); ctx.beginPath(); ctx.arc(0,0,r-4,0,Math.PI*2); ctx.stroke();
   ctx.setLineDash([]); ctx.restore();
   // Icon
-  const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",LIFE:"❤️",FREEZE:"❄️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐",CHAIN_LIGHTNING:"⚡",TIME_WARP:"⏱️",SCORE_BOOST:"×5"};
+  const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",LIFE:"❤️",FREEZE:"❄️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐",CHAIN_LIGHTNING:"⚡",TIME_WARP:"⏱️",SCORE_BOOST:"×5",LIFE_SURGE:"❤️+2"};
   if(pwrType==="LUCKY"){ctx.shadowColor="#ffd700";ctx.shadowBlur=r*(1.2+pulse*0.8);}
   const label=icons[pwrType]||"⚡";
   ctx.font=`bold ${r*0.9}px serif`; ctx.textAlign="center"; ctx.textBaseline="middle";
@@ -1534,6 +1535,42 @@ function drawMagnet(ctx, r, ts) {
   ctx.beginPath();ctx.moveTo(-r*0.45,-0.1);ctx.lineTo(-r*0.45,r*0.22);ctx.stroke();
   ctx.beginPath();ctx.moveTo(r*0.45,-0.1);ctx.lineTo(r*0.45,r*0.22);ctx.stroke();
   ctx.restore();
+  ctx.restore();
+}
+
+// ── Nexus target — ultra-rare cosmic core; 2000+ pts; orbiting planets ──
+function drawNexus(ctx, r, ts) {
+  const pulse=0.65+0.35*Math.sin(ts*0.006);
+  const spin=ts*0.0007;
+  // Outer galaxy nebula
+  const neb=ctx.createRadialGradient(0,0,r*0.3,0,0,r*2.5);
+  neb.addColorStop(0,"#ffd70055");neb.addColorStop(0.4,"#a78bfa33");neb.addColorStop(0.7,"#60a5fa18");neb.addColorStop(1,"transparent");
+  ctx.save();ctx.globalAlpha=0.7*pulse;ctx.fillStyle=neb;
+  ctx.beginPath();ctx.arc(0,0,r*2.5,0,Math.PI*2);ctx.fill();
+  // Orbiting planets
+  const planets=[{r2:r*1.5,sz:r*0.22,col:"#60a5fa",spd:0.0014},{r2:r*2.0,sz:r*0.16,col:"#f472b6",spd:-0.0009},{r2:r*1.2,sz:r*0.14,col:"#34d399",spd:0.002}];
+  planets.forEach(p=>{
+    const ang=spin*p.spd/0.0007+ts*p.spd;
+    ctx.globalAlpha=0.9;ctx.fillStyle=p.col;ctx.shadowColor=p.col;ctx.shadowBlur=10;
+    ctx.beginPath();ctx.arc(Math.cos(ang)*p.r2,Math.sin(ang)*p.r2,p.sz,0,Math.PI*2);ctx.fill();
+  });
+  // Inner core — layered gradients
+  ctx.globalAlpha=1;ctx.rotate(spin*2);
+  const core=ctx.createRadialGradient(0,0,0,0,0,r);
+  core.addColorStop(0,"#ffffff");core.addColorStop(0.2,"#fde68a");core.addColorStop(0.5,"#ffd700");core.addColorStop(0.8,"#b45309");core.addColorStop(1,"#78350f");
+  ctx.fillStyle=core;ctx.shadowColor="#ffd700";ctx.shadowBlur=28+pulse*20;
+  ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  // Star burst rays
+  ctx.strokeStyle="#fde68a";ctx.lineWidth=1.5;ctx.globalAlpha=0.5*pulse;
+  for(let i=0;i<8;i++){
+    const a=i*Math.PI/4;
+    ctx.beginPath();ctx.moveTo(Math.cos(a)*r*0.8,Math.sin(a)*r*0.8);ctx.lineTo(Math.cos(a)*r*1.6,Math.sin(a)*r*1.6);ctx.stroke();
+  }
+  // "N" logo in center
+  ctx.globalAlpha=1;ctx.fillStyle="#ffffff";ctx.shadowBlur=0;
+  ctx.font=`black ${Math.floor(r*0.9)}px 'Exo 2',sans-serif`;
+  ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.fillText("N",0,0);
   ctx.restore();
 }
 
@@ -2539,6 +2576,7 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="prism")      drawPrism(ctx,t.radius,ts);
   else if(t.type==="comet")      drawComet(ctx,t.radius,ts,t.trail);
   else if(t.type==="mirrorball") drawMirrorBall(ctx,t.radius,ts);
+  else if(t.type==="nexus")      drawNexus(ctx,t.radius,ts);
   else{
     const nm=t.rarity?.name;
     if     (nm==="common")    drawCommon(ctx,t.radius,t.color,t.glow,ts,timeLeft);
@@ -3684,6 +3722,15 @@ export default function NexusTap(){
       vibrate([10,8,10,8,25]);sfx("chainBonus");
       unlock("chain_lightning_hit");
       setNotif(`⚡ CHAIN LIGHTNING! Zapping ${toZap.length} targets!`);
+    } else if(ptype==="LIFE_SURGE"){
+      // LIFE SURGE — instant +2 lives (max cap: starting lives + 2)
+      const maxLives=(levelCfgRef.current?.lives||3)+2;
+      const gained=Math.min(2,maxLives-gs.lives);
+      gs.lives+=gained;
+      spawnPopup(x,y,`❤️ +${gained} LIVES!`,"#4ade80",20);
+      spawnParticles(x,y,"#4ade80",16,"spark");
+      sfx("starEarn");vibrate([15,8,15,8,25]);
+      setNotif(`❤️ Life Surge! +${gained} lives!`);
     } else if(ptype==="SCORE_BOOST"){
       // SCORE BOOST — next 3 taps score 5× normal
       gs._scoreBoostTaps=3;
@@ -3741,7 +3788,7 @@ export default function NexusTap(){
       type="bomb";color="#ef4444";glow="#dc2626";sfx("bombSpawn");
     } else if(r<(bossRate||0)+effBomb+0.07){
       type="powerup";color="#60a5fa";glow="#3b82f6";
-      const pt=["SHIELD","SLOW","DOUBLE","LIFE","FREEZE","LUCKY","MIRROR","MULTIPLIER","COMBO_FREEZE","GRAVITY","CHAIN_LIGHTNING","TIME_WARP","SCORE_BOOST"];
+      const pt=["SHIELD","SLOW","DOUBLE","LIFE","FREEZE","LUCKY","MIRROR","MULTIPLIER","COMBO_FREEZE","GRAVITY","CHAIN_LIGHTNING","TIME_WARP","SCORE_BOOST","LIFE_SURGE"];
       pwrType=pt[Math.floor(Math.random()*pt.length)];
     } else if(r<(bossRate||0)+effBomb+0.07+0.045&&(gs.score>0||Math.random()<0.3)&&luckyRef.current!=="active"){
       // 4.5% treasure chest — the variable reward slot machine
@@ -3824,6 +3871,9 @@ export default function NexusTap(){
       // 2.2% Morph — cycles through rarity tiers every 1.4s; catch during legendary = jackpot
       type="morph";color="#ffffff";glow="#ffffff";moving=Math.random()<0.3;
       if(moving){const a=Math.random()*Math.PI*2,sp=0.5+Math.random()*0.8;vx=Math.cos(a)*sp;vy=Math.sin(a)*sp;}
+    } else if((cfg.id||0)>=50&&Math.random()<0.004&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 0.4% Nexus — ultra-rare cosmic core; 2000+ pts; once per session check
+      type="nexus";color="#ffd700";glow="#b8860b";
     } else if((cfg.id||0)>=30&&Math.random()<0.012&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1.2% Mirror Ball — disco sphere; tap to spawn 3 mini copies
       type="mirrorball";color="#e2e8f0";glow="#94a3b8";
@@ -3874,7 +3924,7 @@ export default function NexusTap(){
       }
       if(!moving&&Math.random()<effGhost)ghost=true;
     }
-    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="divider"?BASE_R*1.65:type==="vanishing"?BASE_R*1.1:type==="homing"?BASE_R*1.2:type==="gemstone"?BASE_R*1.1:type==="poison"?BASE_R*1.15:type==="morph"?BASE_R*1.2:type==="conductor"?BASE_R*1.25:type==="siphon"?BASE_R*1.3:type==="glitch"?BASE_R*1.1:type==="prism"?BASE_R*1.2:type==="comet"?BASE_R*1.15:type==="mirrorball"?BASE_R*1.45:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
+    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="divider"?BASE_R*1.65:type==="vanishing"?BASE_R*1.1:type==="homing"?BASE_R*1.2:type==="gemstone"?BASE_R*1.1:type==="poison"?BASE_R*1.15:type==="morph"?BASE_R*1.2:type==="conductor"?BASE_R*1.25:type==="siphon"?BASE_R*1.3:type==="glitch"?BASE_R*1.1:type==="prism"?BASE_R*1.2:type==="comet"?BASE_R*1.15:type==="mirrorball"?BASE_R*1.45:type==="nexus"?BASE_R*1.8:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
     // World modifiers: Ocean Deep (8) — slower targets (calmer waters), longer lifetimes
@@ -4532,6 +4582,34 @@ export default function NexusTap(){
       else{sfx("tap");vibrate([8]);}
       unlock("morph_tap");
       mascotHappyRef.current+=phase>=4?5:1;
+      const cfg=levelCfgRef.current;
+      if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
+    // NEXUS — ultra-rare cosmic target; massive score + legendary flash
+    if(hit.type==="nexus"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      const pts=Math.round(2000*combo*feverMult*prestigeMult);
+      gs.score+=pts;gs.streak+=5; // instant +5 combo!
+      gs.lastTapTime=Date.now();gs.sessionStats.tapsTotal++;
+      gs.sessionStats.score=gs.score;gs.sessionStats.rareHits++;
+      // Epic particle explosion
+      const colors=["#ffd700","#ffffff","#60a5fa","#f472b6","#34d399","#a78bfa"];
+      colors.forEach((c,i)=>{
+        setTimeout(()=>{spawnParticles(hit.x,hit.y,c,16,"spark");},i*60);
+      });
+      particlesRef.current.push({type:"shockwave",x:hit.x,y:hit.y,color:"#ffd700",size:hit.radius*2.5,born:performance.now(),duration:900,alpha:0.85});
+      particlesRef.current.push({type:"shockwave",x:hit.x,y:hit.y,color:"#ffffff",size:hit.radius*1.5,born:performance.now(),duration:600,alpha:0.6});
+      spawnPopup(hit.x,hit.y-56,`🌟 NEXUS! +${pts}!`,"#ffd700",28);
+      sfx("jackpot");setLegendaryFlash(true);setTimeout(()=>setLegendaryFlash(false),1200);
+      setScreenShake(true);setTimeout(()=>setScreenShake(false),600);
+      vibrate([30,15,30,15,60,15,30]);
+      unlock("nexus_tap");
+      mascotHappyRef.current+=10;
       const cfg=levelCfgRef.current;
       if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
       return;
@@ -7529,8 +7607,8 @@ export default function NexusTap(){
               const secsLeft=Math.max(0,Math.ceil((p.endsAt-Date.now())/1000));
               const totalSecs=p.type==="SHIELD"?25:p.type==="SLOW"?8:p.type==="DOUBLE"?10:p.type==="FREEZE"?4:p.type==="MULTIPLIER"?8:p.type==="COMBO_FREEZE"?10:p.type==="TIME_WARP"?6:12;
               const pct=Math.min(100,Math.round(secsLeft/totalSecs*100));
-              const colors={SHIELD:"#fbbf24",SLOW:"#60a5fa",DOUBLE:"#f97316",FREEZE:"#06b6d4",LIFE:"#4ade80",LUCKY:"#ffd700",MIRROR:"#c084fc",MULTIPLIER:"#f43f5e",COMBO_FREEZE:"#67e8f9",GRAVITY:"#a78bfa",TIME_WARP:"#818cf8",SCORE_BOOST:"#f43f5e"};
-              const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",FREEZE:"❄️",LIFE:"❤️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐",TIME_WARP:"⏱️",SCORE_BOOST:"×5"};
+              const colors={SHIELD:"#fbbf24",SLOW:"#60a5fa",DOUBLE:"#f97316",FREEZE:"#06b6d4",LIFE:"#4ade80",LUCKY:"#ffd700",MIRROR:"#c084fc",MULTIPLIER:"#f43f5e",COMBO_FREEZE:"#67e8f9",GRAVITY:"#a78bfa",TIME_WARP:"#818cf8",SCORE_BOOST:"#f43f5e",LIFE_SURGE:"#4ade80"};
+              const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",FREEZE:"❄️",LIFE:"❤️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐",TIME_WARP:"⏱️",SCORE_BOOST:"×5",LIFE_SURGE:"💚"};
               const c=colors[p.type]||"#60a5fa";
               return(
                 <div key={p.type} className="flex flex-col items-center gap-0.5"
@@ -8472,7 +8550,7 @@ export default function NexusTap(){
   // Achievement tab state — "all" | "gameplay" | "progression" | "social"
   const [achTab, setAchTab] = React.useState("all");
   const ACH_CATS = {
-    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect","prism_tap","comet_tap","comet_early"],
+    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect","prism_tap","comet_tap","comet_early","mirrorball_tap","nexus_tap"],
     progression: ["level_10","level_50","level_100","prestige_1","three_stars_5","mascot_lv10","streak_25","streak_50","streak_10","streak_5","score_2000","world_complete"],
     social:      ["missions_all","daily_7","friday_fever","weekend_warrior","all_worlds","streak_saver","loot_chest"],
   };
