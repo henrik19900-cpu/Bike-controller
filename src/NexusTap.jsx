@@ -411,6 +411,9 @@ const ACHIEVEMENTS = [
   { id:"frozen_catch",    label:"Ice Breaker",       desc:"Tap a Frozen target's small zone",    icon:"❄️", xp:45  },
   { id:"bouncy_catch",    label:"Reflex Master",     desc:"Catch a fast Bouncy target",          icon:"⚡", xp:30  },
   { id:"ninja_catch",     label:"Ninja Hunter",      desc:"Catch a Ninja target when it appears",icon:"🥷", xp:75  },
+  { id:"loot_chest",     label:"Treasure Hunter",   desc:"Tap a Loot Chest for coin drops",     icon:"🪙", xp:35  },
+  { id:"first_tap_fever",label:"Hot Start",          desc:"Get First Tap Fever on a rare+ target",icon:"🔥", xp:40  },
+  { id:"bounty_hit",     label:"Bounty Hunter",      desc:"Tap a crowned Bounty target",          icon:"👑", xp:30  },
 ];
 
 const MISSION_TEMPLATES = [
@@ -1587,6 +1590,50 @@ function drawTwin(ctx, r, ts) {
   ctx.restore();
 }
 
+// ── Loot Chest — golden chest with coin sparkles, drops 3-5 coins ──
+function drawLootChest(ctx, r, ts) {
+  const pulse=0.5+0.5*Math.sin(ts*0.007);
+  const shake=Math.sin(ts*0.022)*1.5;
+  ctx.save();
+  ctx.translate(shake,0);
+  // Outer golden glow
+  ctx.globalAlpha=0.35+pulse*0.3;
+  ctx.fillStyle="#ffd700";ctx.shadowColor="#ffd700";ctx.shadowBlur=22+pulse*12;
+  ctx.beginPath();ctx.arc(0,0,r*1.45,0,Math.PI*2);ctx.fill();
+  ctx.globalAlpha=1;
+  // Chest body (rounded rect)
+  const bw=r*1.4,bh=r*1.0;
+  ctx.shadowColor="#b45309";ctx.shadowBlur=8;
+  const bg=ctx.createLinearGradient(0,-bh/2,0,bh/2);
+  bg.addColorStop(0,"#fde68a");bg.addColorStop(0.45,"#f59e0b");bg.addColorStop(1,"#92400e");
+  ctx.fillStyle=bg;
+  ctx.beginPath();ctx.roundRect(-bw/2,-bh/2,bw,bh,4);ctx.fill();
+  // Lid
+  const lidGrad=ctx.createLinearGradient(0,-bh/2,0,-bh/2+bh*0.35);
+  lidGrad.addColorStop(0,"#fef3c7");lidGrad.addColorStop(1,"#d97706");
+  ctx.fillStyle=lidGrad;ctx.beginPath();ctx.roundRect(-bw/2,-bh/2,bw,bh*0.35,4);ctx.fill();
+  // Lid line
+  ctx.strokeStyle="#7c2d12";ctx.lineWidth=1.5;ctx.shadowBlur=0;
+  ctx.beginPath();ctx.moveTo(-bw/2,-bh*0.15);ctx.lineTo(bw/2,-bh*0.15);ctx.stroke();
+  // Lock clasp
+  ctx.fillStyle="#ffd700";ctx.shadowColor="#ffd700";ctx.shadowBlur=6+pulse*4;
+  ctx.beginPath();ctx.arc(0,-bh*0.13,4,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle="#b45309";ctx.lineWidth=1.5;ctx.shadowBlur=0;
+  ctx.beginPath();ctx.arc(0,-bh*0.13,4,0,Math.PI*2);ctx.stroke();
+  // Coin sparkles
+  const coinAngles=[0,Math.PI*0.6,Math.PI*1.4];
+  coinAngles.forEach((a,i)=>{
+    const oa=a+ts*0.002+i*0.8;
+    const od=r*(0.9+0.3*Math.sin(ts*0.006+i));
+    const px=Math.cos(oa)*od,py=Math.sin(oa)*od;
+    ctx.globalAlpha=(0.5+0.5*Math.sin(ts*0.008+i))*0.8;
+    ctx.fillStyle="#ffd700";ctx.shadowColor="#ffd700";ctx.shadowBlur=8;
+    ctx.font=`bold ${r*0.38}px sans-serif`;ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.fillText("🪙",px,py);
+  });
+  ctx.restore();
+}
+
 // ── Healer target — glowing green cross, restores 1 life when tapped ──
 function drawHealer(ctx, r, ts) {
   const pulse=0.5+0.5*Math.sin(ts*0.005);
@@ -1813,6 +1860,7 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="frozen")   drawFrozen(ctx,t.radius,ts);
   else if(t.type==="bouncy")   drawBouncy(ctx,t.radius,ts);
   else if(t.type==="ninja")    drawNinja(ctx,t.radius,ts,timeLeft);
+  else if(t.type==="lootchest") drawLootChest(ctx,t.radius,ts);
   else{
     const nm=t.rarity?.name;
     if     (nm==="common")    drawCommon(ctx,t.radius,t.color,t.glow,ts,timeLeft);
@@ -2829,6 +2877,9 @@ export default function NexusTap(){
     } else if((cfg.id||0)>=25&&Math.random()<0.018&&!gs.bonusRoundActive&&effBomb>0&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1.8% Volatile — tap to defuse (scores 250pts), or it explodes on expiry (costs a life)
       type="volatile";color="#ff4500";glow="#dc2626";
+    } else if((cfg.id||0)>=8&&Math.random()<0.014&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.4% Loot Chest — big golden chest, drops 3-5 coins on tap
+      type="lootchest";color="#ffd700";glow="#b45309";
     } else if(Math.random()<0.035&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")&&!gs.mysteryPause){
       // 3.5% Mystery Box — Las Vegas variable-ratio slot machine
       type="mystery";color="#ffd700";glow="#b8860b";
@@ -2841,7 +2892,7 @@ export default function NexusTap(){
       }
       if(!moving&&Math.random()<effGhost)ghost=true;
     }
-    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
+    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
     // World modifiers: Ocean Deep (8) — slower targets (calmer waters), longer lifetimes
@@ -3348,6 +3399,37 @@ export default function NexusTap(){
       return;
     }
 
+    // LOOT CHEST — drops 3-5 coins and bonus points on tap
+    if(hit.type==="lootchest"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const coinDrop=3+Math.floor(Math.random()*3); // 3-5 coins
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      const isMultiplierL=activePwrRef.current.some(p=>p.type==="MULTIPLIER"&&p.endsAt>Date.now());
+      const pts=Math.round(80*combo*feverMult*prestigeMult*(isMultiplierL?3:1));
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;
+      saveRef.current.coins=(saveRef.current.coins||0)+coinDrop;
+      saveRef.current.totalCoins=(saveRef.current.totalCoins||0)+coinDrop;
+      hit.dying=performance.now();
+      sfx("coin");sfx("treasure");vibrate([10,5,20,5,30]);
+      spawnParticles(hit.x,hit.y,"#ffd700",25,"spark");
+      spawnParticles(hit.x,hit.y,"#fef3c7",10,"dot");
+      spawnPopup(hit.x,hit.y-28,`🪙 ×${coinDrop} +${pts}`,"#ffd700",20);
+      // Cascade: 3 coin popups raining down
+      for(let i=0;i<coinDrop;i++){
+        const ox=(Math.random()-0.5)*60,oy=-(20+i*18);
+        setTimeout(()=>spawnPopup(hit.x+ox,hit.y+oy,"🪙","#ffd700",14),i*80);
+      }
+      unlock("loot_chest");
+      mascotHappyRef.current+=2;
+      debounceSave();
+      const cfg=levelCfgRef.current;
+      if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
     // MIMIC — copies last tapped rarity for its score
     if(hit.type==="mimic"){
       targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
@@ -3721,12 +3803,24 @@ export default function NexusTap(){
     const coinSkill=_skl.coin_magnet||0;
     const coinSkillMult=coinSkill===3?1.2:coinSkill===2?1.1:coinSkill===1?1.05:1;
     const coinMult=(mLvlNow>=5?1.05:1)*coinSkillMult;
-    saveRef.current.coins=(saveRef.current.coins||0)+Math.max(1,Math.floor(pts*0.09*coinMult));
-    saveRef.current.totalCoins=(saveRef.current.totalCoins||0)+Math.max(1,Math.floor(pts*0.09*coinMult));
+    const baseCoin=Math.max(1,Math.floor(pts*0.09*coinMult));
+    const bountyCoin=hit._isBounty?baseCoin*2:0; // Bounty target gives 3× coins (base + 2× bonus)
+    saveRef.current.coins=(saveRef.current.coins||0)+baseCoin+bountyCoin;
+    saveRef.current.totalCoins=(saveRef.current.totalCoins||0)+baseCoin+bountyCoin;
+    if(bountyCoin>0){spawnPopup(hit.x,hit.y-44,`👑 BOUNTY! +${bountyCoin}🪙`,"#ffd700",15);sfx("coin");unlock("bounty_hit");}
+
     gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;
     if(hit.rarity.name!=="common")gs.sessionStats.rareHits++;
     if(gs.streak>gs.sessionStats.bestCombo)gs.sessionStats.bestCombo=gs.streak;
     if(isPerfect){gs.sessionStats.perfectTaps=(gs.sessionStats.perfectTaps||0)+1;}
+
+    // First-tap fever: if very first tap of a level hits rare+, grant 3s mini-fever
+    if(gs.sessionStats.tapsTotal===1&&!gs.feverActive&&(hit.rarity.name==="rare"||hit.rarity.name==="epic"||hit.rarity.name==="legendary")){
+      gs.feverActive=true;gs.feverTimeLeft=3000;
+      setFeverBorder(true);sfx("feverStart");vibrate([25,12,25]);
+      spawnPopup(hit.x,hit.y-40,"🔥 FIRST TAP FEVER!","#f97316",20);
+      unlock("first_tap_fever");
+    }
 
     // Activate streak shield at streak 10
     if(gs.streak===10&&!streakShRef.current){streakShRef.current=true;setStreakShieldActive(true);sfx("lucky");}
@@ -4103,6 +4197,28 @@ export default function NexusTap(){
         }
         if(t.trail){t.trail.push({x:t.x,y:t.y});if(t.trail.length>12)t.trail.shift();}
       }
+      // Edge Danger Zone — stationary normal targets within 20px of screen edges flash and explode after 1.5s
+      if(!t.moving&&!t.dying&&t.type==="normal"&&!t._isShard&&!cfg?.isZen){
+        const EDGE=22;
+        const nearEdge=t.x<EDGE||t.x>w-EDGE||t.y<t.radius+95+EDGE||t.y>h-EDGE;
+        if(nearEdge){
+          if(!t._edgeWarnAt)t._edgeWarnAt=now;
+          const edgeAge=now-t._edgeWarnAt;
+          if(edgeAge>=1500){
+            // Explode! Cost a life if no shield
+            spawnParticles(t.x,t.y,"#ef4444",18,"spark");
+            spawnPopup(t.x,t.y-24,"⚠️ EDGE!","#ef4444",16);
+            sfx("miss");vibrate([20,10,20]);
+            const hasShieldE=activePwrRef.current.some(p=>p.type==="SHIELD"&&p.endsAt>now);
+            if(hasShieldE){activePwrRef.current=activePwrRef.current.filter(p=>p.type!=="SHIELD");setActivePwrDisp([...activePwrRef.current]);}
+            else if(streakShRef.current){streakShRef.current=false;setStreakShieldActive(false);sfx("shieldBreak");}
+            else{gs.lives--;gs.streak=0;streakShRef.current=false;setStreakShieldActive(false);setMascotMood("sad");lostLife=true;}
+            return false;
+          }
+        } else {
+          t._edgeWarnAt=null;
+        }
+      }
       // 10B — Magnet pull: attract nearby normal targets toward this magnet
       if(t.type==="magnet"&&!t.dying){
         const PULL_R=110,PULL_STR=0.018;
@@ -4187,6 +4303,30 @@ export default function NexusTap(){
         }
         return false;
       }
+      // Bounty target indicator — golden crown + pulsing ring above the target
+      if(t._isBounty&&!t.dying){
+        const bpulse=0.5+0.5*Math.sin(ts*0.009);
+        ctx.save();
+        ctx.globalAlpha=0.55+bpulse*0.35;
+        ctx.strokeStyle="#ffd700";ctx.lineWidth=2.5;ctx.shadowColor="#ffd700";ctx.shadowBlur=12+bpulse*8;
+        ctx.setLineDash([5,3]);ctx.lineDashOffset=-ts*0.05;
+        ctx.beginPath();ctx.arc(t.x,t.y,t.radius+8,0,Math.PI*2);ctx.stroke();
+        ctx.setLineDash([]);ctx.globalAlpha=0.9;
+        ctx.font=`${Math.round(t.radius*0.7)}px sans-serif`;
+        ctx.textAlign="center";ctx.textBaseline="bottom";ctx.shadowBlur=6;
+        ctx.fillText("👑",t.x,t.y-t.radius-2);
+        ctx.restore();
+      }
+      // Edge warning flash overlay
+      if(t._edgeWarnAt){
+        const edgeFrac=Math.min(1,(now-t._edgeWarnAt)/1500);
+        const flashAlpha=0.35+0.45*Math.sin(ts*0.025)*(0.5+edgeFrac*0.5);
+        ctx.save();ctx.globalAlpha=flashAlpha;
+        ctx.strokeStyle="#ef4444";ctx.lineWidth=3+edgeFrac*3;
+        ctx.shadowColor="#ef4444";ctx.shadowBlur=12+edgeFrac*10;
+        ctx.beginPath();ctx.arc(t.x,t.y,t.radius+4,0,Math.PI*2);ctx.stroke();
+        ctx.restore();
+      }
       drawTarget(ctx,t,ts);return true;
     });
 
@@ -4231,6 +4371,20 @@ export default function NexusTap(){
     const rageSpawn=cfg._rageSpawn&&targetsRef.current.some(t=>t.rage);
     spawnTimer.current+=dt;
     if(spawnTimer.current>=(rageSpawn?cfg.spawnInterval*0.5:cfg.spawnInterval)){spawnTimer.current=0;spawnTarget();}
+
+    // Bounty Target — once per level, designate one normal target as a bounty (3× coins)
+    if(!cfg.isBoss&&!cfg.isZen&&!cfg.isGauntlet&&!gs.bountySet){
+      gs.bountySet=true;
+      // After 4 targets have been tapped, flag the next newly-spawned normal target
+      gs._bountyArmed=true;
+    }
+    if(gs._bountyArmed&&targetsRef.current.length>0){
+      const candidate=targetsRef.current.find(t=>t.type==="normal"&&!t._isBounty&&!t.dying&&!t.ghost);
+      if(candidate){
+        candidate._isBounty=true;
+        gs._bountyArmed=false;
+      }
+    }
 
     // Wave Surge — every 18-24s, spawn 3-5 targets at once (not in boss/zen/bonus rounds)
     if(!cfg.isBoss&&!cfg.isZen&&!gs.bonusRoundActive&&!cfg.isGauntlet){
@@ -5384,10 +5538,26 @@ export default function NexusTap(){
         {/* HUD */}
         <div className="absolute top-0 left-0 right-0 z-20 flex items-stretch"
           style={{background:"rgba(0,0,0,0.62)",backdropFilter:"blur(6px)",borderBottom:`1px solid ${wc}22`}}>
-          <div className="flex-1 flex flex-col items-center justify-center py-2 px-1">
-            <div className="text-xs opacity-35 tracking-widest uppercase" style={{color:wc}}>Score</div>
-            <div className="text-xl font-black tabular-nums" style={{color:wc}}>{hud.score.toLocaleString()}</div>
-            {cfg&&<div className="text-xs opacity-40 tabular-nums" style={{color:wc}}>/{cfg.scoreGoal.toLocaleString()}</div>}
+          <div className="flex-1 flex flex-col items-center justify-center py-2 px-1" style={{position:"relative"}}>
+            {cfg&&!cfg.isInfinity&&!cfg.isZen&&(()=>{
+              const pct=Math.min(1,hud.score/cfg.scoreGoal);
+              const r=29,s=3,cx=31,cy=31;
+              const circ=2*Math.PI*r;
+              const dash=pct*circ;
+              const clr=pct>=0.85?"#f97316":pct>=0.6?"#fbbf24":"#4ade80";
+              return(
+                <svg width={62} height={62} style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",pointerEvents:"none",overflow:"visible",zIndex:0}}>
+                  <circle cx={cx} cy={cy} r={r} fill="none" stroke="#ffffff08" strokeWidth={s}/>
+                  <circle cx={cx} cy={cy} r={r} fill="none" stroke={clr} strokeWidth={s}
+                    strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
+                    transform={`rotate(-90 ${cx} ${cy})`}
+                    style={{transition:"stroke-dasharray 0.35s ease-out",filter:`drop-shadow(0 0 4px ${clr})`}}/>
+                </svg>
+              );
+            })()}
+            <div className="text-xs opacity-35 tracking-widest uppercase" style={{color:wc,position:"relative",zIndex:1}}>Score</div>
+            <div className="text-xl font-black tabular-nums" style={{color:wc,position:"relative",zIndex:1}}>{hud.score.toLocaleString()}</div>
+            {cfg&&<div className="text-xs opacity-40 tabular-nums" style={{color:wc,position:"relative",zIndex:1}}>/{cfg.scoreGoal.toLocaleString()}</div>}
           </div>
           <div className="flex flex-col items-center justify-center px-2 py-1.5 gap-1">
             <div className="flex gap-0.5">{Array.from({length:MAX_LIVES},(_,i)=><span key={i} style={{fontSize:13,opacity:i<hud.lives?1:0.18}}>{i<hud.lives?"❤️":"🖤"}</span>)}</div>
@@ -6384,7 +6554,7 @@ export default function NexusTap(){
   // Achievement tab state — "all" | "gameplay" | "progression" | "social"
   const [achTab, setAchTab] = React.useState("all");
   const ACH_CATS = {
-    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse"],
+    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest"],
     progression: ["level_10","level_50","level_100","prestige_1","three_stars_5","mascot_lv10"],
     social:      ["missions_all","daily_7","score_2000","friday_fever","weekend_warrior","all_worlds"],
   };
