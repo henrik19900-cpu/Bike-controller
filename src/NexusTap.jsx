@@ -8542,17 +8542,20 @@ export default function NexusTap(){
               const secsLeft=Math.max(0,Math.ceil((p.endsAt-Date.now())/1000));
               const totalSecs=p.type==="SHIELD"?25:p.type==="SLOW"?8:p.type==="DOUBLE"?10:p.type==="FREEZE"?4:p.type==="MULTIPLIER"?8:p.type==="COMBO_FREEZE"?10:p.type==="TIME_WARP"?6:12;
               const pct=Math.min(100,Math.round(secsLeft/totalSecs*100));
-              const colors={SHIELD:"#fbbf24",SLOW:"#60a5fa",DOUBLE:"#f97316",FREEZE:"#06b6d4",LIFE:"#4ade80",LUCKY:"#ffd700",MIRROR:"#c084fc",MULTIPLIER:"#f43f5e",COMBO_FREEZE:"#67e8f9",GRAVITY:"#a78bfa",TIME_WARP:"#818cf8",SCORE_BOOST:"#f43f5e",LIFE_SURGE:"#4ade80"};
+              const isExpiring=secsLeft<=2&&secsLeft>0;
+              const colors={SHIELD:"#fbbf24",SLOW:"#60a5fa",DOUBLE:"#f97316",FREEZE:"#06b6d4",LIFE:"#4ade80",LUCKY:"#ffd700",MIRROR:"#c084fc",MULTIPLIER:"#f43f5e",COMBO_FREEZE:"#67e8f9",GRAVITY:"#a78bfa",TIME_WARP:"#818cf8",SCORE_BOOST:"#f43f5e",LIFE_SURGE:"#4ade80",MAGNET_FIELD:"#ec4899"};
               const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",FREEZE:"❄️",LIFE:"❤️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐",TIME_WARP:"⏱️",SCORE_BOOST:"×5",LIFE_SURGE:"💚",MAGNET_FIELD:"🧲"};
               const c=colors[p.type]||"#60a5fa";
               return(
                 <div key={p.type} className="flex flex-col items-center gap-0.5"
-                  style={{background:"#0a0a1acc",borderRadius:8,padding:"3px 6px",border:`1px solid ${c}44`,minWidth:36}}>
+                  style={{background:"#0a0a1acc",borderRadius:8,padding:"3px 6px",border:`1px solid ${c}${isExpiring?"cc":"44"}`,minWidth:36,
+                    animation:isExpiring?"heartbeat 0.4s ease-in-out infinite":"none",
+                    boxShadow:isExpiring?`0 0 8px ${c}88`:"none"}}>
                   <div className="text-xs font-black" style={{color:c,fontSize:11}}>{icons[p.type]||"⚡"}</div>
-                  <div className="text-xs font-bold tabular-nums" style={{color:c,fontSize:9,lineHeight:1}}>{secsLeft}s</div>
+                  <div className="text-xs font-bold tabular-nums" style={{color:isExpiring?"#ef4444":c,fontSize:9,lineHeight:1,fontWeight:isExpiring?"black":"bold"}}>{secsLeft}s</div>
                   <div style={{width:28,height:3,background:"#ffffff15",borderRadius:2,overflow:"hidden"}}>
-                    <div style={{width:`${pct}%`,height:"100%",background:c,borderRadius:2,
-                      boxShadow:`0 0 4px ${c}`,transition:"width 0.5s linear"}}/>
+                    <div style={{width:`${pct}%`,height:"100%",background:isExpiring?"#ef4444":c,borderRadius:2,
+                      boxShadow:`0 0 4px ${isExpiring?"#ef4444":c}`,transition:"width 0.5s linear"}}/>
                   </div>
                 </div>
               );
@@ -8641,6 +8644,27 @@ export default function NexusTap(){
             </div>
           </div>
         )}
+        {/* Combo milestone progress bar — shows distance to next milestone */}
+        {hud.streak>0&&(()=>{
+          const COMBO_MILESTONES=[5,10,20,25,30,35,50];
+          const streak=hud.streak;
+          const nextMs=COMBO_MILESTONES.find(m=>m>streak)||55;
+          const prevMs=COMBO_MILESTONES.filter(m=>m<=streak).pop()||0;
+          const pct=Math.min(100,((streak-prevMs)/(nextMs-prevMs))*100);
+          const comboColor=streak>=35?"#a855f7":streak>=20?"#ef4444":streak>=10?"#f97316":streak>=5?"#fbbf24":"#34d399";
+          return(
+            <div className="absolute left-4 right-4 pointer-events-none z-20" style={{bottom:6}}>
+              <div style={{display:"flex",alignItems:"center",gap:4,marginBottom:1}}>
+                <span style={{fontSize:7,color:comboColor,opacity:0.7,letterSpacing:"0.05em"}}>{streak}×</span>
+                <div style={{flex:1,height:2.5,background:"#ffffff10",borderRadius:2,overflow:"hidden"}}>
+                  <div style={{width:`${pct}%`,height:"100%",background:comboColor,borderRadius:2,
+                    boxShadow:`0 0 5px ${comboColor}`,transition:"width 0.15s ease-out"}}/>
+                </div>
+                <span style={{fontSize:7,color:comboColor,opacity:0.5}}>→{nextMs}×</span>
+              </div>
+            </div>
+          );
+        })()}
         {/* BIG MASCOT COMPANION — right side, cheering you on */}
         <div className="absolute pointer-events-none z-15" style={{bottom:18,right:10,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
           {/* Speech bubble */}
