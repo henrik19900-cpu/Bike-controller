@@ -445,6 +445,10 @@ const ACHIEVEMENTS = [
   { id:"world_complete",     label:"World Conqueror", desc:"Complete all levels in any world",      icon:"🌍", xp:100 },
   { id:"gemstone_tap",       label:"Gem Collector",   desc:"Find and tap a Gemstone",              icon:"💎", xp:120 },
   { id:"poison_tap",         label:"Antidote",        desc:"Neutralize a Poison target",           icon:"☣️", xp:30  },
+  { id:"morph_tap",          label:"Shape Shifter",   desc:"Tap a Morph target",                   icon:"🔄", xp:25  },
+  { id:"morph_legendary",    label:"Perfect Morph",   desc:"Catch a Morph at Legendary tier",      icon:"🌟", xp:120 },
+  { id:"time_warp_use",      label:"Time Lord",       desc:"Use the Time Warp power-up",           icon:"⏱️", xp:40  },
+  { id:"conductor_tap",      label:"Music Maestro",   desc:"Tap a Conductor target",               icon:"♪",  xp:30  },
 ];
 
 const MISSION_TEMPLATES = [
@@ -1151,7 +1155,7 @@ function drawPowerup(ctx, r, pwrType, ts) {
   ctx.setLineDash([r*0.35,r*0.18]); ctx.beginPath(); ctx.arc(0,0,r-4,0,Math.PI*2); ctx.stroke();
   ctx.setLineDash([]); ctx.restore();
   // Icon
-  const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",LIFE:"❤️",FREEZE:"❄️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐",CHAIN_LIGHTNING:"⚡"};
+  const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",LIFE:"❤️",FREEZE:"❄️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐",CHAIN_LIGHTNING:"⚡",TIME_WARP:"⏱️"};
   if(pwrType==="LUCKY"){ctx.shadowColor="#ffd700";ctx.shadowBlur=r*(1.2+pulse*0.8);}
   const label=icons[pwrType]||"⚡";
   ctx.font=`bold ${r*0.9}px serif`; ctx.textAlign="center"; ctx.textBaseline="middle";
@@ -1524,6 +1528,36 @@ function drawMagnet(ctx, r, ts) {
   ctx.restore();
 }
 
+// ── Conductor target — musical note theme; when tapped boosts spawn for 5s ──
+function drawConductor(ctx, r, ts) {
+  const pulse=0.7+0.3*Math.sin(ts*0.009);
+  const beat=0.5+0.5*Math.sin(ts*0.016); // faster "heartbeat" to music
+  // Outer resonance ring
+  const grad=ctx.createRadialGradient(0,0,r*0.2,0,0,r*1.5);
+  grad.addColorStop(0,"#fb923c99");grad.addColorStop(0.5,"#f9780433");grad.addColorStop(1,"transparent");
+  ctx.save();ctx.globalAlpha=0.5*pulse;ctx.fillStyle=grad;
+  ctx.beginPath();ctx.arc(0,0,r*1.5,0,Math.PI*2);ctx.fill();
+  // Body
+  ctx.globalAlpha=1;
+  const bg=ctx.createRadialGradient(-r*0.2,-r*0.2,0,0,0,r);
+  bg.addColorStop(0,"#fed7aa");bg.addColorStop(0.45,"#f97316");bg.addColorStop(1,"#7c2d12");
+  ctx.fillStyle=bg;ctx.shadowColor="#f97316";ctx.shadowBlur=12+beat*10;
+  ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  // Musical note symbol ♪
+  ctx.fillStyle="#fff";ctx.shadowBlur=0;ctx.shadowColor="transparent";
+  ctx.font=`bold ${Math.floor(r*1.1)}px sans-serif`;
+  ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.fillText("♪",0,0);
+  // Orbiting music dots
+  for(let i=0;i<3;i++){
+    const angle=ts*0.003+i*(Math.PI*2/3);
+    const ox=Math.cos(angle)*(r+7);const oy=Math.sin(angle)*(r+7);
+    ctx.globalAlpha=0.7*pulse;ctx.fillStyle=["#fde68a","#fca5a5","#86efac"][i];
+    ctx.beginPath();ctx.arc(ox,oy,3,0,Math.PI*2);ctx.fill();
+  }
+  ctx.restore();
+}
+
 // ── Vanishing target — blinks in/out of visibility every ~0.8s ──
 function drawVanishing(ctx, r, ts) {
   // Blink cycle: visible for 40% of cycle, invisible for 60%
@@ -1736,6 +1770,67 @@ function drawTwin(ctx, r, ts) {
     ctx.fillStyle="#fde68a";ctx.globalAlpha=0.8;
     ctx.beginPath();ctx.arc(Math.cos(a)*d,Math.sin(a)*d,3.5,0,Math.PI*2);ctx.fill();
   }
+  ctx.restore();
+}
+
+// ── Morph target — cycles through rarity tiers; catch at legendary for jackpot ──
+const MORPH_CYCLE=[
+  {color:"#4ade80",glow:"#16a34a",label:"C"},  // common  0-1.4s
+  {color:"#60a5fa",glow:"#2563eb",label:"U"},  // uncommon
+  {color:"#f472b6",glow:"#db2777",label:"R"},  // rare
+  {color:"#c084fc",glow:"#7c3aed",label:"E"},  // epic
+  {color:"#ffd700",glow:"#b8860b",label:"L"},  // legendary
+];
+function drawMorph(ctx, r, ts, spawnedAt) {
+  const cycleMs=1400;
+  const elapsed=Date.now()-spawnedAt;
+  const phase=Math.floor((elapsed/cycleMs)%MORPH_CYCLE.length);
+  const phasePct=(elapsed%cycleMs)/cycleMs;
+  const tier=MORPH_CYCLE[phase];
+  const nextTier=MORPH_CYCLE[(phase+1)%MORPH_CYCLE.length];
+  // Blend color between phases
+  const pulse=0.75+0.25*Math.sin(ts*0.012);
+  const spin=ts*0.0014;
+  // Outer morphing aura
+  const grad=ctx.createRadialGradient(0,0,r*0.1,0,0,r*1.4);
+  grad.addColorStop(0,tier.color+"cc");
+  grad.addColorStop(0.6,tier.color+"55");
+  grad.addColorStop(1,"transparent");
+  ctx.save();
+  ctx.globalAlpha=0.45*pulse;
+  ctx.fillStyle=grad;
+  ctx.beginPath();ctx.arc(0,0,r*1.4,0,Math.PI*2);ctx.fill();
+  // Inner body — star with 5 points
+  ctx.globalAlpha=1;
+  ctx.rotate(spin);
+  const bg=ctx.createRadialGradient(0,0,0,0,0,r);
+  bg.addColorStop(0,"#ffffff");
+  bg.addColorStop(0.35,tier.color);
+  bg.addColorStop(1,tier.glow+"aa");
+  ctx.fillStyle=bg;
+  ctx.beginPath();
+  const pts=5,outer=r,inner=r*0.48;
+  for(let i=0;i<pts*2;i++){
+    const rad=i%2===0?outer:inner;
+    const ang=(i*Math.PI/pts)-Math.PI/2;
+    i===0?ctx.moveTo(Math.cos(ang)*rad,Math.sin(ang)*rad):ctx.lineTo(Math.cos(ang)*rad,Math.sin(ang)*rad);
+  }
+  ctx.closePath();ctx.fill();
+  ctx.strokeStyle=tier.color;ctx.lineWidth=1.5;ctx.shadowColor=tier.glow;ctx.shadowBlur=10+pulse*10;ctx.stroke();
+  ctx.restore();
+  // Tier label
+  ctx.save();
+  ctx.font=`bold ${Math.floor(r*0.7)}px 'Exo 2',sans-serif`;
+  ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.fillStyle="#ffffff";ctx.shadowColor=tier.glow;ctx.shadowBlur=8;
+  ctx.fillText(tier.label,0,0);
+  // Phase progress ring
+  ctx.restore();
+  ctx.save();
+  const ringR=r+3.5,circ=2*Math.PI*ringR;
+  ctx.strokeStyle=nextTier.color;ctx.lineWidth=2;ctx.globalAlpha=0.6;
+  ctx.shadowColor=nextTier.glow;ctx.shadowBlur=6;
+  ctx.beginPath();ctx.arc(0,0,ringR,-Math.PI/2,-Math.PI/2+phasePct*Math.PI*2);ctx.stroke();
   ctx.restore();
 }
 
@@ -2257,6 +2352,8 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="homing")   drawHoming(ctx,t.radius,ts);
   else if(t.type==="gemstone") drawGemstone(ctx,t.radius,ts);
   else if(t.type==="poison")   drawPoison(ctx,t.radius,ts);
+  else if(t.type==="morph")      drawMorph(ctx,t.radius,ts,t.spawnedAt);
+  else if(t.type==="conductor")  drawConductor(ctx,t.radius,ts);
   else{
     const nm=t.rarity?.name;
     if     (nm==="common")    drawCommon(ctx,t.radius,t.color,t.glow,ts,timeLeft);
@@ -3401,6 +3498,18 @@ export default function NexusTap(){
       vibrate([10,8,10,8,25]);sfx("chainBonus");
       unlock("chain_lightning_hit");
       setNotif(`⚡ CHAIN LIGHTNING! Zapping ${toZap.length} targets!`);
+    } else if(ptype==="TIME_WARP"){
+      // TIME WARP — drastically slows all targets for 6 seconds
+      gs._timeWarpEndsAt=Date.now()+6000;
+      activePwrRef.current=activePwrRef.current.filter(p=>p.type!=="TIME_WARP");
+      activePwrRef.current.push({type:"TIME_WARP",endsAt:Date.now()+6000});
+      setActivePwrDisp([...activePwrRef.current]);
+      spawnPopup(x,y,"⏱️ TIME WARP!","#818cf8",20);
+      spawnParticles(x,y,"#818cf8",18,"spark");
+      sfx("powerUp");vibrate([12,8,12,8,30]);
+      setScreenShake(true);setTimeout(()=>setScreenShake(false),300);
+      setNotif("⏱️ TIME Warp! Everything slowed to 20%!");
+      unlock("time_warp_use");
     } else {
       const dur=ptype==="SLOW"?7000:ptype==="FREEZE"?5000:9000;
       activePwrRef.current=activePwrRef.current.filter(p=>p.type!==ptype);
@@ -3438,7 +3547,7 @@ export default function NexusTap(){
       type="bomb";color="#ef4444";glow="#dc2626";sfx("bombSpawn");
     } else if(r<(bossRate||0)+effBomb+0.07){
       type="powerup";color="#60a5fa";glow="#3b82f6";
-      const pt=["SHIELD","SLOW","DOUBLE","LIFE","FREEZE","LUCKY","MIRROR","MULTIPLIER","COMBO_FREEZE","GRAVITY","CHAIN_LIGHTNING"];
+      const pt=["SHIELD","SLOW","DOUBLE","LIFE","FREEZE","LUCKY","MIRROR","MULTIPLIER","COMBO_FREEZE","GRAVITY","CHAIN_LIGHTNING","TIME_WARP"];
       pwrType=pt[Math.floor(Math.random()*pt.length)];
     } else if(r<(bossRate||0)+effBomb+0.07+0.045&&(gs.score>0||Math.random()<0.3)&&luckyRef.current!=="active"){
       // 4.5% treasure chest — the variable reward slot machine
@@ -3517,6 +3626,13 @@ export default function NexusTap(){
     } else if((cfg.id||0)>=12&&Math.random()<0.02&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 2% Homing — slowly drifts toward screen center; strategic since it comes to you
       type="homing";color="#34d399";glow="#059669";moving=true;
+    } else if((cfg.id||0)>=15&&Math.random()<0.022&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 2.2% Morph — cycles through rarity tiers every 1.4s; catch during legendary = jackpot
+      type="morph";color="#ffffff";glow="#ffffff";moving=Math.random()<0.3;
+      if(moving){const a=Math.random()*Math.PI*2,sp=0.5+Math.random()*0.8;vx=Math.cos(a)*sp;vy=Math.sin(a)*sp;}
+    } else if((cfg.id||0)>=8&&Math.random()<0.016&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!gs._conductorActive&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.6% Conductor — when tapped boosts spawn rate for 5s and gives staccato combo bonus
+      type="conductor";color="#f97316";glow="#c2410c";
     } else if((cfg.id||0)>=40&&Math.random()<0.01&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1% Gemstone — rare prismatic gem; scores 500+ base pts (like legendary rarity)
       type="gemstone";color="#e879f9";glow="#9333ea";
@@ -3539,7 +3655,7 @@ export default function NexusTap(){
       }
       if(!moving&&Math.random()<effGhost)ghost=true;
     }
-    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="divider"?BASE_R*1.65:type==="vanishing"?BASE_R*1.1:type==="homing"?BASE_R*1.2:type==="gemstone"?BASE_R*1.1:type==="poison"?BASE_R*1.15:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
+    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="divider"?BASE_R*1.65:type==="vanishing"?BASE_R*1.1:type==="homing"?BASE_R*1.2:type==="gemstone"?BASE_R*1.1:type==="poison"?BASE_R*1.15:type==="morph"?BASE_R*1.2:type==="conductor"?BASE_R*1.25:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
     // World modifiers: Ocean Deep (8) — slower targets (calmer waters), longer lifetimes
@@ -4167,6 +4283,57 @@ export default function NexusTap(){
       setLegendaryFlash(true);setTimeout(()=>setLegendaryFlash(false),800);
       unlock("gemstone_tap");
       mascotHappyRef.current+=5;
+      const cfg=levelCfgRef.current;
+      if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
+    // MORPH — score depends on which rarity phase it was caught in
+    if(hit.type==="morph"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const cycleMs=1400;
+      const elapsed=Date.now()-hit.spawnedAt;
+      const phase=Math.floor((elapsed/cycleMs)%MORPH_CYCLE.length); // 0=common .. 4=legendary
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      const basePts=[30,60,120,220,500][phase]; // scales with tier
+      const pts=Math.round(basePts*combo*feverMult*prestigeMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;
+      const tier=MORPH_CYCLE[phase];
+      if(phase>=3)gs.sessionStats.rareHits++;
+      const flashLabels=["✨ COMMON","🌊 UNCOMMON","💜 RARE!","🌟 EPIC!!","🏆 LEGENDARY!!!"][phase];
+      spawnParticles(hit.x,hit.y,tier.color,phase>=4?20:8+phase*3,"spark");
+      spawnPopup(hit.x,hit.y-36,`${flashLabels} +${pts}`,tier.color,phase>=4?24:18);
+      if(phase===4){sfx("legendary");setLegendaryFlash(true);setTimeout(()=>setLegendaryFlash(false),800);vibrate([20,10,20,10,40]);unlock("morph_legendary");}
+      else if(phase>=3){sfx("epic");setEpicFlash(true);setTimeout(()=>setEpicFlash(false),600);vibrate([15,8,15]);}
+      else{sfx("tap");vibrate([8]);}
+      unlock("morph_tap");
+      mascotHappyRef.current+=phase>=4?5:1;
+      const cfg=levelCfgRef.current;
+      if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
+    // CONDUCTOR — boosts spawn rate for 5s, gives staccato combo notes
+    if(hit.type==="conductor"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      gs._conductorActive=true;
+      gs._conductorEndsAt=Date.now()+5000;
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      const pts=Math.round(180*combo*feverMult*prestigeMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;
+      spawnParticles(hit.x,hit.y,"#f97316",16,"spark");
+      spawnPopup(hit.x,hit.y-38,`♪ CONDUCTOR! +${pts}`,"#f97316",20);
+      sfx("chainBonus");vibrate([10,6,10,6,20]);
+      setNotif("♪ Conductor! Spawn rate boosted for 5s!");
+      unlock("conductor_tap");
+      mascotHappyRef.current+=2;
+      setTimeout(()=>{if(gsRef.current){gsRef.current._conductorActive=false;gsRef.current._conductorEndsAt=null;}},5000);
       const cfg=levelCfgRef.current;
       if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
       return;
@@ -5237,23 +5404,23 @@ export default function NexusTap(){
             if(t.y<t.radius+95||t.y>h-margin){t.vy*=-1;t.y=Math.max(t.radius+95,Math.min(h-margin,t.y));}
           }
         } else {
+          const timeWarpMult=gs._timeWarpEndsAt&&Date.now()<gs._timeWarpEndsAt?0.2:1;
           // Rage target accelerates over its lifetime
           if(t.type==="rage"){
             const rl=Math.min(1,(now-t.spawnedAt)/(t.lifetime*0.9));
-            const speedScale=0.056*(1+rl*3.5); // up to 4.5× faster at max rage
+            const speedScale=0.056*(1+rl*3.5)*timeWarpMult; // up to 4.5× faster at max rage
             t.x+=t.vx*dt*speedScale;t.y+=t.vy*dt*speedScale;
           } else if(t.type==="homing"){
             // Homing: gently steers toward screen center
             const cx2=w/2,cy2=Math.min(h*0.52,h-80);
             const dx2=cx2-t.x,dy2=cy2-t.y;
             const dist2=Math.hypot(dx2,dy2)||1;
-            const steer=0.018;
+            const steer=0.018*timeWarpMult;
             t.vx+=dx2/dist2*steer;t.vy+=dy2/dist2*steer;
-            // Cap speed
             const spd=Math.hypot(t.vx,t.vy);if(spd>1.4){t.vx=t.vx/spd*1.4;t.vy=t.vy/spd*1.4;}
-            t.x+=t.vx*dt*0.056;t.y+=t.vy*dt*0.056;
+            t.x+=t.vx*dt*0.056*timeWarpMult;t.y+=t.vy*dt*0.056*timeWarpMult;
           } else {
-            t.x+=t.vx*dt*0.056;t.y+=t.vy*dt*0.056;
+            t.x+=t.vx*dt*0.056*timeWarpMult;t.y+=t.vy*dt*0.056*timeWarpMult;
           }
           const margin=t.radius+5;
           if(t.x<margin||t.x>w-margin){t.vx*=-1;t.x=Math.max(margin,Math.min(w-margin,t.x));}
@@ -5478,7 +5645,8 @@ export default function NexusTap(){
     const rageSpawn=cfg._rageSpawn&&targetsRef.current.some(t=>t.rage);
     spawnTimer.current+=dt;
     const rushSpawnMult=isRush?0.65:1;
-    if(spawnTimer.current>=(rageSpawn?cfg.spawnInterval*0.5:cfg.spawnInterval*rushSpawnMult)){spawnTimer.current=0;spawnTarget();}
+    const conductorMult=(gs._conductorEndsAt&&Date.now()<gs._conductorEndsAt)?0.45:1;
+    if(spawnTimer.current>=(rageSpawn?cfg.spawnInterval*0.5:cfg.spawnInterval*rushSpawnMult*conductorMult)){spawnTimer.current=0;spawnTarget();}
 
     // Bounty Target — once per level, designate one normal target as a bounty (3× coins)
     if(!cfg.isBoss&&!cfg.isZen&&!cfg.isGauntlet&&!gs.bountySet){
@@ -6764,9 +6932,34 @@ export default function NexusTap(){
                 </svg>
               );
             })()}
-            <div className="text-xs opacity-35 tracking-widest uppercase" style={{color:wc,position:"relative",zIndex:1}}>Score</div>
+            {cfg?.isZen&&hud.timeLeft!=null&&(()=>{
+              const totalSec=Math.ceil((cfg.zenDuration||90000)/1000);
+              const pct=hud.timeLeft/totalSec;
+              const r=29,s=3.5,cx=31,cy=31;
+              const circ=2*Math.PI*r;
+              const dash=pct*circ;
+              const clr=pct<0.2?"#ef4444":pct<0.45?"#f97316":pct<0.7?"#fbbf24":"#34d399";
+              return(
+                <svg width={62} height={62} style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",pointerEvents:"none",overflow:"visible",zIndex:0}}>
+                  <circle cx={cx} cy={cy} r={r} fill="none" stroke="#ffffff06" strokeWidth={s}/>
+                  <circle cx={cx} cy={cy} r={r} fill="none" stroke={clr} strokeWidth={s}
+                    strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
+                    transform={`rotate(-90 ${cx} ${cy})`}
+                    style={{transition:"stroke-dasharray 0.9s linear",filter:`drop-shadow(0 0 5px ${clr})`,
+                      animation:pct<0.2?"heartbeat 0.7s ease-in-out infinite":"none"}}/>
+                </svg>
+              );
+            })()}
+            <div className="text-xs opacity-35 tracking-widest uppercase" style={{color:wc,position:"relative",zIndex:1}}>
+              {cfg?.isZen?"TIME":"Score"}
+            </div>
             <div className="text-xl font-black tabular-nums" style={{color:wc,position:"relative",zIndex:1}}>{hud.score.toLocaleString()}</div>
-            {cfg&&<div className="text-xs opacity-40 tabular-nums" style={{color:wc,position:"relative",zIndex:1}}>/{cfg.scoreGoal.toLocaleString()}</div>}
+            {cfg?.isZen&&hud.timeLeft!=null
+              ?<div className="text-xs font-bold tabular-nums" style={{color:hud.timeLeft<=15?"#ef4444":hud.timeLeft<=30?"#f97316":"#34d399",position:"relative",zIndex:1,textShadow:hud.timeLeft<=15?"0 0 8px #ef4444":"none"}}>
+                  {hud.timeLeft}s ☯
+                </div>
+              :<>{cfg&&!cfg.isZen&&<div className="text-xs opacity-40 tabular-nums" style={{color:wc,position:"relative",zIndex:1}}>/{cfg.scoreGoal.toLocaleString()}</div>}</>
+            }
           </div>
           <div className="flex flex-col items-center justify-center px-2 py-1.5 gap-1">
             <div className="flex gap-0.5">{Array.from({length:MAX_LIVES},(_,i)=><span key={i} style={{fontSize:13,opacity:i<hud.lives?1:0.18}}>{i<hud.lives?"❤️":"🖤"}</span>)}</div>
@@ -6924,10 +7117,10 @@ export default function NexusTap(){
           <div className="absolute left-0 right-0 flex justify-center gap-1.5 z-20" style={{top:hud.boss?148:hud.modGoal?108:76}}>
             {activePwrDisp.map(p=>{
               const secsLeft=Math.max(0,Math.ceil((p.endsAt-Date.now())/1000));
-              const totalSecs=p.type==="SHIELD"?25:p.type==="SLOW"?8:p.type==="DOUBLE"?10:p.type==="FREEZE"?4:p.type==="MULTIPLIER"?8:p.type==="COMBO_FREEZE"?10:12;
+              const totalSecs=p.type==="SHIELD"?25:p.type==="SLOW"?8:p.type==="DOUBLE"?10:p.type==="FREEZE"?4:p.type==="MULTIPLIER"?8:p.type==="COMBO_FREEZE"?10:p.type==="TIME_WARP"?6:12;
               const pct=Math.min(100,Math.round(secsLeft/totalSecs*100));
-              const colors={SHIELD:"#fbbf24",SLOW:"#60a5fa",DOUBLE:"#f97316",FREEZE:"#06b6d4",LIFE:"#4ade80",LUCKY:"#ffd700",MIRROR:"#c084fc",MULTIPLIER:"#f43f5e",COMBO_FREEZE:"#67e8f9",GRAVITY:"#a78bfa"};
-              const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",FREEZE:"❄️",LIFE:"❤️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐"};
+              const colors={SHIELD:"#fbbf24",SLOW:"#60a5fa",DOUBLE:"#f97316",FREEZE:"#06b6d4",LIFE:"#4ade80",LUCKY:"#ffd700",MIRROR:"#c084fc",MULTIPLIER:"#f43f5e",COMBO_FREEZE:"#67e8f9",GRAVITY:"#a78bfa",TIME_WARP:"#818cf8"};
+              const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",FREEZE:"❄️",LIFE:"❤️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐",TIME_WARP:"⏱️"};
               const c=colors[p.type]||"#60a5fa";
               return(
                 <div key={p.type} className="flex flex-col items-center gap-0.5"
@@ -6980,6 +7173,18 @@ export default function NexusTap(){
         {goldRushMode&&<div className="absolute left-0 right-0 flex justify-center pointer-events-none z-30" style={{top:feverBorder?178:rushMode?158:140}}>
           <span className="font-black text-sm px-3 py-1 rounded-full" style={{color:"#ffd700",textShadow:"0 0 18px #ffd700",background:"#ffd70018",border:"1px solid #ffd70066",animation:"heartbeat 0.6s ease-in-out infinite"}}>🥇 GOLD RUSH! 3× COINS!</span>
         </div>}
+        {/* Time Warp — deep purple slowdown border + banner */}
+        {activePwrDisp.some(p=>p.type==="TIME_WARP"&&p.endsAt>Date.now())&&(
+          <>
+            <div className="absolute inset-0 pointer-events-none z-10" style={{
+              border:"3px solid #818cf8",
+              boxShadow:"inset 0 0 60px #818cf822,0 0 60px #818cf822",
+              animation:"feverPulse 1.2s ease-in-out infinite alternate"}}/>
+            <div className="absolute left-0 right-0 flex justify-center pointer-events-none z-29" style={{top:feverBorder?200:goldRushMode?178:158}}>
+              <span className="font-black text-xs px-3 py-1 rounded-full" style={{color:"#818cf8",textShadow:"0 0 12px #818cf8",background:"#818cf818",border:"1px solid #818cf866",letterSpacing:"0.06em"}}>⏱️ TIME WARP ACTIVE</span>
+            </div>
+          </>
+        )}
         {feverBorder&&<div className="absolute inset-0 pointer-events-none z-10" style={{border:"4px solid #fbbf24",boxShadow:"inset 0 0 60px #fbbf2445,0 0 60px #fbbf2445",animation:"feverPulse 0.6s ease-in-out infinite alternate"}}/>}
         {feverBorder&&<div className="absolute left-0 right-0 flex justify-center pointer-events-none z-30" style={{top:luckyMode||newRecord?184:140}}>
           <span className="font-black text-base px-4 py-1 rounded-full" style={{color:"#fbbf24",textShadow:"0 0 20px #fbbf24",background:"#fbbf2420",animation:"feverPulse 0.5s infinite alternate"}}>✨ MAGIC MODE!</span>
@@ -7848,7 +8053,7 @@ export default function NexusTap(){
   // Achievement tab state — "all" | "gameplay" | "progression" | "social"
   const [achTab, setAchTab] = React.useState("all");
   const ACH_CATS = {
-    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap"],
+    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap"],
     progression: ["level_10","level_50","level_100","prestige_1","three_stars_5","mascot_lv10","streak_25","streak_50","streak_10","streak_5","score_2000","world_complete"],
     social:      ["missions_all","daily_7","friday_fever","weekend_warrior","all_worlds","streak_saver","loot_chest"],
   };
