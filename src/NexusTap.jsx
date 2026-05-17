@@ -422,6 +422,21 @@ const SHOP_ITEMS = [
   { id:"streak_saver", name:"Streak Saver 💛",   desc:"Keep streak on next miss (once)",     cost:50,  icon:"💛" },
 ];
 
+// ── Prestige cosmetics — unique title + badge per prestige level (12A) ──
+const PRESTIGE_TIERS = [
+  { level:0, title:null,               badge:null,   color:"#ffffff" },
+  { level:1, title:"Dragon Slayer",    badge:"🐉",   color:"#ff6b35",
+    desc:"Defeated the Dragon — eternal glory awaits" },
+  { level:2, title:"Arcane Scholar",   badge:"🔮",   color:"#b06de8",
+    desc:"Mastered the arcane arts beyond mortal limits" },
+  { level:3, title:"Frost Warlord",    badge:"❄️",   color:"#6ec0f5",
+    desc:"Conquered the Viking Fjords in the frozen north" },
+  { level:4, title:"Cosmic Voyager",   badge:"🚀",   color:"#ffd700",
+    desc:"Traveled all 10 worlds — the stars themselves bow" },
+  { level:5, title:"NEXUS LEGEND",     badge:"🌈",   color:"#ff00ff",
+    desc:"All 5 prestiges achieved — a living legend of NexusTap" },
+];
+
 // ═══════════════════════════════════════════════════════════════
 // STORY DATA
 // ═══════════════════════════════════════════════════════════════
@@ -584,6 +599,8 @@ const DEFAULT_SAVE = {
   zenBest:0,               // best score in zen mode
   zenBestWorld:1,          // world of best zen run
   lastActiveTime:null,     // timestamp (ms) when player last closed/backgrounded app
+  worldBest:{},            // { worldId: bestScore } — per-world records (12B)
+  lastWeeklyRecap:null,    // weekKey of last shown weekly recap (12C)
 };
 
 // ── Offline coin calculation (max 4 hours, 1 coin per 10s) ──
@@ -2118,6 +2135,7 @@ export default function NexusTap(){
   const [mascotUnlockedData, setMascotUnlockedData] = useState(null); // newly unlocked mascot
   const [dailyBonusData, setDailyBonusData] = useState(null); // {day, coins, xp, isWeekly}
   const [offlineCoinsData, setOfflineCoinsData] = useState(null); // {coins, hours} shown once on startup
+  const [weeklyRecapData,  setWeeklyRecapData]  = useState(null); // {levelsPlayed, bestScore, coinsEarned, streak} on Sunday
   const [shopConfirm, setShopConfirm] = useState(null); // {total, items, onConfirm}
   const [spinState,     setSpinState]     = useState(null);
   const [spinResult,    setSpinResult]    = useState(null);
@@ -2260,6 +2278,25 @@ export default function NexusTap(){
     document.addEventListener("visibilitychange",onHide);
     window.addEventListener("pagehide",onHide);
     return()=>{document.removeEventListener("visibilitychange",onHide);window.removeEventListener("pagehide",onHide);};
+  },[]);// eslint-disable-line
+
+  // Weekly recap — shown on Sunday if player hasn't seen it this week (12C)
+  useEffect(()=>{
+    const today=new Date();
+    if(today.getDay()!==0)return; // only Sunday (0)
+    const sv=saveRef.current;
+    const wk=getWeekKey();
+    if((sv.lastWeeklyRecap||"")===wk)return; // already shown this week
+    // Gather this week's data from timestamped scores
+    const weekScores=(sv.scores||[]).map(e=>typeof e==="number"?{score:e,week:""}:e).filter(e=>e.week===wk);
+    if(weekScores.length===0)return; // nothing to recap
+    const bestScore=Math.max(...weekScores.map(e=>e.score));
+    const levelsPlayed=weekScores.length;
+    // Approximate weekly XP and coins from differences — use rough estimate
+    const weeklyCoins=Math.round(weekScores.reduce((s,e)=>s+e.score*0.14,0));
+    sv.lastWeeklyRecap=wk;
+    flushSave();
+    setWeeklyRecapData({levelsPlayed,bestScore,coinsEarned:weeklyCoins,weekKey:wk});
   },[]);// eslint-disable-line
 
   // Missions
@@ -2514,6 +2551,12 @@ export default function NexusTap(){
       }
       sv.coins=(sv.coins||0)+coinsEarned;sv.totalCoins=(sv.totalCoins||0)+coinsEarned;
       if(score>sv.highScore)sv.highScore=score;
+      // Per-world best score tracking — 12B
+      if(!cfg.isInfinity&&!cfg.isZen&&cfg.world){
+        const wb=sv.worldBest||{};
+        if(score>(wb[cfg.world]||0))wb[cfg.world]=score;
+        sv.worldBest=wb;
+      }
       // Timestamped score entry — normalise legacy plain-number entries on read
       sv.scores=[{score,date:getTodayKey(),week:getWeekKey()},...(sv.scores||[]).map(e=>typeof e==="number"?{score:e,date:"2000-0-0",week:"2000-W0"}:e)].slice(0,50);
       if(gs.streak>sv.bestStreak)sv.bestStreak=gs.streak;
@@ -5465,9 +5508,12 @@ export default function NexusTap(){
         <div className="flex items-center gap-3">
           <NeonButton onClick={()=>go("menu")} className="px-3 py-2 text-sm" style={{background:"#ffffff10"}}>← Back</NeonButton>
           <h2 className="text-xl font-black" style={{color:theme.accent}}>Best Scores</h2>
-          {(sv.prestigeLevel||0)>0&&<span style={{fontSize:12,color:"#ffd700",background:"#ffd70022",border:"1px solid #ffd70066",borderRadius:8,padding:"2px 8px",fontWeight:"black"}}>
-            👑×{sv.prestigeLevel} +{(sv.prestigeLevel||0)*5}%
-          </span>}
+          {(()=>{const pt=PRESTIGE_TIERS[Math.min(5,sv.prestigeLevel||0)];return pt?.badge?(
+            <span style={{fontSize:12,color:pt.color,background:`${pt.color}18`,border:`1px solid ${pt.color}66`,borderRadius:8,padding:"2px 10px",fontWeight:"black",
+              textShadow:`0 0 10px ${pt.color}88`,boxShadow:`0 0 8px ${pt.color}33`}}>
+              {pt.badge} {pt.title} Ⅰ×{sv.prestigeLevel}
+            </span>
+          ):null;})()}
         </div>
         {/* ── PERSONAL STATS SUMMARY ── */}
         <div className="grid grid-cols-2 gap-2">
@@ -5488,6 +5534,32 @@ export default function NexusTap(){
             <div className="text-xl font-black tabular-nums" style={{color:"#a78bfa"}}>⭐ {totalStars}<span className="text-xs opacity-50">/300</span></div>
           </div>
         </div>
+        {/* ── PRESTIGE COSMETICS PANEL — 12A ── */}
+        {(sv.prestigeLevel||0)>0&&(()=>{
+          const pt=PRESTIGE_TIERS[Math.min(5,sv.prestigeLevel||0)];
+          const next=sv.prestigeLevel<5?PRESTIGE_TIERS[sv.prestigeLevel+1]:null;
+          return(
+            <div className="rounded-2xl p-4" style={{background:`linear-gradient(135deg,${pt.color}15 0%,#0a0218 80%)`,border:`1px solid ${pt.color}55`,boxShadow:`0 0 24px ${pt.color}22`}}>
+              <div className="flex items-center gap-3 mb-2">
+                <span style={{fontSize:28,filter:`drop-shadow(0 0 8px ${pt.color})`}}>{pt.badge}</span>
+                <div>
+                  <div className="font-black" style={{color:pt.color,letterSpacing:"0.06em",fontSize:13}}>{pt.title}</div>
+                  <div className="text-xs opacity-60" style={{color:pt.color}}>{pt.desc}</div>
+                </div>
+              </div>
+              {/* Prestige progress pips */}
+              <div className="flex gap-2 mt-2">
+                {PRESTIGE_TIERS.slice(1).map(t=>(
+                  <div key={t.level} className="flex-1 h-2 rounded-full overflow-hidden" style={{background:"#ffffff10"}}>
+                    <div style={{width:(sv.prestigeLevel||0)>=t.level?"100%":"0%",height:"100%",background:t.color,transition:"width 0.6s",boxShadow:`0 0 4px ${t.color}`}}/>
+                  </div>
+                ))}
+              </div>
+              {next&&<div className="text-xs mt-2 opacity-50" style={{color:pt.color}}>Next: {next.badge} {next.title} (Prestige {next.level})</div>}
+              {!next&&<div className="text-xs mt-2 text-center font-black" style={{color:"#ffd700",textShadow:"0 0 10px #ffd700",animation:"floatGlow 2s ease-in-out infinite"}}>🌟 MAXIMUM PRESTIGE ACHIEVED 🌟</div>}
+            </div>
+          );
+        })()}
         {/* ── WORLD PROGRESS RIBBON ── */}
         <div className="rounded-2xl p-3" style={{background:"#ffffff05",border:"1px solid #ffffff10"}}>
           <div className="text-xs font-bold opacity-50 mb-2 uppercase tracking-widest" style={{color:theme.accent}}>World Progress</div>
@@ -5508,6 +5580,28 @@ export default function NexusTap(){
             ))}
           </div>
         </div>
+        {/* ── WORLD RECORDS HALL — 12B ── */}
+        {Object.keys(sv.worldBest||{}).length>0&&(
+          <div className="rounded-2xl p-3" style={{background:"#ffffff05",border:"1px solid #ffffff10"}}>
+            <div className="text-xs font-bold opacity-50 mb-2 uppercase tracking-widest" style={{color:theme.accent}}>🌍 World Records</div>
+            <div className="grid grid-cols-2 gap-1.5">
+              {WORLDS.map(w=>{
+                const best=(sv.worldBest||{})[w.id];
+                if(!best)return null;
+                return(
+                  <div key={w.id} className="flex items-center gap-1.5 rounded-xl px-2 py-1.5"
+                    style={{background:`${w.color}0e`,border:`1px solid ${w.color}33`}}>
+                    <span style={{fontSize:14}}>{w.emoji}</span>
+                    <div className="flex-1 min-w-0">
+                      <div style={{fontSize:9,color:w.color,opacity:0.7,letterSpacing:"0.04em",fontWeight:"bold"}}>{w.name}</div>
+                      <div style={{fontSize:12,color:w.color,fontWeight:"black",tabularNums:true}}>{best.toLocaleString()}</div>
+                    </div>
+                  </div>
+                );
+              }).filter(Boolean)}
+            </div>
+          </div>
+        )}
         {/* ── TIME-TABBED SCORES ── */}
         <div>
           {/* Tab row */}
@@ -6471,6 +6565,50 @@ export default function NexusTap(){
             <NeonButton onClick={()=>setOfflineCoinsData(null)}
               style={{background:"linear-gradient(135deg,#15803d,#4ade80)",boxShadow:"0 0 20px #4ade8066",letterSpacing:"0.05em"}}>
               ✅ Sweet!
+            </NeonButton>
+          </div>
+        </div>
+      )}
+
+      {/* Weekly recap overlay — 12C, shown on Sunday */}
+      {weeklyRecapData&&(
+        <div className="fixed inset-0 z-[120] flex items-center justify-center" style={{background:"rgba(0,0,0,0.80)"}}>
+          <div className="relative rounded-2xl p-6 flex flex-col items-center gap-4 text-center"
+            style={{background:"linear-gradient(160deg,#1e1b4b22 0%,#0a0218 70%)",border:"1px solid #6366f155",
+              boxShadow:"0 0 60px #6366f133",maxWidth:340,width:"90%"}}>
+            {/* Sparkles */}
+            <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-2xl">
+              {[...Array(10)].map((_,i)=>(
+                <div key={i} style={{position:"absolute",left:`${(i*31)%100}%`,top:`${(i*47)%80}%`,
+                  fontSize:12,animation:`sparkleFloat ${1.5+i*0.2}s ease-in-out ${i*0.1}s infinite`,opacity:0.6}}>
+                  {["⭐","💫","✨","🌟"][i%4]}
+                </div>
+              ))}
+            </div>
+            <div className="text-5xl relative z-10" style={{filter:"drop-shadow(0 0 20px #6366f1)"}}>📊</div>
+            <h2 className="text-xl font-black relative z-10" style={{color:"#818cf8"}}>Weekly Recap</h2>
+            <p className="text-xs relative z-10" style={{color:"#a5b4fc"}}>Here's how your week went, adventurer!</p>
+            <div className="w-full grid grid-cols-3 gap-2 relative z-10">
+              <div className="rounded-xl py-3 flex flex-col items-center gap-1" style={{background:"#6366f115",border:"1px solid #6366f133"}}>
+                <div style={{fontSize:20}}>🎮</div>
+                <div className="font-black text-lg" style={{color:"#818cf8"}}>{weeklyRecapData.levelsPlayed}</div>
+                <div className="text-xs opacity-50" style={{color:"#818cf8"}}>Levels</div>
+              </div>
+              <div className="rounded-xl py-3 flex flex-col items-center gap-1" style={{background:"#fbbf2415",border:"1px solid #fbbf2433"}}>
+                <div style={{fontSize:20}}>🏆</div>
+                <div className="font-black text-base" style={{color:"#fbbf24"}}>{weeklyRecapData.bestScore.toLocaleString()}</div>
+                <div className="text-xs opacity-50" style={{color:"#fbbf24"}}>Best Score</div>
+              </div>
+              <div className="rounded-xl py-3 flex flex-col items-center gap-1" style={{background:"#4ade8015",border:"1px solid #4ade8033"}}>
+                <div style={{fontSize:20}}>🪙</div>
+                <div className="font-black text-lg" style={{color:"#4ade80"}}>~{weeklyRecapData.coinsEarned.toLocaleString()}</div>
+                <div className="text-xs opacity-50" style={{color:"#4ade80"}}>Coins</div>
+              </div>
+            </div>
+            <p className="text-xs opacity-40 relative z-10" style={{color:"#818cf8"}}>New week starts tomorrow — keep going!</p>
+            <NeonButton onClick={()=>setWeeklyRecapData(null)} className="relative z-10"
+              style={{background:"linear-gradient(135deg,#4338ca,#6366f1)",boxShadow:"0 0 20px #6366f155",letterSpacing:"0.05em"}}>
+              🚀 Let's go!
             </NeonButton>
           </div>
         </div>
