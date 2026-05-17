@@ -449,6 +449,9 @@ const ACHIEVEMENTS = [
   { id:"morph_legendary",    label:"Perfect Morph",   desc:"Catch a Morph at Legendary tier",      icon:"🌟", xp:120 },
   { id:"time_warp_use",      label:"Time Lord",       desc:"Use the Time Warp power-up",           icon:"⏱️", xp:40  },
   { id:"conductor_tap",      label:"Music Maestro",   desc:"Tap a Conductor target",               icon:"♪",  xp:30  },
+  { id:"siphon_tap",         label:"Danger Seeker",   desc:"Block a Siphon before it drains life", icon:"⚠️", xp:65  },
+  { id:"glitch_tap",         label:"Bug Hunter",      desc:"Tap a Glitch target",                  icon:"🟢", xp:25  },
+  { id:"glitch_perfect",     label:"Mid-Glitch!",     desc:"Tap a Glitch target mid-teleport",     icon:"⚡", xp:90  },
 ];
 
 const MISSION_TEMPLATES = [
@@ -1528,6 +1531,86 @@ function drawMagnet(ctx, r, ts) {
   ctx.restore();
 }
 
+// ── Glitch target — corrupted pixel art; teleports every 0.9s; catch mid-teleport for bonus ──
+function drawGlitch(ctx, r, ts) {
+  const blinkRate=300;const blink=Math.floor(ts/blinkRate)%2===0;
+  const jitter=blink?0:Math.random()*3-1.5; // position jitter when "glitching"
+  ctx.save();ctx.translate(jitter,jitter*0.6);
+  // Digital corruption bars
+  const numBars=5;
+  for(let i=0;i<numBars;i++){
+    const barY=-r+i*(r*2/numBars);
+    const barH=r*2/numBars*0.8;
+    const shift=Math.sin(ts*0.02+i*1.4)*r*0.4*(blink?1:0.2);
+    const hue=(i*72+ts*0.1)%360;
+    ctx.fillStyle=`hsl(${hue},100%,60%)`;
+    ctx.globalAlpha=0.75;
+    ctx.fillRect(-r+shift,barY,r*2,barH);
+  }
+  // Main body — dark with scanlines
+  ctx.globalAlpha=0.92;
+  const grad=ctx.createRadialGradient(0,0,r*0.1,0,0,r);
+  grad.addColorStop(0,"#0f172a");grad.addColorStop(0.7,"#1e293b");grad.addColorStop(1,"#334155");
+  ctx.fillStyle=grad;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  // Scanlines
+  ctx.globalAlpha=0.2;ctx.strokeStyle="#ffffff";ctx.lineWidth=0.8;
+  for(let y=-r;y<r;y+=4){
+    ctx.beginPath();ctx.moveTo(-Math.sqrt(Math.max(0,r*r-y*y)),y);
+    ctx.lineTo(Math.sqrt(Math.max(0,r*r-y*y)),y);ctx.stroke();
+  }
+  // Glitch text
+  ctx.globalAlpha=blink?1:0.4;
+  ctx.fillStyle=blink?"#00ff88":"#ff0080";
+  ctx.font=`bold ${Math.floor(r*0.75)}px monospace`;
+  ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.shadowColor=blink?"#00ff88":"#ff0080";ctx.shadowBlur=10;
+  ctx.fillText("ERR",0,0);
+  ctx.restore();
+}
+
+// ── Siphon target — dark vortex that drains 1 life on expiry; tap it for huge reward ──
+function drawSiphon(ctx, r, ts, lifeLeft) {
+  const pulse=0.6+0.4*Math.sin(ts*0.014);
+  const dangerpct=1-lifeLeft;
+  const warnCol=dangerpct>0.6?"#ef4444":"#dc2626";
+  // Outer vortex ring
+  const spin=-ts*0.006; // counter-clockwise, sinister
+  ctx.save();
+  ctx.rotate(spin);
+  // Pulsing dark aura
+  const aura=ctx.createRadialGradient(0,0,r*0.4,0,0,r*1.6);
+  aura.addColorStop(0,"#7f1d1d88");aura.addColorStop(0.55,warnCol+"44");aura.addColorStop(1,"transparent");
+  ctx.globalAlpha=0.6*pulse;ctx.fillStyle=aura;
+  ctx.beginPath();ctx.arc(0,0,r*1.6,0,Math.PI*2);ctx.fill();
+  // Dark spiral arms (vortex look)
+  ctx.globalAlpha=0.8;
+  for(let i=0;i<3;i++){
+    const armA=(i*(Math.PI*2/3));
+    ctx.strokeStyle=warnCol;ctx.lineWidth=2;
+    ctx.shadowColor=warnCol;ctx.shadowBlur=8;
+    ctx.beginPath();
+    for(let s=0;s<12;s++){
+      const ang=armA+s*0.22;
+      const rad=r*(0.2+s*0.065);
+      s===0?ctx.moveTo(Math.cos(ang)*rad,Math.sin(ang)*rad):ctx.lineTo(Math.cos(ang)*rad,Math.sin(ang)*rad);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+  // Body
+  const bg=ctx.createRadialGradient(0,0,0,0,0,r);
+  bg.addColorStop(0,"#450a0a");bg.addColorStop(0.5,"#991b1b");bg.addColorStop(1,"#450a0a");
+  ctx.save();ctx.fillStyle=bg;ctx.shadowColor=warnCol;ctx.shadowBlur=14+pulse*12;
+  ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  // Warning symbol
+  ctx.fillStyle="#fff";ctx.shadowBlur=0;
+  ctx.font=`bold ${Math.floor(r*1.1)}px sans-serif`;
+  ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.globalAlpha=0.7+0.3*pulse;
+  ctx.fillText("⚠",0,1);
+  ctx.restore();
+}
+
 // ── Conductor target — musical note theme; when tapped boosts spawn for 5s ──
 function drawConductor(ctx, r, ts) {
   const pulse=0.7+0.3*Math.sin(ts*0.009);
@@ -2354,6 +2437,8 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="poison")   drawPoison(ctx,t.radius,ts);
   else if(t.type==="morph")      drawMorph(ctx,t.radius,ts,t.spawnedAt);
   else if(t.type==="conductor")  drawConductor(ctx,t.radius,ts);
+  else if(t.type==="siphon")     drawSiphon(ctx,t.radius,ts,1-(now-t.spawnedAt)/t.lifetime);
+  else if(t.type==="glitch")     drawGlitch(ctx,t.radius,ts);
   else{
     const nm=t.rarity?.name;
     if     (nm==="common")    drawCommon(ctx,t.radius,t.color,t.glow,ts,timeLeft);
@@ -3630,6 +3715,14 @@ export default function NexusTap(){
       // 2.2% Morph — cycles through rarity tiers every 1.4s; catch during legendary = jackpot
       type="morph";color="#ffffff";glow="#ffffff";moving=Math.random()<0.3;
       if(moving){const a=Math.random()*Math.PI*2,sp=0.5+Math.random()*0.8;vx=Math.cos(a)*sp;vy=Math.sin(a)*sp;}
+    } else if((cfg.id||0)>=22&&Math.random()<0.015&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.5% Glitch — teleports randomly every 0.9s; premium points
+      type="glitch";color="#00ff88";glow="#00cc66";moving=true;
+      const a=Math.random()*Math.PI*2;vx=Math.cos(a)*0.6;vy=Math.sin(a)*0.6;
+    } else if((cfg.id||0)>=18&&!cfg.isZen&&Math.random()<0.014&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.4% Siphon — drains 1 life on expiry; tapping it rewards 1000+ pts
+      type="siphon";color="#dc2626";glow="#7f1d1d";moving=Math.random()<0.4;
+      if(moving){const a=Math.random()*Math.PI*2,sp=0.5+Math.random()*0.7;vx=Math.cos(a)*sp;vy=Math.sin(a)*sp;}
     } else if((cfg.id||0)>=8&&Math.random()<0.016&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!gs._conductorActive&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1.6% Conductor — when tapped boosts spawn rate for 5s and gives staccato combo bonus
       type="conductor";color="#f97316";glow="#c2410c";
@@ -3655,7 +3748,7 @@ export default function NexusTap(){
       }
       if(!moving&&Math.random()<effGhost)ghost=true;
     }
-    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="divider"?BASE_R*1.65:type==="vanishing"?BASE_R*1.1:type==="homing"?BASE_R*1.2:type==="gemstone"?BASE_R*1.1:type==="poison"?BASE_R*1.15:type==="morph"?BASE_R*1.2:type==="conductor"?BASE_R*1.25:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
+    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="divider"?BASE_R*1.65:type==="vanishing"?BASE_R*1.1:type==="homing"?BASE_R*1.2:type==="gemstone"?BASE_R*1.1:type==="poison"?BASE_R*1.15:type==="morph"?BASE_R*1.2:type==="conductor"?BASE_R*1.25:type==="siphon"?BASE_R*1.3:type==="glitch"?BASE_R*1.1:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
     // World modifiers: Ocean Deep (8) — slower targets (calmer waters), longer lifetimes
@@ -4311,6 +4404,55 @@ export default function NexusTap(){
       else{sfx("tap");vibrate([8]);}
       unlock("morph_tap");
       mascotHappyRef.current+=phase>=4?5:1;
+      const cfg=levelCfgRef.current;
+      if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
+    // GLITCH — rewards based on how recently it teleported (mid-teleport = bonus)
+    if(hit.type==="glitch"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      // Bonus if caught within 0.3s of last teleport (mid-glitch)
+      const timeSinceGlitch=now-(hit._lastGlitch||0);
+      const midGlitch=timeSinceGlitch<300;
+      const pts=Math.round((midGlitch?400:150)*combo*feverMult*prestigeMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;
+      const col=midGlitch?"#00ff88":"#ffffff";
+      spawnParticles(hit.x,hit.y,col,14,"spark");
+      spawnPopup(hit.x,hit.y-36,midGlitch?`🟢 GLITCH PERFECT! +${pts}`:`⬜ GLITCH! +${pts}`,col,midGlitch?22:18);
+      if(midGlitch){sfx("legendary");setEpicFlash(true);setTimeout(()=>setEpicFlash(false),500);vibrate([15,8,15,8,30]);}
+      else{sfx("tap");vibrate([8]);}
+      unlock("glitch_tap");
+      if(midGlitch)unlock("glitch_perfect");
+      mascotHappyRef.current+=midGlitch?4:1;
+      const cfg=levelCfgRef.current;
+      if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
+    // SIPHON — drains 1 life if not tapped; massive reward for catching it
+    if(hit.type==="siphon"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      // Bonus scales with how much life was left (catching early = more points)
+      const lifeLeft=Math.max(0,1-(Date.now()-hit.spawnedAt)/hit.lifetime);
+      const urgencyBonus=Math.round(lifeLeft*400); // up to 400 bonus pts for catching early
+      const pts=Math.round((600+urgencyBonus)*combo*feverMult*prestigeMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;gs.sessionStats.rareHits++;
+      spawnParticles(hit.x,hit.y,"#ef4444",16,"spark");
+      spawnParticles(hit.x,hit.y,"#fbbf24",8,"dot");
+      spawnPopup(hit.x,hit.y-42,`⚠️ SIPHON BLOCKED! +${pts}`,"#ef4444",22);
+      sfx("bossKill");vibrate([20,10,20,10,40]);
+      setNotif("🛡 Siphon neutralized — danger averted!");
+      unlock("siphon_tap");
+      mascotHappyRef.current+=3;
       const cfg=levelCfgRef.current;
       if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
       return;
@@ -5428,6 +5570,17 @@ export default function NexusTap(){
         }
         if(t.trail){t.trail.push({x:t.x,y:t.y});if(t.trail.length>12)t.trail.shift();}
       }
+      // Glitch teleport — jumps to a random valid position every 0.9s
+      if(t.type==="glitch"&&!t.dying){
+        if(!t._lastGlitch)t._lastGlitch=now;
+        if(now-t._lastGlitch>=900){
+          t._lastGlitch=now;
+          const margin=t.radius+10;
+          t.x=margin+Math.random()*(w-margin*2);
+          t.y=(t.radius+100)+Math.random()*(h-(t.radius+100)-margin);
+          spawnParticles(t.x,t.y,"#00ff88",5,"spark");
+        }
+      }
       // Edge Danger Zone — stationary normal targets within 20px of screen edges flash and explode after 1.5s
       if(!t.moving&&!t.dying&&t.type==="normal"&&!t._isShard&&!cfg?.isZen){
         const EDGE=22;
@@ -5480,6 +5633,16 @@ export default function NexusTap(){
       // Expiry
       if((now-t.spawnedAt)>=t.lifetime){
         if(t.type==="powerup"||t.type==="bomb"||t.type==="boss"||t.type==="treasure")return false;
+        // SIPHON expired — drains 1 life (unless shielded)
+        if(t.type==="siphon"){
+          spawnParticles(t.x,t.y,"#dc2626",20,"spark");
+          spawnPopup(t.x,t.y-30,"⚠️ SIPHON! -1 LIFE","#ef4444",18);
+          sfx("miss");vibrate([20,10,20,10,30]);
+          const hasShS=activePwrRef.current.some(p=>p.type==="SHIELD"&&p.endsAt>now);
+          if(hasShS){activePwrRef.current=activePwrRef.current.filter(p=>p.type!=="SHIELD");setActivePwrDisp([...activePwrRef.current]);}
+          else{gs.lives--;gs.streak=0;streakShRef.current=false;setStreakShieldActive(false);lostLife=true;}
+          return false;
+        }
         // POISON expired — apply poison debuff (next target gives 50% pts)
         if(t.type==="poison"){
           gs._poisonedUntil=Date.now()+4000;
@@ -8053,7 +8216,7 @@ export default function NexusTap(){
   // Achievement tab state — "all" | "gameplay" | "progression" | "social"
   const [achTab, setAchTab] = React.useState("all");
   const ACH_CATS = {
-    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap"],
+    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect"],
     progression: ["level_10","level_50","level_100","prestige_1","three_stars_5","mascot_lv10","streak_25","streak_50","streak_10","streak_5","score_2000","world_complete"],
     social:      ["missions_all","daily_7","friday_fever","weekend_warrior","all_worlds","streak_saver","loot_chest"],
   };
