@@ -414,6 +414,7 @@ const ACHIEVEMENTS = [
   { id:"loot_chest",     label:"Treasure Hunter",   desc:"Tap a Loot Chest for coin drops",     icon:"🪙", xp:35  },
   { id:"first_tap_fever",label:"Hot Start",          desc:"Get First Tap Fever on a rare+ target",icon:"🔥", xp:40  },
   { id:"bounty_hit",     label:"Bounty Hunter",      desc:"Tap a crowned Bounty target",          icon:"👑", xp:30  },
+  { id:"tornado_catch",  label:"Eye of the Storm",   desc:"Tap a Tornado target",                 icon:"🌀", xp:45  },
 ];
 
 const MISSION_TEMPLATES = [
@@ -1119,7 +1120,7 @@ function drawPowerup(ctx, r, pwrType, ts) {
   ctx.setLineDash([r*0.35,r*0.18]); ctx.beginPath(); ctx.arc(0,0,r-4,0,Math.PI*2); ctx.stroke();
   ctx.setLineDash([]); ctx.restore();
   // Icon
-  const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",LIFE:"❤️",FREEZE:"❄️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊"};
+  const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",LIFE:"❤️",FREEZE:"❄️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐"};
   if(pwrType==="LUCKY"){ctx.shadowColor="#ffd700";ctx.shadowBlur=r*(1.2+pulse*0.8);}
   const label=icons[pwrType]||"⚡";
   ctx.font=`bold ${r*0.9}px serif`; ctx.textAlign="center"; ctx.textBaseline="middle";
@@ -1634,6 +1635,44 @@ function drawLootChest(ctx, r, ts) {
   ctx.restore();
 }
 
+// ── Tornado target — blue spinning vortex, scrambles nearby target positions ──
+function drawTornado(ctx, r, ts) {
+  const spin=ts*0.003;
+  const pulse=0.5+0.5*Math.sin(ts*0.007);
+  ctx.save();
+  // Outer wind halo
+  ctx.globalAlpha=0.22+pulse*0.2;
+  ctx.strokeStyle="#67e8f9";ctx.lineWidth=4;ctx.shadowColor="#06b6d4";ctx.shadowBlur=22+pulse*14;
+  ctx.beginPath();ctx.arc(0,0,r*1.55,0,Math.PI*2);ctx.stroke();
+  ctx.globalAlpha=1;
+  // Spiral arms (3)
+  for(let arm=0;arm<3;arm++){
+    const armAngle=spin+arm*(Math.PI*2/3);
+    ctx.globalAlpha=0.7;ctx.strokeStyle="#67e8f9";ctx.lineWidth=2;
+    ctx.shadowColor="#06b6d4";ctx.shadowBlur=10;
+    ctx.beginPath();
+    for(let i=0;i<24;i++){
+      const t2=i/23;
+      const a=armAngle+t2*Math.PI*1.8;
+      const rd=r*0.12+t2*r*0.82;
+      if(i===0)ctx.moveTo(Math.cos(a)*rd,Math.sin(a)*rd);
+      else ctx.lineTo(Math.cos(a)*rd,Math.sin(a)*rd);
+    }
+    ctx.stroke();
+  }
+  ctx.globalAlpha=1;
+  // Core
+  const cg=ctx.createRadialGradient(0,0,0,0,0,r*0.55);
+  cg.addColorStop(0,"#e0f7ff");cg.addColorStop(0.4,"#67e8f9");cg.addColorStop(1,"#0891b2");
+  ctx.fillStyle=cg;ctx.shadowColor="#06b6d4";ctx.shadowBlur=14;
+  ctx.beginPath();ctx.arc(0,0,r*0.55,0,Math.PI*2);ctx.fill();
+  // Eye symbol
+  ctx.fillStyle="#ffffff";ctx.font=`bold ${r*0.55}px sans-serif`;
+  ctx.textAlign="center";ctx.textBaseline="middle";ctx.shadowBlur=0;ctx.globalAlpha=0.85;
+  ctx.fillText("🌀",0,1);
+  ctx.restore();
+}
+
 // ── Healer target — glowing green cross, restores 1 life when tapped ──
 function drawHealer(ctx, r, ts) {
   const pulse=0.5+0.5*Math.sin(ts*0.005);
@@ -1872,6 +1911,7 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="bouncy")   drawBouncy(ctx,t.radius,ts);
   else if(t.type==="ninja")    drawNinja(ctx,t.radius,ts,timeLeft);
   else if(t.type==="lootchest") drawLootChest(ctx,t.radius,ts);
+  else if(t.type==="tornado")  drawTornado(ctx,t.radius,ts);
   else{
     const nm=t.rarity?.name;
     if     (nm==="common")    drawCommon(ctx,t.radius,t.color,t.glow,ts,timeLeft);
@@ -2800,6 +2840,20 @@ export default function NexusTap(){
       activePwrRef.current.push({type:ptype,endsAt:Date.now()+dur});
       setActivePwrDisp([...activePwrRef.current]);
       spawnPopup(x,y,"×3 MULTIPLIER!","#f43f5e",18);
+    } else if(ptype==="GRAVITY"){
+      // GRAVITY — pulls all targets toward screen center instantly
+      const canvas=canvasRef.current;
+      const gcx=canvas?canvas.width/2:195,gcy=canvas?canvas.height/2:350;
+      targetsRef.current.forEach(t=>{
+        if(t.dying||t.type==="boss")return;
+        const dx=gcx-t.x,dy=gcy-t.y,dist=Math.hypot(dx,dy);
+        if(dist>0){t.x+=dx*0.55;t.y+=dy*0.55;} // pull 55% of the way to center
+      });
+      spawnPopup(gcx,gcy,"🌐 GRAVITY PULL!","#a78bfa",20);
+      spawnParticles(gcx,gcy,"#a78bfa",20,"spark");
+      sfx("chainBonus");vibrate([15,8,25]);
+      setScreenShake(true);setTimeout(()=>setScreenShake(false),350);
+      setNotif("🌐 GRAVITY! All targets pulled to center!");
     } else {
       const dur=ptype==="SLOW"?7000:ptype==="FREEZE"?5000:9000;
       activePwrRef.current=activePwrRef.current.filter(p=>p.type!==ptype);
@@ -2837,7 +2891,7 @@ export default function NexusTap(){
       type="bomb";color="#ef4444";glow="#dc2626";sfx("bombSpawn");
     } else if(r<(bossRate||0)+effBomb+0.07){
       type="powerup";color="#60a5fa";glow="#3b82f6";
-      const pt=["SHIELD","SLOW","DOUBLE","LIFE","FREEZE","LUCKY","MIRROR","MULTIPLIER","COMBO_FREEZE"];
+      const pt=["SHIELD","SLOW","DOUBLE","LIFE","FREEZE","LUCKY","MIRROR","MULTIPLIER","COMBO_FREEZE","GRAVITY"];
       pwrType=pt[Math.floor(Math.random()*pt.length)];
     } else if(r<(bossRate||0)+effBomb+0.07+0.045&&(gs.score>0||Math.random()<0.3)&&luckyRef.current!=="active"){
       // 4.5% treasure chest — the variable reward slot machine
@@ -2889,6 +2943,9 @@ export default function NexusTap(){
     } else if((cfg.id||0)>=25&&Math.random()<0.018&&!gs.bonusRoundActive&&effBomb>0&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1.8% Volatile — tap to defuse (scores 250pts), or it explodes on expiry (costs a life)
       type="volatile";color="#ff4500";glow="#dc2626";
+    } else if((cfg.id||0)>=24&&Math.random()<0.012&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.2% Tornado — scrambles nearby target positions in a vortex effect
+      type="tornado";color="#67e8f9";glow="#06b6d4";
     } else if((cfg.id||0)>=8&&Math.random()<0.014&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1.4% Loot Chest — big golden chest, drops 3-5 coins on tap
       type="lootchest";color="#ffd700";glow="#b45309";
@@ -2904,7 +2961,7 @@ export default function NexusTap(){
       }
       if(!moving&&Math.random()<effGhost)ghost=true;
     }
-    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
+    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
     // World modifiers: Ocean Deep (8) — slower targets (calmer waters), longer lifetimes
@@ -3405,6 +3462,42 @@ export default function NexusTap(){
       spawnPopup(hit.x,hit.y-32,`👻 PHANTOM! +${pts}`,"#e879f9",22);
       setEpicFlash(true);setTimeout(()=>setEpicFlash(false),500);
       unlock("phantom_catch");
+      mascotHappyRef.current++;
+      const cfg=levelCfgRef.current;
+      if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
+    // TORNADO — scrambles nearby target positions in a vortex, then scores
+    if(hit.type==="tornado"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const VORTEX_R=120;
+      let vortexCount=0;
+      targetsRef.current.forEach(t=>{
+        if(t.dying||t.type==="boss")return;
+        const dx=t.x-hit.x,dy=t.y-hit.y;
+        const dist=Math.hypot(dx,dy);
+        if(dist<VORTEX_R&&dist>0){
+          const angle=Math.atan2(dy,dx)+Math.PI/2; // perpendicular (tangential kick)
+          const force=((VORTEX_R-dist)/VORTEX_R)*40;
+          t.x=Math.max(t.radius+10,Math.min(canvasRef.current?.width||390-t.radius-10,t.x+Math.cos(angle)*force));
+          t.y=Math.max(t.radius+100,Math.min(canvasRef.current?.height||700-t.radius-10,t.y+Math.sin(angle)*force));
+          vortexCount++;
+        }
+      });
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      const pts=Math.round((150+vortexCount*30)*combo*feverMult*prestigeMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;
+      hit.dying=performance.now();
+      sfx("chainBonus");vibrate([10,5,15,5,10]);
+      spawnParticles(hit.x,hit.y,"#67e8f9",25,"spark");
+      spawnPopup(hit.x,hit.y-30,`🌀 VORTEX! +${pts}`,"#67e8f9",18);
+      if(vortexCount>=3)spawnPopup(hit.x,hit.y-52,`×${vortexCount} SCATTER!`,"#06b6d4",13);
+      setEpicFlash(true);setTimeout(()=>setEpicFlash(false),400);
+      unlock("tornado_catch");
       mascotHappyRef.current++;
       const cfg=levelCfgRef.current;
       if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
@@ -5714,8 +5807,8 @@ export default function NexusTap(){
               const secsLeft=Math.max(0,Math.ceil((p.endsAt-Date.now())/1000));
               const totalSecs=p.type==="SHIELD"?25:p.type==="SLOW"?8:p.type==="DOUBLE"?10:p.type==="FREEZE"?4:p.type==="MULTIPLIER"?8:p.type==="COMBO_FREEZE"?10:12;
               const pct=Math.min(100,Math.round(secsLeft/totalSecs*100));
-              const colors={SHIELD:"#fbbf24",SLOW:"#60a5fa",DOUBLE:"#f97316",FREEZE:"#06b6d4",LIFE:"#4ade80",LUCKY:"#ffd700",MIRROR:"#c084fc",MULTIPLIER:"#f43f5e",COMBO_FREEZE:"#67e8f9"};
-              const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",FREEZE:"❄️",LIFE:"❤️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊"};
+              const colors={SHIELD:"#fbbf24",SLOW:"#60a5fa",DOUBLE:"#f97316",FREEZE:"#06b6d4",LIFE:"#4ade80",LUCKY:"#ffd700",MIRROR:"#c084fc",MULTIPLIER:"#f43f5e",COMBO_FREEZE:"#67e8f9",GRAVITY:"#a78bfa"};
+              const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",FREEZE:"❄️",LIFE:"❤️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐"};
               const c=colors[p.type]||"#60a5fa";
               return(
                 <div key={p.type} className="flex flex-col items-center gap-0.5"
@@ -6606,7 +6699,7 @@ export default function NexusTap(){
   // Achievement tab state — "all" | "gameplay" | "progression" | "social"
   const [achTab, setAchTab] = React.useState("all");
   const ACH_CATS = {
-    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest"],
+    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch"],
     progression: ["level_10","level_50","level_100","prestige_1","three_stars_5","mascot_lv10"],
     social:      ["missions_all","daily_7","score_2000","friday_fever","weekend_warrior","all_worlds"],
   };
