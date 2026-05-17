@@ -1088,7 +1088,8 @@ function drawPowerup(ctx, r, pwrType, ts) {
   ctx.setLineDash([r*0.35,r*0.18]); ctx.beginPath(); ctx.arc(0,0,r-4,0,Math.PI*2); ctx.stroke();
   ctx.setLineDash([]); ctx.restore();
   // Icon
-  const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",LIFE:"❤️",FREEZE:"❄️"};
+  const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",LIFE:"❤️",FREEZE:"❄️",LUCKY:"⭐"};
+  if(pwrType==="LUCKY"){ctx.shadowColor="#ffd700";ctx.shadowBlur=r*(1.2+pulse*0.8);}
   const label=icons[pwrType]||"⚡";
   ctx.font=`bold ${r*0.9}px serif`; ctx.textAlign="center"; ctx.textBaseline="middle";
   ctx.fillStyle="#fff"; ctx.globalAlpha=0.95+pulse*0.05;
@@ -2163,6 +2164,7 @@ export default function NexusTap(){
   const [closeBanner,       setCloseBanner]       = useState(false); // "SO CLOSE!" banner
   const luckyRef    = useRef(null);   // null | "active" | "countdown"
   const luckyTimer  = useRef(null);
+  const triggerLuckyRef = useRef(null); // ref to triggerLucky for forward-reference calls
   const streakShRef = useRef(false);
   const [tutStep,       setTutStep]       = useState(null);
   const [mascotMood,    setMascotMood]    = useState("idle");
@@ -2422,12 +2424,17 @@ export default function NexusTap(){
     if(ptype==="LIFE"){
       if(gs.lives<MAX_LIVES)gs.lives++;
       spawnPopup(x,y,"+LIFE","#34d399",16);
+    } else if(ptype==="LUCKY"){
+      // LUCKY power-up — triggers 7s all-legendary mode
+      triggerLuckyRef.current?.();
+      spawnPopup(x,y,"⭐ LUCKY STARS!","#ffd700",18);
     } else {
       const dur=ptype==="SLOW"?7000:ptype==="FREEZE"?5000:9000;
       activePwrRef.current=activePwrRef.current.filter(p=>p.type!==ptype);
       activePwrRef.current.push({type:ptype,endsAt:Date.now()+dur});
       setActivePwrDisp([...activePwrRef.current]);
-      spawnPopup(x,y,`+${ptype}`,"#60a5fa",15);
+      const pLabels={SHIELD:"🛡 SHIELD",SLOW:"🐢 SLOW",DOUBLE:"×2 DOUBLE",FREEZE:"❄️ FREEZE"};
+      spawnPopup(x,y,pLabels[ptype]||`+${ptype}`,"#60a5fa",15);
     }
     missionProg.current={...missionProg.current,powerupCollected:(missionProg.current.powerupCollected||0)+1};
   },[sfx,unlock,spawnPopup]);
@@ -2458,7 +2465,7 @@ export default function NexusTap(){
       type="bomb";color="#ef4444";glow="#dc2626";sfx("bombSpawn");
     } else if(r<(bossRate||0)+effBomb+0.07){
       type="powerup";color="#60a5fa";glow="#3b82f6";
-      const pt=["SHIELD","SLOW","DOUBLE","LIFE","FREEZE"];
+      const pt=["SHIELD","SLOW","DOUBLE","LIFE","FREEZE","LUCKY"];
       pwrType=pt[Math.floor(Math.random()*pt.length)];
     } else if(r<(bossRate||0)+effBomb+0.07+0.045&&(gs.score>0||Math.random()<0.3)&&luckyRef.current!=="active"){
       // 4.5% treasure chest — the variable reward slot machine
@@ -3345,6 +3352,8 @@ export default function NexusTap(){
       luckyTimer.current=setTimeout(()=>triggerLucky(),50000+Math.random()*30000);
     },7000);
   },[sfx,spawnPopup]);// eslint-disable-line
+  // Keep ref in sync for forward-reference calls from activatePowerUp
+  React.useEffect(()=>{triggerLuckyRef.current=triggerLucky;},[triggerLucky]);
 
   // Pause
   const togglePause=useCallback(()=>{
@@ -4776,7 +4785,7 @@ export default function NexusTap(){
               const totalSecs=p.type==="SHIELD"?25:p.type==="SLOW"?8:p.type==="DOUBLE"?10:p.type==="FREEZE"?4:12;
               const pct=Math.min(100,Math.round(secsLeft/totalSecs*100));
               const colors={SHIELD:"#fbbf24",SLOW:"#60a5fa",DOUBLE:"#f97316",FREEZE:"#06b6d4",LIFE:"#4ade80"};
-              const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",FREEZE:"❄️",LIFE:"❤️"};
+              const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",FREEZE:"❄️",LIFE:"❤️",LUCKY:"⭐"};
               const c=colors[p.type]||"#60a5fa";
               return(
                 <div key={p.type} className="flex flex-col items-center gap-0.5"
