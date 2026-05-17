@@ -409,6 +409,7 @@ const ACHIEVEMENTS = [
   { id:"rainbow_catch",   label:"Color Catcher",     desc:"Tap a Rainbow target",                icon:"🌈", xp:20  },
   { id:"rainbow_legendary",label:"Perfect Rainbow",  desc:"Tap a Rainbow at Legendary tier",     icon:"🌟", xp:60  },
   { id:"frozen_catch",    label:"Ice Breaker",       desc:"Tap a Frozen target's small zone",    icon:"❄️", xp:45  },
+  { id:"bouncy_catch",    label:"Reflex Master",     desc:"Catch a fast Bouncy target",          icon:"⚡", xp:30  },
 ];
 
 const MISSION_TEMPLATES = [
@@ -1429,6 +1430,34 @@ function drawMagnet(ctx, r, ts) {
   ctx.restore();
 }
 
+// ── Bouncy target — fast-moving elastic ball with squish trails ──
+function drawBouncy(ctx, r, ts) {
+  const bounce=0.5+0.5*Math.sin(ts*0.014);
+  const squish=1+bounce*0.12;
+  ctx.save();
+  // Elastic squish transform
+  ctx.scale(squish,1/squish);
+  // Outer glow
+  ctx.globalAlpha=0.4+bounce*0.3;
+  ctx.fillStyle="#fef08a";ctx.shadowColor="#eab308";ctx.shadowBlur=20+bounce*10;
+  ctx.beginPath();ctx.arc(0,0,r*1.4,0,Math.PI*2);ctx.fill();
+  ctx.globalAlpha=1;
+  // Gradient body
+  const bg=ctx.createRadialGradient(-r*0.28,-r*0.3,0,0,0,r);
+  bg.addColorStop(0,"#fef9c3");bg.addColorStop(0.4,"#fde047");bg.addColorStop(0.8,"#eab308");bg.addColorStop(1,"#a16207");
+  ctx.fillStyle=bg;ctx.shadowColor="#eab308";ctx.shadowBlur=12+bounce*6;
+  ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  // Shine highlight
+  ctx.fillStyle="#fffbeb66";
+  ctx.beginPath();ctx.ellipse(-r*0.22,-r*0.3,r*0.3,r*0.18,Math.PI*0.3,0,Math.PI*2);ctx.fill();
+  // Speed lines (3 arcs)
+  ctx.globalAlpha=0.45;ctx.strokeStyle="#fbbf24";ctx.lineWidth=1.5;
+  for(let i=0;i<3;i++){
+    ctx.beginPath();ctx.arc(0,0,r*(1.1+i*0.12),Math.PI*0.6,Math.PI*1.4);ctx.stroke();
+  }
+  ctx.restore();
+}
+
 // ── Frozen target — smaller tap zone, 3× points, crystalline ice ──
 function drawFrozen(ctx, r, ts) {
   const sparkle=0.5+0.5*Math.sin(ts*0.012);
@@ -1750,6 +1779,7 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="twin")     drawTwin(ctx,t.radius,ts);
   else if(t.type==="rainbow")  drawRainbow(ctx,t.radius,ts);
   else if(t.type==="frozen")   drawFrozen(ctx,t.radius,ts);
+  else if(t.type==="bouncy")   drawBouncy(ctx,t.radius,ts);
   else{
     const nm=t.rarity?.name;
     if     (nm==="common")    drawCommon(ctx,t.radius,t.color,t.glow,ts,timeLeft);
@@ -2737,6 +2767,11 @@ export default function NexusTap(){
     } else if((cfg.id||0)>=20&&Math.random()<0.022&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 2.2% Phantom — ultra-short lifetime (1.1s), huge points, ghostly appearance
       type="phantom";color="#e879f9";glow="#a21caf";
+    } else if((cfg.id||0)>=16&&Math.random()<0.025&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 2.5% Bouncy — fast bouncing target, higher points for catching something hard to hit
+      type="bouncy";color="#fde047";glow="#eab308";
+      moving=true;const boa=Math.random()*Math.PI*2,bsp=2.8+Math.random()*1.8;
+      vx=Math.cos(boa)*bsp;vy=Math.sin(boa)*bsp;
     } else if((cfg.id||0)>=28&&Math.random()<0.018&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1.8% Frozen — smaller hit radius (70%), but 3× points
       type="frozen";color="#bfdbfe";glow="#93c5fd";
@@ -2770,7 +2805,7 @@ export default function NexusTap(){
       }
       if(!moving&&Math.random()<effGhost)ghost=true;
     }
-    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
+    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
     // World modifiers: Ocean Deep (8) — slower targets (calmer waters), longer lifetimes
@@ -3155,6 +3190,27 @@ export default function NexusTap(){
       unlock("frozen_catch");mascotHappyRef.current++;
       const cfgFz=levelCfgRef.current;
       if(cfgFz){if(gs.score>=cfgFz.scoreGoal&&(!cfgFz.modifier||checkModGoal(cfgFz.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
+    // BOUNCY — fast-moving elastic ball, 1.8× points
+    if(hit.type==="bouncy"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      const isMultiplierBo=activePwrRef.current.some(p=>p.type==="MULTIPLIER"&&p.endsAt>Date.now());
+      const pts=Math.round(100*1.8*combo*feverMult*prestigeMult*(isMultiplierBo?3:1));
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;
+      hit.dying=performance.now();
+      sfx("rare");vibrate([12,6,12]);
+      spawnParticles(hit.x,hit.y,"#fde047",18,"spark");
+      spawnParticles(hit.x,hit.y,"#fbbf24",6,"dot");
+      spawnPopup(hit.x,hit.y-28,`⚡ BOUNCY! +${pts}`,"#fde047",17);
+      unlock("bouncy_catch");mascotHappyRef.current++;
+      const cfgBo=levelCfgRef.current;
+      if(cfgBo){if(gs.score>=cfgBo.scoreGoal&&(!cfgBo.modifier||checkModGoal(cfgBo.modifier,gs))){endLevel(true);return;}}
       return;
     }
 
