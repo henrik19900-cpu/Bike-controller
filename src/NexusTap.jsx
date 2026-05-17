@@ -1097,7 +1097,7 @@ function drawPowerup(ctx, r, pwrType, ts) {
   ctx.setLineDash([r*0.35,r*0.18]); ctx.beginPath(); ctx.arc(0,0,r-4,0,Math.PI*2); ctx.stroke();
   ctx.setLineDash([]); ctx.restore();
   // Icon
-  const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",LIFE:"❤️",FREEZE:"❄️",LUCKY:"⭐"};
+  const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",LIFE:"❤️",FREEZE:"❄️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3"};
   if(pwrType==="LUCKY"){ctx.shadowColor="#ffd700";ctx.shadowBlur=r*(1.2+pulse*0.8);}
   const label=icons[pwrType]||"⚡";
   ctx.font=`bold ${r*0.9}px serif`; ctx.textAlign="center"; ctx.textBaseline="middle";
@@ -2454,6 +2454,21 @@ export default function NexusTap(){
       // LUCKY power-up — triggers 7s all-legendary mode
       triggerLuckyRef.current?.();
       spawnPopup(x,y,"⭐ LUCKY STARS!","#ffd700",18);
+    } else if(ptype==="MIRROR"){
+      // MIRROR — flip all current target positions horizontally for 5s chaos
+      const canvas=canvasRef.current;
+      const cw=canvas?canvas.width:390;
+      targetsRef.current.forEach(t=>{if(t.type!=="boss"&&!t.dying)t.x=cw-t.x;});
+      setScreenShake(true);setTimeout(()=>setScreenShake(false),300);
+      spawnPopup(x,y,"🪞 MIRROR!","#c084fc",18);
+      setNotif("🪞 MIRROR! All targets flipped!");
+    } else if(ptype==="MULTIPLIER"){
+      // MULTIPLIER — 3× score for 8 seconds
+      const dur=8000;
+      activePwrRef.current=activePwrRef.current.filter(p=>p.type!==ptype);
+      activePwrRef.current.push({type:ptype,endsAt:Date.now()+dur});
+      setActivePwrDisp([...activePwrRef.current]);
+      spawnPopup(x,y,"×3 MULTIPLIER!","#f43f5e",18);
     } else {
       const dur=ptype==="SLOW"?7000:ptype==="FREEZE"?5000:9000;
       activePwrRef.current=activePwrRef.current.filter(p=>p.type!==ptype);
@@ -2491,7 +2506,7 @@ export default function NexusTap(){
       type="bomb";color="#ef4444";glow="#dc2626";sfx("bombSpawn");
     } else if(r<(bossRate||0)+effBomb+0.07){
       type="powerup";color="#60a5fa";glow="#3b82f6";
-      const pt=["SHIELD","SLOW","DOUBLE","LIFE","FREEZE","LUCKY"];
+      const pt=["SHIELD","SLOW","DOUBLE","LIFE","FREEZE","LUCKY","MIRROR","MULTIPLIER"];
       pwrType=pt[Math.floor(Math.random()*pt.length)];
     } else if(r<(bossRate||0)+effBomb+0.07+0.045&&(gs.score>0||Math.random()<0.3)&&luckyRef.current!=="active"){
       // 4.5% treasure chest — the variable reward slot machine
@@ -3107,6 +3122,7 @@ export default function NexusTap(){
     setStreakDecaying(false);
     const combo=Math.min(10,1+Math.floor(gs.streak/5));
     const isDouble=activePwrRef.current.some(p=>p.type==="DOUBLE"&&p.endsAt>Date.now());
+    const isMultiplier=activePwrRef.current.some(p=>p.type==="MULTIPLIER"&&p.endsAt>Date.now());
     const feverMult=gs.feverActive?2:1;
     const timeLeft=1-(Date.now()-hit.spawnedAt)/hit.lifetime;
     const ceLevel=(saveRef.current.skills||{}).critical_eye||0;
@@ -3115,7 +3131,7 @@ export default function NexusTap(){
     // Prestige score multiplier (+5% per prestige level, max 5 prestiges = +25%)
     const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
     const shardMult=hit._isShard?0.5:1; // splitter shards award half points
-    const pts=Math.round(hit.rarity.mult*combo*feverMult*(isDouble?2:1)*(isPerfect?1.5:1)*prestigeMult*shardMult);
+    const pts=Math.round(hit.rarity.mult*combo*feverMult*(isDouble?2:1)*(isMultiplier?3:1)*(isPerfect?1.5:1)*prestigeMult*shardMult);
     gs.score+=pts;
     // Track last rarity for Mimic targets
     gs.lastRarityMult=hit.rarity.mult;
@@ -3184,7 +3200,17 @@ export default function NexusTap(){
     // Streak milestone burst celebrations + speech
     {const MILESTONES=[{n:5,label:"🔥 ON FIRE!",color:"#fbbf24"},{n:10,label:"⚡ UNSTOPPABLE!",color:"#f97316"},{n:20,label:"💥 LEGENDARY!",color:"#ef4444"},{n:30,label:"🌈 GODLIKE!!!",color:"#ff00ff"},{n:50,label:"👑 TRANSCENDENT!",color:"#ffd700"}];
     const ms=MILESTONES.find(m=>m.n===gs.streak);
-    if(ms){setStreakBurst(ms);setTimeout(()=>setStreakBurst(null),1200);showMascotSpeech("streak");}}
+    if(ms){
+      setStreakBurst(ms);setTimeout(()=>setStreakBurst(null),ms.n>=50?1800:1200);showMascotSpeech("streak");
+      // 50x: rainbow explosion across the whole canvas
+      if(ms.n>=50){
+        const canvas=canvasRef.current;const cw2=canvas?canvas.width:390;const ch2=canvas?canvas.height:700;
+        const colors=["#ff6030","#ffd700","#34d399","#60a5fa","#f472b6","#a78bfa","#ff6b35"];
+        colors.forEach((c,i)=>setTimeout(()=>spawnParticles(cw2/2,ch2/2,c,15,"spark"),i*80));
+        sfx("jackpot");vibrate([30,10,30,10,30,10,80]);
+        setLegendaryFlash(true);setTimeout(()=>setLegendaryFlash(false),1000);
+      }
+    }}
 
     // Musical pentatonic scale note (most addictive mechanic!) — rising melody as streak grows
     sfx("comboNote", gs.streak);
@@ -4855,10 +4881,10 @@ export default function NexusTap(){
           <div className="absolute left-0 right-0 flex justify-center gap-1.5 z-20" style={{top:hud.boss?148:hud.modGoal?108:76}}>
             {activePwrDisp.map(p=>{
               const secsLeft=Math.max(0,Math.ceil((p.endsAt-Date.now())/1000));
-              const totalSecs=p.type==="SHIELD"?25:p.type==="SLOW"?8:p.type==="DOUBLE"?10:p.type==="FREEZE"?4:12;
+              const totalSecs=p.type==="SHIELD"?25:p.type==="SLOW"?8:p.type==="DOUBLE"?10:p.type==="FREEZE"?4:p.type==="MULTIPLIER"?8:12;
               const pct=Math.min(100,Math.round(secsLeft/totalSecs*100));
-              const colors={SHIELD:"#fbbf24",SLOW:"#60a5fa",DOUBLE:"#f97316",FREEZE:"#06b6d4",LIFE:"#4ade80"};
-              const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",FREEZE:"❄️",LIFE:"❤️",LUCKY:"⭐"};
+              const colors={SHIELD:"#fbbf24",SLOW:"#60a5fa",DOUBLE:"#f97316",FREEZE:"#06b6d4",LIFE:"#4ade80",LUCKY:"#ffd700",MIRROR:"#c084fc",MULTIPLIER:"#f43f5e"};
+              const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",FREEZE:"❄️",LIFE:"❤️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3"};
               const c=colors[p.type]||"#60a5fa";
               return(
                 <div key={p.type} className="flex flex-col items-center gap-0.5"
