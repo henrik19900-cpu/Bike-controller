@@ -4871,6 +4871,22 @@ export default function NexusTap(){
           <div style={{fontSize:9,color:currentMascot.color,fontWeight:"bold",opacity:0.75,letterSpacing:"0.05em"}}>
             {currentMascot.name.toUpperCase()}
           </div>
+          {/* 9B — Happiness bar */}
+          {(()=>{
+            const happy=mascotHappyRef.current||0;
+            const maxHappy=75;
+            const pct=Math.min(100,Math.round((happy%75)/75*100));
+            const milestone=happy<25?"😐":happy<50?"😊":happy<75?"😄":"🌟";
+            return(
+              <div style={{width:50}}>
+                <div style={{width:"100%",height:3,background:"#ffffff15",borderRadius:2,overflow:"hidden"}}>
+                  <div style={{width:`${pct}%`,height:"100%",background:currentMascot.color,borderRadius:2,
+                    boxShadow:`0 0 3px ${currentMascot.color}`,transition:"width 0.3s"}}/>
+                </div>
+                <div style={{textAlign:"center",fontSize:7,color:currentMascot.color,opacity:0.6,marginTop:1}}>{milestone} {happy}</div>
+              </div>
+            );
+          })()}
         </div>
         {/* Chain flash popup */}
         {chainFlash&&(Date.now()-chainFlash.at<900)&&(
