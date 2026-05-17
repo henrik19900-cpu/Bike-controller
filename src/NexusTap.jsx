@@ -457,6 +457,7 @@ const ACHIEVEMENTS = [
   { id:"score_boost_use",    label:"Rocket Launch",   desc:"Use the Score Boost power-up",         icon:"🚀", xp:25  },
   { id:"comet_tap",          label:"Star Gazer",      desc:"Tap a Comet target",                   icon:"🌠", xp:30  },
   { id:"comet_early",        label:"Shooting Star",   desc:"Catch a Comet in the first half of its flight",icon:"⭐",xp:75 },
+  { id:"mirrorball_tap",     label:"Disco King",      desc:"Tap a Mirror Ball target",             icon:"🪩", xp:35  },
 ];
 
 const MISSION_TEMPLATES = [
@@ -1536,6 +1537,41 @@ function drawMagnet(ctx, r, ts) {
   ctx.restore();
 }
 
+// ── Mirror Ball target — disco ball; tapping spawns 3 mini copies ──
+function drawMirrorBall(ctx, r, ts) {
+  const spin=ts*0.002;
+  const pulse=0.6+0.4*Math.sin(ts*0.01);
+  ctx.save();ctx.rotate(spin);
+  // Outer shimmer
+  const numFacets=12;
+  for(let i=0;i<numFacets;i++){
+    const angle=(i/numFacets)*Math.PI*2;
+    const fx=Math.cos(angle)*r*0.75;const fy=Math.sin(angle)*r*0.75;
+    const hue=(i/numFacets)*360+(ts*0.05)%360;
+    const sz=r*0.22;
+    ctx.fillStyle=`hsl(${hue},100%,70%)`;
+    ctx.globalAlpha=(0.5+0.5*Math.sin(angle*3+ts*0.008))*0.85;
+    ctx.beginPath();ctx.arc(fx,fy,sz,0,Math.PI*2);ctx.fill();
+  }
+  // Main silvery body
+  ctx.globalAlpha=1;
+  const grad=ctx.createRadialGradient(-r*0.25,-r*0.25,0,0,0,r);
+  grad.addColorStop(0,"#ffffff");grad.addColorStop(0.3,"#e2e8f0");grad.addColorStop(0.7,"#94a3b8");grad.addColorStop(1,"#1e293b");
+  ctx.fillStyle=grad;ctx.shadowColor="#ffffff";ctx.shadowBlur=14+pulse*10;
+  ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  // Grid lines
+  ctx.strokeStyle="#ffffff33";ctx.lineWidth=0.8;ctx.shadowBlur=0;
+  for(let i=0;i<8;i++){
+    const a=i*Math.PI/4;
+    ctx.beginPath();ctx.moveTo(-r,Math.cos(a)*r*0.7);ctx.lineTo(r,Math.cos(a)*r*0.7);ctx.stroke();
+  }
+  for(let i=0;i<8;i++){
+    const a=i*Math.PI/4;
+    ctx.beginPath();ctx.moveTo(Math.cos(a)*r*0.7,-r);ctx.lineTo(Math.cos(a)*r*0.7,r);ctx.stroke();
+  }
+  ctx.restore();
+}
+
 // ── Comet target — streaks across the screen in a straight line; short lifetime ──
 function drawComet(ctx, r, ts, trail) {
   const pulse=0.7+0.3*Math.sin(ts*0.015);
@@ -2502,6 +2538,7 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="glitch")     drawGlitch(ctx,t.radius,ts);
   else if(t.type==="prism")      drawPrism(ctx,t.radius,ts);
   else if(t.type==="comet")      drawComet(ctx,t.radius,ts,t.trail);
+  else if(t.type==="mirrorball") drawMirrorBall(ctx,t.radius,ts);
   else{
     const nm=t.rarity?.name;
     if     (nm==="common")    drawCommon(ctx,t.radius,t.color,t.glow,ts,timeLeft);
@@ -3303,6 +3340,7 @@ export default function NexusTap(){
   const [countdownVal,  setCountdownVal]  = useState(null);
   const [paused,        setPaused]        = useState(false);
   const [screenShake,   setScreenShake]   = useState(false);
+  const [damageFlash,   setDamageFlash]   = useState(false); // red vignette on life loss
   const [epicFlash,     setEpicFlash]     = useState(false);
   const [legendaryFlash,setLegendaryFlash]= useState(false);
   const [feverBorder,   setFeverBorder]   = useState(false);
@@ -3786,6 +3824,9 @@ export default function NexusTap(){
       // 2.2% Morph — cycles through rarity tiers every 1.4s; catch during legendary = jackpot
       type="morph";color="#ffffff";glow="#ffffff";moving=Math.random()<0.3;
       if(moving){const a=Math.random()*Math.PI*2,sp=0.5+Math.random()*0.8;vx=Math.cos(a)*sp;vy=Math.sin(a)*sp;}
+    } else if((cfg.id||0)>=30&&Math.random()<0.012&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.2% Mirror Ball — disco sphere; tap to spawn 3 mini copies
+      type="mirrorball";color="#e2e8f0";glow="#94a3b8";
     } else if((cfg.id||0)>=20&&Math.random()<0.018&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1.8% Comet — streaks across the screen, 3.5s lifetime; trail particles
       type="comet";color="#fde68a";glow="#f59e0b";moving=true;
@@ -3833,7 +3874,7 @@ export default function NexusTap(){
       }
       if(!moving&&Math.random()<effGhost)ghost=true;
     }
-    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="divider"?BASE_R*1.65:type==="vanishing"?BASE_R*1.1:type==="homing"?BASE_R*1.2:type==="gemstone"?BASE_R*1.1:type==="poison"?BASE_R*1.15:type==="morph"?BASE_R*1.2:type==="conductor"?BASE_R*1.25:type==="siphon"?BASE_R*1.3:type==="glitch"?BASE_R*1.1:type==="prism"?BASE_R*1.2:type==="comet"?BASE_R*1.15:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
+    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="divider"?BASE_R*1.65:type==="vanishing"?BASE_R*1.1:type==="homing"?BASE_R*1.2:type==="gemstone"?BASE_R*1.1:type==="poison"?BASE_R*1.15:type==="morph"?BASE_R*1.2:type==="conductor"?BASE_R*1.25:type==="siphon"?BASE_R*1.3:type==="glitch"?BASE_R*1.1:type==="prism"?BASE_R*1.2:type==="comet"?BASE_R*1.15:type==="mirrorball"?BASE_R*1.45:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
     // World modifiers: Ocean Deep (8) — slower targets (calmer waters), longer lifetimes
@@ -4491,6 +4532,42 @@ export default function NexusTap(){
       else{sfx("tap");vibrate([8]);}
       unlock("morph_tap");
       mascotHappyRef.current+=phase>=4?5:1;
+      const cfg=levelCfgRef.current;
+      if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
+    // MIRROR BALL — spawns 3 mini normal targets on tap; rainbow particles
+    if(hit.type==="mirrorball"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      const pts=Math.round(100*combo*feverMult*prestigeMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;
+      // Spawn 3 mini disco copies
+      const canvas=canvasRef.current;const cw=canvas?.width||390,ch=canvas?.height||700;
+      const minicols=["#ff6060","#60ff60","#6060ff"];
+      for(let i=0;i<3;i++){
+        const angle=(i/3)*Math.PI*2;
+        const spx=Math.max(35,Math.min(cw-35,hit.x+Math.cos(angle)*55));
+        const spy=Math.max(100,Math.min(ch-35,hit.y+Math.sin(angle)*55));
+        targetsRef.current.push({
+          id:Math.random().toString(36).slice(2),type:"normal",
+          x:spx,y:spy,radius:BASE_R*0.65,color:minicols[i],glow:minicols[i],
+          rarity:RARITY.RARE,lifetime:2200,spawnedAt:Date.now(),born:performance.now(),
+          moving:false,ghost:false,vx:0,vy:0,trail:[],hitsLeft:1,maxHits:1,dying:null,_isMini:true
+        });
+      }
+      // Rainbow particle burst in 6 directions
+      for(let i=0;i<6;i++){
+        const hue=i*60;spawnParticles(hit.x,hit.y,`hsl(${hue},100%,65%)`,8,"spark");
+      }
+      spawnPopup(hit.x,hit.y-40,`🪩 MIRROR BALL! +${pts}`,"#e2e8f0",20);
+      sfx("chainBonus");vibrate([12,6,12,6,20]);
+      unlock("mirrorball_tap");
+      mascotHappyRef.current+=2;
       const cfg=levelCfgRef.current;
       if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
       return;
@@ -5930,7 +6007,10 @@ export default function NexusTap(){
     drawWeatherParticles(ctx,w,h,cfg?cfg.world:0,ts);
     drawVignette(ctx,w,h,accentColor);
 
-    if(lostLife){if(gs.lives<=0){endLevel(false);return;}}
+    if(lostLife){
+      if(gs.lives<=0){endLevel(false);return;}
+      setDamageFlash(true);setTimeout(()=>setDamageFlash(false),500);
+    }
 
     // Expire power-ups
     const pl=activePwrRef.current.length;
@@ -7527,6 +7607,7 @@ export default function NexusTap(){
         {feverBorder&&<div className="absolute left-0 right-0 flex justify-center pointer-events-none z-30" style={{top:luckyMode||newRecord?184:140}}>
           <span className="font-black text-base px-4 py-1 rounded-full" style={{color:"#fbbf24",textShadow:"0 0 20px #fbbf24",background:"#fbbf2420",animation:"feverPulse 0.5s infinite alternate"}}>✨ MAGIC MODE!</span>
         </div>}
+        {damageFlash&&<div className="absolute inset-0 pointer-events-none z-10" style={{background:"#ef444428",boxShadow:"inset 0 0 80px #ef444466",animation:"epicFlash 0.5s ease-out forwards"}}/>}
         {epicFlash&&<div className="absolute inset-0 pointer-events-none z-10" style={{background:"#f472b633",animation:"epicFlash 0.5s ease-out forwards"}}/>}
         {perfectFlash&&<div className="absolute inset-0 pointer-events-none z-10" style={{background:"#fbbf2422",animation:"epicFlash 0.35s ease-out forwards"}}/>}
         {comboLabel&&(
