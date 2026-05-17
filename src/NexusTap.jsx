@@ -452,6 +452,8 @@ const ACHIEVEMENTS = [
   { id:"siphon_tap",         label:"Danger Seeker",   desc:"Block a Siphon before it drains life", icon:"⚠️", xp:65  },
   { id:"glitch_tap",         label:"Bug Hunter",      desc:"Tap a Glitch target",                  icon:"🟢", xp:25  },
   { id:"glitch_perfect",     label:"Mid-Glitch!",     desc:"Tap a Glitch target mid-teleport",     icon:"⚡", xp:90  },
+  { id:"prism_tap",          label:"Prism Hunter",    desc:"Tap a Prism target",                   icon:"🔮", xp:35  },
+  { id:"lucky_streak",       label:"Lucky Seven",     desc:"Hit 7 targets in a row for lucky coins",icon:"🍀", xp:30  },
 ];
 
 const MISSION_TEMPLATES = [
@@ -1531,6 +1533,32 @@ function drawMagnet(ctx, r, ts) {
   ctx.restore();
 }
 
+// ── Prism target — refracts light into 3 rainbow beams when tapped ──
+function drawPrism(ctx, r, ts) {
+  const spin=ts*0.0009;
+  const pulse=0.7+0.3*Math.sin(ts*0.008);
+  // Rainbow shimmer aura
+  const hue1=(ts*0.04)%360;
+  const aura=ctx.createRadialGradient(0,0,r*0.3,0,0,r*1.6);
+  aura.addColorStop(0,`hsla(${hue1},100%,75%,0.5)`);
+  aura.addColorStop(0.5,`hsla(${(hue1+120)%360},100%,60%,0.25)`);
+  aura.addColorStop(1,"transparent");
+  ctx.save();ctx.globalAlpha=0.55*pulse;ctx.fillStyle=aura;
+  ctx.beginPath();ctx.arc(0,0,r*1.6,0,Math.PI*2);ctx.fill();
+  // Main prism body — elongated diamond shape
+  ctx.globalAlpha=1;
+  ctx.rotate(spin);
+  const pts3=[[0,-r*1.1],[r*0.65,0],[0,r*1.1],[-r*0.65,0]];
+  const prismGrad=ctx.createLinearGradient(-r,0,r,0);
+  for(let i=0;i<7;i++) prismGrad.addColorStop(i/6,`hsl(${(hue1+i*52)%360},100%,65%)`);
+  ctx.fillStyle=prismGrad;ctx.shadowColor="#ffffff";ctx.shadowBlur=12+pulse*10;
+  ctx.beginPath();pts3.forEach(([px,py],i)=>i===0?ctx.moveTo(px,py):ctx.lineTo(px,py));ctx.closePath();ctx.fill();
+  // Inner facet lines
+  ctx.strokeStyle="#ffffff88";ctx.lineWidth=1;ctx.shadowBlur=0;
+  ctx.beginPath();ctx.moveTo(-r*0.65,0);ctx.lineTo(0,-r*1.1);ctx.lineTo(r*0.65,0);ctx.lineTo(0,r*1.1);ctx.stroke();
+  ctx.restore();
+}
+
 // ── Glitch target — corrupted pixel art; teleports every 0.9s; catch mid-teleport for bonus ──
 function drawGlitch(ctx, r, ts) {
   const blinkRate=300;const blink=Math.floor(ts/blinkRate)%2===0;
@@ -2439,6 +2467,7 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="conductor")  drawConductor(ctx,t.radius,ts);
   else if(t.type==="siphon")     drawSiphon(ctx,t.radius,ts,1-(now-t.spawnedAt)/t.lifetime);
   else if(t.type==="glitch")     drawGlitch(ctx,t.radius,ts);
+  else if(t.type==="prism")      drawPrism(ctx,t.radius,ts);
   else{
     const nm=t.rarity?.name;
     if     (nm==="common")    drawCommon(ctx,t.radius,t.color,t.glow,ts,timeLeft);
@@ -3715,6 +3744,9 @@ export default function NexusTap(){
       // 2.2% Morph — cycles through rarity tiers every 1.4s; catch during legendary = jackpot
       type="morph";color="#ffffff";glow="#ffffff";moving=Math.random()<0.3;
       if(moving){const a=Math.random()*Math.PI*2,sp=0.5+Math.random()*0.8;vx=Math.cos(a)*sp;vy=Math.sin(a)*sp;}
+    } else if((cfg.id||0)>=25&&Math.random()<0.013&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.3% Prism — beautiful rainbow diamond; splits score into 3 rainbow beams
+      type="prism";color="#f0abfc";glow="#a21caf";
     } else if((cfg.id||0)>=22&&Math.random()<0.015&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1.5% Glitch — teleports randomly every 0.9s; premium points
       type="glitch";color="#00ff88";glow="#00cc66";moving=true;
@@ -3748,7 +3780,7 @@ export default function NexusTap(){
       }
       if(!moving&&Math.random()<effGhost)ghost=true;
     }
-    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="divider"?BASE_R*1.65:type==="vanishing"?BASE_R*1.1:type==="homing"?BASE_R*1.2:type==="gemstone"?BASE_R*1.1:type==="poison"?BASE_R*1.15:type==="morph"?BASE_R*1.2:type==="conductor"?BASE_R*1.25:type==="siphon"?BASE_R*1.3:type==="glitch"?BASE_R*1.1:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
+    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="divider"?BASE_R*1.65:type==="vanishing"?BASE_R*1.1:type==="homing"?BASE_R*1.2:type==="gemstone"?BASE_R*1.1:type==="poison"?BASE_R*1.15:type==="morph"?BASE_R*1.2:type==="conductor"?BASE_R*1.25:type==="siphon"?BASE_R*1.3:type==="glitch"?BASE_R*1.1:type==="prism"?BASE_R*1.2:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
     // World modifiers: Ocean Deep (8) — slower targets (calmer waters), longer lifetimes
@@ -4404,6 +4436,37 @@ export default function NexusTap(){
       else{sfx("tap");vibrate([8]);}
       unlock("morph_tap");
       mascotHappyRef.current+=phase>=4?5:1;
+      const cfg=levelCfgRef.current;
+      if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
+    // PRISM — splits score into 3 rainbow beam particle streams
+    if(hit.type==="prism"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      const pts=Math.round(280*combo*feverMult*prestigeMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;gs.sessionStats.rareHits++;
+      // Spawn 3 rainbow beam particle waves
+      const beamColors=["#ff6060","#60ff60","#6060ff"];
+      beamColors.forEach((c,i)=>{
+        const angle=-Math.PI/2+(i-1)*(Math.PI/5);
+        for(let j=0;j<10;j++){
+          particlesRef.current.push({
+            type:"dot",x:hit.x,y:hit.y,
+            vx:Math.cos(angle+j*0.15)*3,vy:Math.sin(angle+j*0.15)*3,
+            color:c,alpha:1,scale:1,born:performance.now(),duration:700+j*40
+          });
+        }
+      });
+      spawnPopup(hit.x,hit.y-40,`🔮 PRISM! +${pts}`,"#f0abfc",22);
+      sfx("epic");setEpicFlash(true);setTimeout(()=>setEpicFlash(false),600);
+      vibrate([15,8,15,8,25]);
+      unlock("prism_tap");
+      mascotHappyRef.current+=3;
       const cfg=levelCfgRef.current;
       if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
       return;
@@ -5085,6 +5148,19 @@ export default function NexusTap(){
       setTimeout(()=>{if(gsRef.current)gsRef.current._frenzyAt=null;},2000);
       unlock("tap_frenzy");
     }
+    // Lucky Streak — 7 consecutive hits without any miss gives coin jackpot
+    gs._luckyTaps=(gs._luckyTaps||0)+1;
+    if(gs._luckyTaps===7){
+      gs._luckyTaps=0;
+      const luckyCoins=10+Math.floor(Math.random()*15);
+      saveRef.current.coins=(saveRef.current.coins||0)+luckyCoins;
+      saveRef.current.totalCoins=(saveRef.current.totalCoins||0)+luckyCoins;
+      debounceSave();
+      const canvas=canvasRef.current;
+      spawnPopup(canvas?.width/2||195,(canvas?.height||700)*0.32,`🍀 LUCKY STREAK! +${luckyCoins}🪙`,"#ffd700",20);
+      sfx("coin");vibrate([8,6,8,6,15]);
+      unlock("lucky_streak");
+    }
     // Track last rarity for Mimic targets
     gs.lastRarityMult=hit.rarity.mult;
     gs.lastRarityColor=hit.color;
@@ -5664,7 +5740,7 @@ export default function NexusTap(){
           else{activePwrRef.current=activePwrRef.current.filter(p=>p.type!=="SHIELD");setActivePwrDisp([...activePwrRef.current]);}
           return false;
         }
-        if(t.type==="normal"&&!t._isShard)gs.sessionStats.missedTargets=(gs.sessionStats.missedTargets||0)+1;
+        if(t.type==="normal"&&!t._isShard){gs.sessionStats.missedTargets=(gs.sessionStats.missedTargets||0)+1;gs._luckyTaps=0;}
         const hasShield=activePwrRef.current.some(p=>p.type==="SHIELD"&&p.endsAt>now);
         if(hasShield){activePwrRef.current=activePwrRef.current.filter(p=>p.type!=="SHIELD");setActivePwrDisp([...activePwrRef.current]);}
         else if(streakShRef.current){
@@ -8216,7 +8292,7 @@ export default function NexusTap(){
   // Achievement tab state — "all" | "gameplay" | "progression" | "social"
   const [achTab, setAchTab] = React.useState("all");
   const ACH_CATS = {
-    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect"],
+    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect","prism_tap"],
     progression: ["level_10","level_50","level_100","prestige_1","three_stars_5","mascot_lv10","streak_25","streak_50","streak_10","streak_5","score_2000","world_complete"],
     social:      ["missions_all","daily_7","friday_fever","weekend_warrior","all_worlds","streak_saver","loot_chest"],
   };
