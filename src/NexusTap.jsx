@@ -480,6 +480,10 @@ const ACHIEVEMENTS = [
   { id:"beacon_surge",       label:"Beacon Surge",     desc:"Tap Beacon with 4+ nearby targets",       icon:"⚡",xp:80 },
   { id:"shadow_tap",         label:"Shadow Boxer",     desc:"Tap a Shadow target",                     icon:"🕶️",xp:30 },
   { id:"shadow_clone_catch", label:"Clone Catcher",    desc:"Catch a Shadow clone for bonus pts",      icon:"👤",xp:70 },
+  { id:"spectral_tap",       label:"Ghost Buster",     desc:"Tap a Spectral target",                   icon:"👻",xp:35 },
+  { id:"spectral_perfect",   label:"Perfect Apparition",desc:"Catch Spectral in its visible phase",   icon:"💛",xp:90 },
+  { id:"heart_tap",          label:"Heartbreaker",     desc:"Tap a Heart target",                      icon:"❤️",xp:25 },
+  { id:"nova_tap",           label:"Supernova!",       desc:"Tap a Nova target to freeze all enemies", icon:"💫",xp:60 },
 ];
 
 const MISSION_TEMPLATES = [
@@ -2640,6 +2644,83 @@ function drawVoid(ctx, r, ts) {
 }
 
 // ── Motion trail + ghost afterimages for moving targets ──
+// ── Spectral target — phasing ghost orb; massive pts if caught while visible ──
+function drawSpectral(ctx, r, ts) {
+  const cycle=1600;const phase=(ts%cycle)/cycle; // 0→1 fade in, then 0 fade out
+  const vis=phase<0.5?phase*2:2-phase*2; // triangle wave: 0→1→0
+  const pulse=0.5+0.5*Math.sin(ts*0.008);
+  // Spectral shimmer aura
+  ctx.save();ctx.globalAlpha=vis*0.3*pulse;
+  ctx.fillStyle="#e0e7ff";ctx.shadowColor="#818cf8";ctx.shadowBlur=20;
+  ctx.beginPath();ctx.arc(0,0,r*1.5,0,Math.PI*2);ctx.fill();
+  // Body — fades in and out
+  const grd=ctx.createRadialGradient(0,0,0,0,0,r);
+  grd.addColorStop(0,"#e0e7ff");grd.addColorStop(0.4,"#a5b4fc");grd.addColorStop(1,"#3730a3");
+  ctx.globalAlpha=vis*0.9;ctx.fillStyle=grd;ctx.shadowColor="#818cf8";ctx.shadowBlur=14+8*pulse;
+  ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  // Visible indicator ring (full opacity ring shows when visible)
+  if(vis>0.6){
+    ctx.globalAlpha=(vis-0.6)*2.5*pulse;ctx.strokeStyle="#fbbf24";ctx.lineWidth=2;
+    ctx.shadowColor="#fbbf24";ctx.shadowBlur=10;
+    ctx.beginPath();ctx.arc(0,0,r*1.2,0,Math.PI*2);ctx.stroke();
+  }
+  ctx.fillStyle="#c7d2fe";ctx.font=`bold ${Math.round(r*0.75)}px sans-serif`;
+  ctx.textAlign="center";ctx.textBaseline="middle";ctx.globalAlpha=vis*0.9;
+  ctx.fillText("👻",0,1);ctx.restore();
+}
+
+// ── Heart target — beats like a heart; tap for +1 life AND coin bonus ──
+function drawHeart(ctx, r, ts) {
+  const beat=0.5+0.5*Math.sin(ts*0.012);
+  const sz=r*(1+beat*0.12);
+  ctx.save();ctx.shadowColor="#f43f5e";ctx.shadowBlur=16+10*beat;
+  ctx.fillStyle=`hsl(${350+beat*5},90%,${55+beat*5}%)`;
+  // Heart shape using bezier curves
+  ctx.beginPath();
+  ctx.moveTo(0,-sz*0.55);
+  ctx.bezierCurveTo(sz*0.55,-sz*0.95,sz*1.1,-sz*0.3,0,sz*0.55);
+  ctx.bezierCurveTo(-sz*1.1,-sz*0.3,-sz*0.55,-sz*0.95,0,-sz*0.55);
+  ctx.fill();
+  // Highlight
+  ctx.fillStyle="#ffffff44";ctx.beginPath();
+  ctx.ellipse(-sz*0.3,-sz*0.55,sz*0.22,sz*0.15,Math.PI*0.4,0,Math.PI*2);ctx.fill();
+  // Label
+  ctx.fillStyle="#fff";ctx.font=`bold ${Math.round(sz*0.55)}px sans-serif`;
+  ctx.textAlign="center";ctx.textBaseline="middle";ctx.globalAlpha=0.9;
+  ctx.fillText("+1",0,sz*0.1);ctx.restore();
+}
+
+// ── Nova target — pulsing supernova; tap to freeze ALL targets for 2s ──
+function drawNova(ctx, r, ts) {
+  const pulse=0.5+0.5*Math.sin(ts*0.009);
+  const boom=0.7+0.3*Math.sin(ts*0.006);
+  // Outer corona
+  const coronaColors=["#fde68a","#fbbf24","#f59e0b","#d97706"];
+  for(let i=3;i>=0;i--){
+    const cr=r*(1.2+i*0.35)*boom;
+    ctx.save();ctx.globalAlpha=(0.06+i*0.04)*pulse;
+    ctx.fillStyle=coronaColors[i]||"#fbbf24";ctx.shadowColor="#fbbf24";ctx.shadowBlur=8;
+    ctx.beginPath();ctx.arc(0,0,cr,0,Math.PI*2);ctx.fill();ctx.restore();
+  }
+  // Star burst rays
+  for(let i=0;i<8;i++){
+    const a=(i/8)*Math.PI*2+ts*0.003;
+    const rl=r*(0.85+0.2*Math.sin(ts*0.007+i));
+    ctx.save();ctx.strokeStyle="#fde68a";ctx.lineWidth=2;ctx.globalAlpha=0.6*pulse;
+    ctx.shadowColor="#fbbf24";ctx.shadowBlur=10;
+    ctx.beginPath();ctx.moveTo(Math.cos(a)*r*0.6,Math.sin(a)*r*0.6);
+    ctx.lineTo(Math.cos(a)*rl,Math.sin(a)*rl);ctx.stroke();ctx.restore();
+  }
+  // Core
+  const grd=ctx.createRadialGradient(0,0,0,0,0,r*0.85);
+  grd.addColorStop(0,"#fef9c3");grd.addColorStop(0.4,"#fbbf24");grd.addColorStop(1,"#92400e");
+  ctx.save();ctx.fillStyle=grd;ctx.shadowColor="#fbbf24";ctx.shadowBlur=20+10*pulse;
+  ctx.beginPath();ctx.arc(0,0,r*0.85,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle="#fff";ctx.font=`bold ${Math.round(r*0.8)}px sans-serif`;
+  ctx.textAlign="center";ctx.textBaseline="middle";ctx.globalAlpha=0.95;
+  ctx.fillText("💫",0,1);ctx.restore();
+}
+
 // ── Beacon target — stationary golden lighthouse; nearby taps score double while it lives ──
 function drawBeacon(ctx, r, ts) {
   const pulse=0.5+0.5*Math.sin(ts*0.007);
@@ -2954,6 +3035,9 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="beacon")     drawBeacon(ctx,t.radius,ts);
   else if(t.type==="shadow")     drawShadow(ctx,t.radius,ts,false);
   else if(t.type==="shadow_clone") drawShadow(ctx,t.radius,ts,true);
+  else if(t.type==="spectral")   drawSpectral(ctx,t.radius,ts);
+  else if(t.type==="heart")      drawHeart(ctx,t.radius,ts);
+  else if(t.type==="nova")       drawNova(ctx,t.radius,ts);
   else{
     const nm=t.rarity?.name;
     if     (nm==="common")    drawCommon(ctx,t.radius,t.color,t.glow,ts,timeLeft);
@@ -4318,6 +4402,16 @@ export default function NexusTap(){
       vx=Math.cos(homingAngle)*0.4;vy=Math.sin(homingAngle)*0.4;
       const initSpd=0.6+Math.random()*0.4;const angle=Math.random()*Math.PI*2;
       vx=Math.cos(angle)*initSpd;vy=Math.sin(angle)*initSpd;
+    } else if((cfg.id||0)>=25&&Math.random()<0.014&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.4% Spectral — phases in/out; 800pts if caught visible, normal pts if invisible
+      type="spectral";color="#a5b4fc";glow="#6366f1";moving=Math.random()<0.25;
+      if(moving){const a=Math.random()*Math.PI*2,sp=0.3+Math.random()*0.5;vx=Math.cos(a)*sp;vy=Math.sin(a)*sp;}
+    } else if((cfg.id||0)>=6&&Math.random()<0.016&&gs.lives<(levelCfgRef.current?.lives||3)+1&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.6% Heart — gives +1 life; only spawns when player has lost lives
+      type="heart";color="#f43f5e";glow="#be123c";
+    } else if((cfg.id||0)>=30&&Math.random()<0.012&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.2% Nova — freezes all targets for 2s + base score
+      type="nova";color="#fbbf24";glow="#b45309";
     } else if((cfg.id||0)>=14&&Math.random()<0.016&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1.6% Beacon — stationary; doubles nearby tap scores while alive
       type="beacon";color="#fbbf24";glow="#b45309";moving=false;
@@ -4360,7 +4454,7 @@ export default function NexusTap(){
       }
       if(!moving&&Math.random()<effGhost)ghost=true;
     }
-    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="divider"?BASE_R*1.65:type==="vanishing"?BASE_R*1.1:type==="homing"?BASE_R*1.2:type==="gemstone"?BASE_R*1.1:type==="poison"?BASE_R*1.15:type==="morph"?BASE_R*1.2:type==="conductor"?BASE_R*1.25:type==="siphon"?BASE_R*1.3:type==="glitch"?BASE_R*1.1:type==="prism"?BASE_R*1.2:type==="comet"?BASE_R*1.15:type==="mirrorball"?BASE_R*1.45:type==="nexus"?BASE_R*1.8:type==="phoenix"?BASE_R*1.25:type==="phoenix2"?BASE_R*1.4:type==="icecomet"?BASE_R*1.2:type==="voltage"?BASE_R*1.2:type==="void"?BASE_R*1.5:type==="clover"?BASE_R*1.1:type==="ricochet"?BASE_R*1.15:type==="aurora"?BASE_R*1.35:type==="portal"?BASE_R*1.4:type==="particlebomb"?BASE_R*1.25:type==="beacon"?BASE_R*1.3:type==="shadow"?BASE_R*1.1:type==="shadow_clone"?BASE_R*0.9:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
+    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="divider"?BASE_R*1.65:type==="vanishing"?BASE_R*1.1:type==="homing"?BASE_R*1.2:type==="gemstone"?BASE_R*1.1:type==="poison"?BASE_R*1.15:type==="morph"?BASE_R*1.2:type==="conductor"?BASE_R*1.25:type==="siphon"?BASE_R*1.3:type==="glitch"?BASE_R*1.1:type==="prism"?BASE_R*1.2:type==="comet"?BASE_R*1.15:type==="mirrorball"?BASE_R*1.45:type==="nexus"?BASE_R*1.8:type==="phoenix"?BASE_R*1.25:type==="phoenix2"?BASE_R*1.4:type==="icecomet"?BASE_R*1.2:type==="voltage"?BASE_R*1.2:type==="void"?BASE_R*1.5:type==="clover"?BASE_R*1.1:type==="ricochet"?BASE_R*1.15:type==="aurora"?BASE_R*1.35:type==="portal"?BASE_R*1.4:type==="particlebomb"?BASE_R*1.25:type==="beacon"?BASE_R*1.3:type==="shadow"?BASE_R*1.1:type==="shadow_clone"?BASE_R*0.9:type==="spectral"?BASE_R*1.1:type==="heart"?BASE_R*1.2:type==="nova"?BASE_R*1.4:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
     // World modifiers: Ocean Deep (8) — slower targets (calmer waters), longer lifetimes
@@ -5389,6 +5483,102 @@ export default function NexusTap(){
       mascotHappyRef.current+=rhythmMult;
       const cfgA=levelCfgRef.current;
       if(cfgA){if(gs.score>=cfgA.scoreGoal&&(!cfgA.modifier||checkModGoal(cfgA.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
+    // SPECTRAL — phasing ghost; massive pts if caught while visible
+    if(hit.type==="spectral"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      // Determine visibility at moment of tap
+      const cycle=1600;const phase=(performance.now()%cycle)/cycle;
+      const vis=phase<0.5?phase*2:2-phase*2;
+      const isVisible=vis>0.4; // must be in visible half of cycle for bonus
+      const basePts=Math.round((isVisible?800:120)*combo*feverMult*prestigeMult);
+      gs.score+=basePts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;
+      if(isVisible)gs.sessionStats.rareHits++;
+      const col=isVisible?"#fbbf24":"#a5b4fc";
+      spawnParticles(hit.x,hit.y,col,isVisible?20:8,"spark");
+      spawnPopup(hit.x,hit.y-44,isVisible?`👻 SPECTRAL PERFECT! +${basePts}`:`👻 SPECTRAL +${basePts}`,col,isVisible?26:18);
+      if(isVisible){sfx("legendary");setLegendaryFlash(true);setTimeout(()=>setLegendaryFlash(false),800);vibrate([20,10,20,10,50]);}
+      else{sfx("rare");vibrate([10,5,10]);}
+      unlock("spectral_tap");
+      if(isVisible)unlock("spectral_perfect");
+      mascotHappyRef.current+=isVisible?6:1;
+      const cfgSp=levelCfgRef.current;
+      if(cfgSp){if(gs.score>=cfgSp.scoreGoal&&(!cfgSp.modifier||checkModGoal(cfgSp.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
+    // HEART — gives +1 life + coin bonus when tapped
+    if(hit.type==="heart"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      const maxLives=(levelCfgRef.current?.lives||3)+2;
+      const lifeGained=gs.lives<maxLives?1:0;
+      const coinBonus=15+Math.floor(Math.random()*10);
+      const pts=Math.round(80*combo*feverMult*prestigeMult);
+      gs.score+=pts;if(lifeGained>0)gs.lives++;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;
+      saveRef.current.coins=(saveRef.current.coins||0)+coinBonus;
+      saveRef.current.totalCoins=(saveRef.current.totalCoins||0)+coinBonus;
+      debounceSave();
+      spawnParticles(hit.x,hit.y,"#f43f5e",14,"spark");
+      if(lifeGained>0){
+        spawnPopup(hit.x,hit.y-44,`❤️ +1 LIFE! +${coinBonus}🪙 +${pts}`,"#f43f5e",22);
+        sfx("starEarn");setScreenShake(false);vibrate([15,8,15,8,30]);
+      } else {
+        spawnPopup(hit.x,hit.y-36,`💕 LOVE! +${coinBonus}🪙 +${pts}`,"#f43f5e",20);
+        sfx("rare");vibrate([12,6,12]);
+      }
+      unlock("heart_tap");
+      mascotHappyRef.current+=3;
+      const cfgHt=levelCfgRef.current;
+      if(cfgHt){if(gs.score>=cfgHt.scoreGoal&&(!cfgHt.modifier||checkModGoal(cfgHt.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
+    // NOVA — freezes all targets for 2s + good base score
+    if(hit.type==="nova"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      const pts=Math.round(200*combo*feverMult*prestigeMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;gs.sessionStats.rareHits++;
+      const canvas=canvasRef.current;const cw=canvas?.width||390,ch=canvas?.height||700;
+      // Nova freeze — store frozen state on targets + use FREEZE power-up
+      activePwrRef.current=activePwrRef.current.filter(p=>p.type!=="FREEZE");
+      activePwrRef.current.push({type:"FREEZE",endsAt:Date.now()+2000});
+      setActivePwrDisp([...activePwrRef.current]);
+      // Freeze all existing targets
+      targetsRef.current.forEach(t=>{
+        if(!t.dying&&t.type!=="boss"){
+          const ov=t.vx,oY=t.vy;t.vx=0;t.vy=0;t.moving=false;t._frozenByNova=true;
+          setTimeout(()=>{if(t._frozenByNova){t.vx=ov;t.vy=oY;t.moving=ov!==0||oY!==0;t._frozenByNova=false;}},2000);
+        }
+      });
+      // Supernova particle explosion
+      const blastColors=["#fde68a","#fbbf24","#ffffff","#f59e0b","#fed7aa"];
+      blastColors.forEach((c,i)=>setTimeout(()=>{
+        spawnParticles(cw/2,ch/2,c,10,"spark");
+      },i*60));
+      particlesRef.current.push({type:"shockwave",x:cw/2,y:ch/2,color:"#fbbf24",size:Math.max(cw,ch)*0.5,born:performance.now(),duration:900,alpha:0.7});
+      spawnPopup(hit.x,hit.y-50,`💫 NOVA! ALL FROZEN! +${pts}`,"#fbbf24",24);
+      sfx("legendary");setLegendaryFlash(true);setTimeout(()=>setLegendaryFlash(false),800);
+      setScreenShake(true);setTimeout(()=>setScreenShake(false),500);
+      vibrate([25,10,25,10,60]);
+      setNotif("💫 NOVA BLAST! All targets frozen for 2s!");
+      unlock("nova_tap");
+      mascotHappyRef.current+=5;
+      const cfgNv=levelCfgRef.current;
+      if(cfgNv){if(gs.score>=cfgNv.scoreGoal&&(!cfgNv.modifier||checkModGoal(cfgNv.modifier,gs))){endLevel(true);return;}}
       return;
     }
 
