@@ -6296,10 +6296,16 @@ export default function NexusTap(){
       }
       const totalAttempted=(gs.sessionStats.tapsTotal||0)+(gs.sessionStats.missedTargets||0);
       const liveAccuracy=totalAttempted>=5?Math.round((gs.sessionStats.tapsTotal||0)/totalAttempted*100):null;
+      // Next-tap score estimate (based on current combo + fever + prestige; uses RARE rarity mult)
+      const estCombo=Math.min(10,1+Math.floor(gs.streak/5));
+      const estFever=gs.feverActive?2:1;
+      const estPrestige=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      const estScoreBoost=(gs._scoreBoostTaps||0)>0?5:1;
+      const estNextPts=Math.round(2*estCombo*estFever*estPrestige*estScoreBoost); // using rare mult ~2
       setHud({score:gs.score,lives:gs.lives,streak:gs.streak,fever:gs.feverActive,coins:saveRef.current.coins,
         timeLeft:zenTimeLeft,modGoal:cfg?.isZen?null:cfg?.modifier?.desc||null,decayPct,
         boss:bossT?{hp:bossT.hitsLeft,max:bossT.maxHits,phase:bossT.bossPhase||1,rage:!!bossT.rage}:null,
-        accuracy:liveAccuracy});
+        accuracy:liveAccuracy,nextPts:gs.streak>=5?estNextPts:null});
     }
 
     rafRef.current=requestAnimationFrame(gl=>gameLoopFn(gl));
@@ -7562,6 +7568,9 @@ export default function NexusTap(){
             </div>
             {hud.streak>=5&&<div style={{fontSize:9,fontWeight:"black",color:streakColor(),opacity:0.8,letterSpacing:"0.04em",position:"relative",zIndex:1}}>
               ×{Math.min(10,1+Math.floor(hud.streak/5))} MULT
+            </div>}
+            {hud.nextPts!=null&&hud.streak>=5&&<div style={{fontSize:7,color:"#fbbf24",opacity:0.65,letterSpacing:"0.02em",position:"relative",zIndex:1}}>
+              ~{hud.nextPts}pts
             </div>}
             {hud.accuracy!=null&&hud.streak===0&&<div style={{fontSize:8,color:hud.accuracy>=95?"#4ade80":hud.accuracy>=80?"#fbbf24":"#f87171",opacity:0.75,letterSpacing:"0.03em",position:"relative",zIndex:1}}>
               {hud.accuracy}% ACC
