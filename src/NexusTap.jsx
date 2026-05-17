@@ -1113,7 +1113,7 @@ function drawPowerup(ctx, r, pwrType, ts) {
   ctx.setLineDash([r*0.35,r*0.18]); ctx.beginPath(); ctx.arc(0,0,r-4,0,Math.PI*2); ctx.stroke();
   ctx.setLineDash([]); ctx.restore();
   // Icon
-  const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",LIFE:"❤️",FREEZE:"❄️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3"};
+  const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",LIFE:"❤️",FREEZE:"❄️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊"};
   if(pwrType==="LUCKY"){ctx.shadowColor="#ffd700";ctx.shadowBlur=r*(1.2+pulse*0.8);}
   const label=icons[pwrType]||"⚡";
   ctx.font=`bold ${r*0.9}px serif`; ctx.textAlign="center"; ctx.textBaseline="middle";
@@ -2621,6 +2621,13 @@ export default function NexusTap(){
       // LUCKY power-up — triggers 7s all-legendary mode
       triggerLuckyRef.current?.();
       spawnPopup(x,y,"⭐ LUCKY STARS!","#ffd700",18);
+    } else if(ptype==="COMBO_FREEZE"){
+      // COMBO_FREEZE — combo streak is protected for 10s (misses don't reset streak)
+      const dur=10000;
+      activePwrRef.current=activePwrRef.current.filter(p=>p.type!=="COMBO_FREEZE");
+      activePwrRef.current.push({type:"COMBO_FREEZE",endsAt:Date.now()+dur});
+      setActivePwrDisp([...activePwrRef.current]);
+      spawnPopup(x,y,"🧊 COMBO LOCK!","#67e8f9",18);
     } else if(ptype==="MIRROR"){
       // MIRROR — flip all current target positions horizontally for 5s chaos
       const canvas=canvasRef.current;
@@ -2673,7 +2680,7 @@ export default function NexusTap(){
       type="bomb";color="#ef4444";glow="#dc2626";sfx("bombSpawn");
     } else if(r<(bossRate||0)+effBomb+0.07){
       type="powerup";color="#60a5fa";glow="#3b82f6";
-      const pt=["SHIELD","SLOW","DOUBLE","LIFE","FREEZE","LUCKY","MIRROR","MULTIPLIER"];
+      const pt=["SHIELD","SLOW","DOUBLE","LIFE","FREEZE","LUCKY","MIRROR","MULTIPLIER","COMBO_FREEZE"];
       pwrType=pt[Math.floor(Math.random()*pt.length)];
     } else if(r<(bossRate||0)+effBomb+0.07+0.045&&(gs.score>0||Math.random()<0.3)&&luckyRef.current!=="active"){
       // 4.5% treasure chest — the variable reward slot machine
@@ -3970,6 +3977,10 @@ export default function NexusTap(){
           if(cgLvl>0&&gs.streak>0&&gs._comboGuardCount<cgLvl){
             gs._comboGuardCount++;
             spawnParticles(t.x,t.y,"#fbbf24",6,"spark");
+          } else if(activePwrRef.current.some(p=>p.type==="COMBO_FREEZE"&&p.endsAt>now)){
+            // COMBO_FREEZE active — protect streak, just flash blue
+            spawnParticles(t.x,t.y,"#67e8f9",8,"spark");
+            spawnPopup(t.x,t.y-18,"🧊 COMBO SAVED!","#67e8f9",13);
           } else {
             gs._comboGuardCount=0;
             gs.streak=0;streakShRef.current=false;setStreakShieldActive(false);setMascotMood("sad");
@@ -5277,10 +5288,10 @@ export default function NexusTap(){
           <div className="absolute left-0 right-0 flex justify-center gap-1.5 z-20" style={{top:hud.boss?148:hud.modGoal?108:76}}>
             {activePwrDisp.map(p=>{
               const secsLeft=Math.max(0,Math.ceil((p.endsAt-Date.now())/1000));
-              const totalSecs=p.type==="SHIELD"?25:p.type==="SLOW"?8:p.type==="DOUBLE"?10:p.type==="FREEZE"?4:p.type==="MULTIPLIER"?8:12;
+              const totalSecs=p.type==="SHIELD"?25:p.type==="SLOW"?8:p.type==="DOUBLE"?10:p.type==="FREEZE"?4:p.type==="MULTIPLIER"?8:p.type==="COMBO_FREEZE"?10:12;
               const pct=Math.min(100,Math.round(secsLeft/totalSecs*100));
-              const colors={SHIELD:"#fbbf24",SLOW:"#60a5fa",DOUBLE:"#f97316",FREEZE:"#06b6d4",LIFE:"#4ade80",LUCKY:"#ffd700",MIRROR:"#c084fc",MULTIPLIER:"#f43f5e"};
-              const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",FREEZE:"❄️",LIFE:"❤️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3"};
+              const colors={SHIELD:"#fbbf24",SLOW:"#60a5fa",DOUBLE:"#f97316",FREEZE:"#06b6d4",LIFE:"#4ade80",LUCKY:"#ffd700",MIRROR:"#c084fc",MULTIPLIER:"#f43f5e",COMBO_FREEZE:"#67e8f9"};
+              const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",FREEZE:"❄️",LIFE:"❤️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊"};
               const c=colors[p.type]||"#60a5fa";
               return(
                 <div key={p.type} className="flex flex-col items-center gap-0.5"
