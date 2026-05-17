@@ -437,6 +437,8 @@ const ACHIEVEMENTS = [
   { id:"rage_tap",           label:"Anger Manager",  desc:"Tap a Rage target",                    icon:"😠", xp:30  },
   { id:"rage_max",           label:"Rage Quit",      desc:"Tap a Rage target at maximum rage",    icon:"😡", xp:75  },
   { id:"divider_tap",        label:"Cell Division",  desc:"Tap a Divider to split it",            icon:"÷",  xp:25  },
+  { id:"vanishing_tap",      label:"Ghost Buster",   desc:"Tap a Vanishing target",               icon:"👻", xp:30  },
+  { id:"vanishing_blind",    label:"Sixth Sense",    desc:"Tap a Vanishing target while invisible",icon:"🎯", xp:90  },
 ];
 
 const MISSION_TEMPLATES = [
@@ -1488,6 +1490,32 @@ function drawMagnet(ctx, r, ts) {
   ctx.restore();
 }
 
+// ── Vanishing target — blinks in/out of visibility every ~0.8s ──
+function drawVanishing(ctx, r, ts) {
+  // Blink cycle: visible for 40% of cycle, invisible for 60%
+  const cycleLen=800; // ms
+  const phase=(ts%cycleLen)/cycleLen;
+  const visible=phase<0.4; // visible 40% of the time
+  const fadeFrac=visible?(phase<0.05?phase/0.05:(0.4-phase<0.05?(0.4-phase)/0.05:1)):0;
+  if(fadeFrac<=0)return; // fully invisible — still hittable though!
+  const pulse=0.5+0.5*Math.sin(ts*0.008);
+  ctx.save();
+  ctx.globalAlpha=fadeFrac*(0.7+pulse*0.2);
+  // Ghostly white/cyan body
+  const vg=ctx.createRadialGradient(0,0,0,0,0,r);
+  vg.addColorStop(0,"rgba(240,255,255,0.92)");vg.addColorStop(0.5,"rgba(103,232,249,0.8)");vg.addColorStop(1,"rgba(14,165,233,0.6)");
+  ctx.fillStyle=vg;ctx.shadowColor="#67e8f9";ctx.shadowBlur=20+pulse*14;
+  ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  // Blink ring
+  ctx.globalAlpha=fadeFrac*0.7;ctx.strokeStyle="#bae6fd";ctx.lineWidth=2.5;ctx.shadowBlur=8;
+  ctx.beginPath();ctx.arc(0,0,r*1.18,0,Math.PI*2);ctx.stroke();
+  // ? symbol — what is it?
+  ctx.globalAlpha=fadeFrac*(0.7+pulse*0.25);ctx.fillStyle="#ffffff";ctx.shadowBlur=0;
+  ctx.font=`bold ${Math.round(r*0.65)}px sans-serif`;ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.fillText("?",0,0);
+  ctx.restore();
+}
+
 // ── Ninja target — nearly invisible, materializes in last 20% of lifetime ──
 function drawNinja(ctx, r, ts, lifeRatio) {
   // Only fully visible in last 20%; faint shimmer hint for 80-40%; invisible for 40-20%
@@ -2117,6 +2145,7 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="crystal_shard") drawCrystalShard(ctx,t.radius,ts,t._shardBorn);
   else if(t.type==="rage")     {const rl=Math.min(1,(now-t.spawnedAt)/(t.lifetime*0.9));drawRage(ctx,t.radius,ts,rl);}
   else if(t.type==="divider")  drawDivider(ctx,t.radius,ts);
+  else if(t.type==="vanishing") drawVanishing(ctx,t.radius,ts);
   else{
     const nm=t.rarity?.name;
     if     (nm==="common")    drawCommon(ctx,t.radius,t.color,t.glow,ts,timeLeft);
@@ -3371,6 +3400,9 @@ export default function NexusTap(){
     } else if((cfg.id||0)>=15&&Math.random()<0.02&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 2% Divider — large orange orb; splits into 2 medium targets when tapped
       type="divider";color="#fb923c";glow="#ea580c";
+    } else if((cfg.id||0)>=22&&Math.random()<0.016&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.6% Vanishing — blinks in/out of visibility; big reward for blind timing
+      type="vanishing";color="#67e8f9";glow="#0ea5e9";
       const initSpd=0.6+Math.random()*0.4;const angle=Math.random()*Math.PI*2;
       vx=Math.cos(angle)*initSpd;vy=Math.sin(angle)*initSpd;
     } else if(Math.random()<0.035&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")&&!gs.mysteryPause){
@@ -3385,7 +3417,7 @@ export default function NexusTap(){
       }
       if(!moving&&Math.random()<effGhost)ghost=true;
     }
-    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="divider"?BASE_R*1.65:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
+    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="divider"?BASE_R*1.65:type==="vanishing"?BASE_R*1.1:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
     // World modifiers: Ocean Deep (8) — slower targets (calmer waters), longer lifetimes
@@ -3965,6 +3997,32 @@ export default function NexusTap(){
       spawnParticles(hit.x,hit.y,"#7c3aed",6,"dot");
       spawnPopup(hit.x,hit.y-32,`✨ ECHO BONUS! +${pts}`,"#e9d5ff",18);
       unlock("echo_bonus");
+      const cfg=levelCfgRef.current;
+      if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
+    // VANISHING — bonus points if hit while invisible (blind timing)
+    if(hit.type==="vanishing"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const cycleLen=800;
+      const phase=(performance.now()%cycleLen)/cycleLen;
+      const isVisible=phase<0.4;
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      const basePts=isVisible?70:200; // blind hit = 200 base pts!
+      const pts=Math.round(basePts*combo*feverMult*prestigeMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;
+      sfx(isVisible?"comboNote":"legendary");vibrate(isVisible?[10,6,10]:[20,10,20,10,40]);
+      spawnParticles(hit.x,hit.y,"#67e8f9",isVisible?8:16,"spark");
+      const label=isVisible?`👻 VANISH! +${pts}`:`🎯 BLIND HIT! +${pts}`;
+      const color=isVisible?"#bae6fd":"#ffd700";
+      spawnPopup(hit.x,hit.y-30,label,color,isVisible?14:20);
+      if(!isVisible){sfx("jackpot");unlock("vanishing_blind");}
+      unlock("vanishing_tap");
+      mascotHappyRef.current++;
       const cfg=levelCfgRef.current;
       if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
       return;
@@ -7543,9 +7601,9 @@ export default function NexusTap(){
   // Achievement tab state — "all" | "gameplay" | "progression" | "social"
   const [achTab, setAchTab] = React.useState("all");
   const ACH_CATS = {
-    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch"],
-    progression: ["level_10","level_50","level_100","prestige_1","three_stars_5","mascot_lv10"],
-    social:      ["missions_all","daily_7","score_2000","friday_fever","weekend_warrior","all_worlds"],
+    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind"],
+    progression: ["level_10","level_50","level_100","prestige_1","three_stars_5","mascot_lv10","streak_25","streak_50","streak_10","streak_5","score_2000"],
+    social:      ["missions_all","daily_7","friday_fever","weekend_warrior","all_worlds","streak_saver","loot_chest"],
   };
   const renderAchievements=()=>{
     const filtered=achTab==="all"?ACHIEVEMENTS:ACHIEVEMENTS.filter(a=>ACH_CATS[achTab]?.includes(a.id));
