@@ -462,6 +462,11 @@ const ACHIEVEMENTS = [
   { id:"phoenix_tap",        label:"Fire Tamer",       desc:"Tap a Phoenix target",                 icon:"🔥", xp:25  },
   { id:"phoenix_risen",      label:"Born Again",       desc:"Tap a Phoenix in its risen Legendary form",icon:"🦋",xp:80 },
   { id:"icecomet_tap",       label:"Frost Strike",     desc:"Tap an Ice Comet and freeze nearby targets",icon:"❄️",xp:40 },
+  { id:"voltage_tap",        label:"Lightning Tapper", desc:"Tap a Voltage target and trigger a chain zap",icon:"⚡",xp:35 },
+  { id:"void_tap",           label:"Into the Void",    desc:"Tap a Void target",                        icon:"🌀",xp:45 },
+  { id:"void_master",        label:"Black Hole",       desc:"Absorb 3+ targets with a single Void tap", icon:"🕳️",xp:120 },
+  { id:"clover_tap",         label:"Lucky Tap",        desc:"Tap a Lucky Clover target",                icon:"🍀",xp:30 },
+  { id:"clover_jackpot",     label:"Four-Leaf Fortune",desc:"Roll the maximum ×10 on a Lucky Clover",  icon:"🌟",xp:150 },
 ];
 
 const MISSION_TEMPLATES = [
@@ -484,6 +489,8 @@ const SHOP_ITEMS = [
   { id:"fever_potion", name:"Fever Potion 🌡️",  desc:"Start in instant Fever Mode!",        cost:90,  icon:"🌡️" },
   { id:"xp_bomb",      name:"XP Bomb ⚡",        desc:"2× XP reward from this level",        cost:70,  icon:"⚡" },
   { id:"streak_saver", name:"Streak Saver 💛",   desc:"Keep streak on next miss (once)",     cost:50,  icon:"💛" },
+  { id:"time_warp_start",name:"Time Warp ⏱️",  desc:"Start with Time Warp active (6s slow)", cost:110, icon:"⏱️" },
+  { id:"double_spawn", name:"Target Rush 🌊",   desc:"2× target spawn rate from the start",  cost:85,  icon:"🌊" },
 ];
 
 // ── Prestige cosmetics — unique title + badge per prestige level (12A) ──
@@ -2519,6 +2526,106 @@ function drawShielded(ctx, r, shieldUp, ts) {
   ctx.restore();
 }
 
+// ── Voltage target — electric orb; chain-zaps 3 nearby targets when tapped ──
+function drawVoltage(ctx, r, ts) {
+  const pulse=0.5+0.5*Math.sin(ts*0.009);
+  // Outer electric field
+  const outerGrd=ctx.createRadialGradient(0,0,r*0.4,0,0,r*1.6);
+  outerGrd.addColorStop(0,"#facc1544");outerGrd.addColorStop(1,"transparent");
+  ctx.save();ctx.globalAlpha=0.5*pulse;ctx.fillStyle=outerGrd;
+  ctx.beginPath();ctx.arc(0,0,r*1.6,0,Math.PI*2);ctx.fill();ctx.restore();
+  // Lightning arcs around border
+  for(let i=0;i<6;i++){
+    const a=(i/6)*Math.PI*2+ts*0.003;
+    const jitter=(Math.sin(ts*0.04+i*1.7)*0.25);
+    const x1=Math.cos(a)*r*0.7,y1=Math.sin(a)*r*0.7;
+    const x2=Math.cos(a+jitter)*r*1.1,y2=Math.sin(a+jitter)*r*1.1;
+    ctx.save();ctx.strokeStyle="#facc15";ctx.lineWidth=1.5;ctx.globalAlpha=0.7*pulse;
+    ctx.shadowColor="#fbbf24";ctx.shadowBlur=8;
+    ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.restore();
+  }
+  // Core gradient
+  const grd=ctx.createRadialGradient(0,0,0,0,0,r);
+  grd.addColorStop(0,"#fef08a");grd.addColorStop(0.5,"#fbbf24");grd.addColorStop(1,"#b45309");
+  ctx.save();ctx.shadowColor="#fbbf24";ctx.shadowBlur=18+10*pulse;
+  ctx.fillStyle=grd;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  // ⚡ symbol
+  ctx.fillStyle="#fff";ctx.font=`bold ${Math.round(r*0.9)}px sans-serif`;
+  ctx.textAlign="center";ctx.textBaseline="middle";ctx.globalAlpha=0.95;
+  ctx.fillText("⚡",0,1);ctx.restore();
+}
+
+// ── Lucky Clover — 4-leaf clover; gives random 1-10× score multiplier on tap ──
+function drawLuckyClover(ctx, r, ts) {
+  const pulse=0.8+0.2*Math.sin(ts*0.008);
+  // Glow aura
+  const auraGrd=ctx.createRadialGradient(0,0,r*0.3,0,0,r*1.5);
+  auraGrd.addColorStop(0,"#4ade8033");auraGrd.addColorStop(1,"transparent");
+  ctx.save();ctx.globalAlpha=pulse;ctx.fillStyle=auraGrd;
+  ctx.beginPath();ctx.arc(0,0,r*1.5,0,Math.PI*2);ctx.fill();ctx.restore();
+  // 4 leaf circles
+  const leafColors=["#22c55e","#16a34a","#4ade80","#15803d"];
+  const angles=[0,Math.PI/2,Math.PI,3*Math.PI/2];
+  const leafR=r*0.48;const leafOff=r*0.38;
+  angles.forEach((a,i)=>{
+    const lx=Math.cos(a)*leafOff,ly=Math.sin(a)*leafOff;
+    ctx.save();ctx.translate(lx,ly);
+    const grd=ctx.createRadialGradient(0,0,0,0,0,leafR);
+    grd.addColorStop(0,"#86efac");grd.addColorStop(1,leafColors[i]);
+    ctx.fillStyle=grd;ctx.shadowColor="#22c55e";ctx.shadowBlur=8*pulse;
+    ctx.beginPath();ctx.arc(0,0,leafR,0,Math.PI*2);ctx.fill();
+    ctx.restore();
+  });
+  // Center hub
+  ctx.save();ctx.fillStyle="#166534";ctx.shadowColor="#15803d";ctx.shadowBlur=6;
+  ctx.beginPath();ctx.arc(0,0,r*0.18,0,Math.PI*2);ctx.fill();
+  // Lucky sparkles
+  for(let i=0;i<3;i++){
+    const sa=(i/3)*Math.PI*2+ts*0.005;
+    const sd=r*(0.9+0.15*Math.sin(ts*0.012+i));
+    ctx.fillStyle=`hsl(${140+i*20},90%,70%)`;ctx.globalAlpha=0.7*pulse;
+    ctx.beginPath();ctx.arc(Math.cos(sa)*sd,Math.sin(sa)*sd,2.5,0,Math.PI*2);ctx.fill();
+  }
+  ctx.restore();
+  ctx.save();ctx.fillStyle="#fff";ctx.font=`bold ${Math.round(r*0.55)}px sans-serif`;
+  ctx.textAlign="center";ctx.textBaseline="middle";ctx.globalAlpha=0.9;
+  ctx.shadowColor="#22c55e";ctx.shadowBlur=6;
+  ctx.fillText("🍀",0,1);ctx.restore();
+}
+
+// ── Void target — swirling dark orb; absorbs nearby targets for bonus pts ──
+function drawVoid(ctx, r, ts) {
+  const pulse=0.5+0.5*Math.sin(ts*0.007);
+  // Gravity distortion rings
+  for(let i=3;i>0;i--){
+    ctx.save();ctx.strokeStyle=`hsl(${270+i*10},80%,${30+i*8}%)`;
+    ctx.lineWidth=1;ctx.globalAlpha=(0.1+i*0.07)*pulse;
+    ctx.beginPath();ctx.arc(0,0,r*(0.9+i*0.35),0,Math.PI*2);ctx.stroke();ctx.restore();
+  }
+  // Swirling spiral arms
+  for(let arm=0;arm<3;arm++){
+    ctx.save();ctx.strokeStyle=`hsl(${280+arm*30},90%,70%)`;
+    ctx.lineWidth=2;ctx.globalAlpha=0.5*pulse;ctx.shadowColor="#a855f7";ctx.shadowBlur=8;
+    ctx.beginPath();
+    for(let s=0;s<40;s++){
+      const angle=(s/40)*Math.PI*2*1.8+(arm/3)*Math.PI*2-ts*0.005;
+      const rad=(s/40)*r*0.85;
+      if(s===0)ctx.moveTo(Math.cos(angle)*rad,Math.sin(angle)*rad);
+      else ctx.lineTo(Math.cos(angle)*rad,Math.sin(angle)*rad);
+    }
+    ctx.stroke();ctx.restore();
+  }
+  // Dark core
+  const grd=ctx.createRadialGradient(0,0,0,0,0,r);
+  grd.addColorStop(0,"#1e1b4b");grd.addColorStop(0.6,"#4c1d95");grd.addColorStop(1,"#7c3aed88");
+  ctx.save();ctx.shadowColor="#a855f7";ctx.shadowBlur=20+8*pulse;
+  ctx.fillStyle=grd;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  // ◈ eye symbol
+  ctx.fillStyle="#e9d5ff";ctx.font=`bold ${Math.round(r*0.85)}px sans-serif`;
+  ctx.textAlign="center";ctx.textBaseline="middle";ctx.globalAlpha=0.9;
+  ctx.fillText("🌀",0,1);ctx.restore();
+}
+
 // ── Motion trail + ghost afterimages for moving targets ──
 function drawTrail(ctx, t) {
   if(!t.trail||t.trail.length<2) return;
@@ -2654,6 +2761,9 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="icecomet")   drawIceComet(ctx,t.radius,ts,t.trail);
   else if(t.type==="phoenix")    drawPhoenix(ctx,t.radius,ts,false);
   else if(t.type==="phoenix2")   drawPhoenix(ctx,t.radius,ts,true);
+  else if(t.type==="voltage")    drawVoltage(ctx,t.radius,ts);
+  else if(t.type==="void")       drawVoid(ctx,t.radius,ts);
+  else if(t.type==="clover")     drawLuckyClover(ctx,t.radius,ts);
   else{
     const nm=t.rarity?.name;
     if     (nm==="common")    drawCommon(ctx,t.radius,t.color,t.glow,ts,timeLeft);
@@ -3999,6 +4109,16 @@ export default function NexusTap(){
       vx=Math.cos(homingAngle)*0.4;vy=Math.sin(homingAngle)*0.4;
       const initSpd=0.6+Math.random()*0.4;const angle=Math.random()*Math.PI*2;
       vx=Math.cos(angle)*initSpd;vy=Math.sin(angle)*initSpd;
+    } else if((cfg.id||0)>=10&&Math.random()<0.018&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.8% Lucky Clover — random 1-10× multiplier on tap
+      type="clover";color="#22c55e";glow="#16a34a";
+    } else if((cfg.id||0)>=15&&Math.random()<0.02&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 2% Voltage — zaps 3 nearby targets in a chain when tapped
+      type="voltage";color="#fbbf24";glow="#f59e0b";moving=Math.random()<0.3;
+      if(moving){const a=Math.random()*Math.PI*2,sp=0.4+Math.random()*0.6;vx=Math.cos(a)*sp;vy=Math.sin(a)*sp;}
+    } else if((cfg.id||0)>=35&&Math.random()<0.01&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1% Void — absorbs up to 5 nearby targets for massive bonus score
+      type="void";color="#7c3aed";glow="#4c1d95";
     } else if(Math.random()<0.035&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")&&!gs.mysteryPause){
       // 3.5% Mystery Box — Las Vegas variable-ratio slot machine
       type="mystery";color="#ffd700";glow="#b8860b";
@@ -4011,7 +4131,7 @@ export default function NexusTap(){
       }
       if(!moving&&Math.random()<effGhost)ghost=true;
     }
-    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="divider"?BASE_R*1.65:type==="vanishing"?BASE_R*1.1:type==="homing"?BASE_R*1.2:type==="gemstone"?BASE_R*1.1:type==="poison"?BASE_R*1.15:type==="morph"?BASE_R*1.2:type==="conductor"?BASE_R*1.25:type==="siphon"?BASE_R*1.3:type==="glitch"?BASE_R*1.1:type==="prism"?BASE_R*1.2:type==="comet"?BASE_R*1.15:type==="mirrorball"?BASE_R*1.45:type==="nexus"?BASE_R*1.8:type==="phoenix"?BASE_R*1.25:type==="phoenix2"?BASE_R*1.4:type==="icecomet"?BASE_R*1.2:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
+    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="magnet"?BASE_R*1.3:type==="phantom"?BASE_R*1.4:type==="volatile"?BASE_R*1.45:type==="healer"?BASE_R*1.2:type==="twin"?BASE_R*1.1:type==="rainbow"?BASE_R*1.35:type==="frozen"?BASE_R*1.3:type==="bouncy"?BASE_R*1.0:type==="ninja"?BASE_R*1.2:type==="lootchest"?BASE_R*1.55:type==="tornado"?BASE_R*1.4:type==="bubble"?BASE_R*1.8:type==="echo"?BASE_R*1.25:type==="echo_ghost"?BASE_R*1.15:type==="crystal"?BASE_R*1.3:type==="crystal_shard"?BASE_R*0.65:type==="rage"?BASE_R*1.15:type==="divider"?BASE_R*1.65:type==="vanishing"?BASE_R*1.1:type==="homing"?BASE_R*1.2:type==="gemstone"?BASE_R*1.1:type==="poison"?BASE_R*1.15:type==="morph"?BASE_R*1.2:type==="conductor"?BASE_R*1.25:type==="siphon"?BASE_R*1.3:type==="glitch"?BASE_R*1.1:type==="prism"?BASE_R*1.2:type==="comet"?BASE_R*1.15:type==="mirrorball"?BASE_R*1.45:type==="nexus"?BASE_R*1.8:type==="phoenix"?BASE_R*1.25:type==="phoenix2"?BASE_R*1.4:type==="icecomet"?BASE_R*1.2:type==="voltage"?BASE_R*1.2:type==="void"?BASE_R*1.5:type==="clover"?BASE_R*1.1:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
     // World modifiers: Ocean Deep (8) — slower targets (calmer waters), longer lifetimes
@@ -4925,6 +5045,117 @@ export default function NexusTap(){
       return;
     }
 
+    // LUCKY CLOVER — random 1-10× score multiplier reveal on tap
+    if(hit.type==="clover"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      // Weighted random: 1-3× common, 4-6× uncommon, 7-9× rare, 10× legendary
+      const roll=Math.random();
+      const mult=roll<0.45?1+Math.floor(Math.random()*3):roll<0.75?4+Math.floor(Math.random()*3):roll<0.92?7+Math.floor(Math.random()*3):10;
+      const basePts=Math.round(80*mult*combo*feverMult*prestigeMult);
+      gs.score+=basePts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;
+      const isJackpot=mult>=10;
+      const isGreat=mult>=7;
+      const cloverColors=["#22c55e","#4ade80","#86efac","#bbf7d0"];
+      cloverColors.forEach((c,i)=>setTimeout(()=>spawnParticles(hit.x,hit.y,c,isJackpot?14:8,"spark"),i*40));
+      if(isJackpot){
+        particlesRef.current.push({type:"shockwave",x:hit.x,y:hit.y,color:"#22c55e",size:hit.radius*3,born:performance.now(),duration:700,alpha:0.9});
+        spawnPopup(hit.x,hit.y-50,`🍀 JACKPOT! ×${mult} = +${basePts}`,"#22c55e",26);
+        sfx("jackpot");setLegendaryFlash(true);setTimeout(()=>setLegendaryFlash(false),800);
+        setScreenShake(true);setTimeout(()=>setScreenShake(false),400);
+        vibrate([25,10,25,10,50]);
+      } else if(isGreat){
+        spawnPopup(hit.x,hit.y-42,`🍀 LUCKY ×${mult}! +${basePts}`,"#4ade80",22);
+        sfx("epic");setEpicFlash(true);setTimeout(()=>setEpicFlash(false),500);
+        vibrate([15,8,20]);
+      } else {
+        spawnPopup(hit.x,hit.y-36,`🍀 ×${mult}! +${basePts}`,"#22c55e",18);
+        sfx("rare");vibrate([10,5,10]);
+      }
+      unlock("clover_tap");
+      if(mult>=10)unlock("clover_jackpot");
+      mascotHappyRef.current+=mult>=7?4:1;
+      const cfg=levelCfgRef.current;
+      if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
+    // VOLTAGE — chain-zaps up to 3 nearby normal targets when tapped
+    if(hit.type==="voltage"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      const basePts=Math.round(120*combo*feverMult*prestigeMult);
+      gs.score+=basePts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;
+      spawnParticles(hit.x,hit.y,"#fbbf24",14,"spark");
+      spawnPopup(hit.x,hit.y-36,`⚡ VOLTAGE! +${basePts}`,"#fbbf24",20);
+      sfx("chainBonus");vibrate([10,5,20,5,10]);
+      // Chain-zap up to 3 nearby targets within 100px
+      const CHAIN_R=100;
+      const nearby=targetsRef.current
+        .filter(t=>!t.dying&&(t.type==="normal"||t.type==="phantom")&&Math.hypot(t.x-hit.x,t.y-hit.y)<CHAIN_R)
+        .slice(0,3);
+      nearby.forEach((zt,i)=>{
+        setTimeout(()=>{
+          if(!zt.dying){
+            zt.dying=performance.now();
+            const zpts=Math.round(60*combo*feverMult*prestigeMult);
+            gs.score+=zpts;gs.sessionStats.score=gs.score;
+            spawnParticles(zt.x,zt.y,"#facc15",8,"spark");
+            spawnPopup(zt.x,zt.y-20,`⚡+${zpts}`,"#fbbf24",12);
+            sfx("comboNote",gs.streak+i);
+          }
+        },i*120);
+      });
+      if(nearby.length>0)setNotif(`⚡ Chain zap! ×${nearby.length} targets!`);
+      unlock("voltage_tap");
+      mascotHappyRef.current+=1+nearby.length;
+      const cfg=levelCfgRef.current;
+      if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
+    // VOID — absorbs up to 5 nearby targets for massive bonus score
+    if(hit.type==="void"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      const canvas=canvasRef.current;
+      const VOID_R=120;
+      const absorbed=targetsRef.current.filter(
+        t=>!t.dying&&t.type!=="boss"&&t.type!=="bomb"&&t.type!=="siphon"&&Math.hypot(t.x-hit.x,t.y-hit.y)<VOID_R
+      ).slice(0,5);
+      // Remove absorbed targets
+      const absorbedIds=new Set(absorbed.map(t=>t.id));
+      targetsRef.current=targetsRef.current.filter(t=>!absorbedIds.has(t.id));
+      const absorbBonus=absorbed.length*150;
+      const basePts=Math.round((300+absorbBonus)*combo*feverMult*prestigeMult);
+      gs.score+=basePts;gs.streak+=Math.min(3,absorbed.length);gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;gs.sessionStats.rareHits++;
+      // Implosion particle effect
+      absorbed.forEach(t=>{
+        spawnParticles(t.x,t.y,"#a855f7",8,"spark");
+      });
+      particlesRef.current.push({type:"shockwave",x:hit.x,y:hit.y,color:"#7c3aed",size:hit.radius*3,born:performance.now(),duration:700,alpha:0.8});
+      spawnParticles(hit.x,hit.y,"#c084fc",18,"spark");
+      spawnPopup(hit.x,hit.y-46,absorbed.length>0?`🌀 VOID! +${basePts} (×${absorbed.length+1} abs!)`:`🌀 VOID! +${basePts}`,"#c084fc",absorbed.length>2?26:22);
+      if(absorbed.length>=3){sfx("legendary");setLegendaryFlash(true);setTimeout(()=>setLegendaryFlash(false),800);setScreenShake(true);setTimeout(()=>setScreenShake(false),400);}
+      else{sfx("epic");setEpicFlash(true);setTimeout(()=>setEpicFlash(false),500);}
+      vibrate([20,8,20,8,40]);
+      unlock("void_tap");
+      if(absorbed.length>=3)unlock("void_master");
+      mascotHappyRef.current+=2+absorbed.length;
+      const cfg=levelCfgRef.current;
+      if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+
     // HOMING — scores based on how close it is to center when tapped
     if(hit.type==="homing"){
       targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
@@ -5677,6 +5908,21 @@ export default function NexusTap(){
       sfx("jackpot");vibrate([20,10,20,10,20]);
     }
 
+    // Score milestones — mini celebration at key point thresholds
+    {const SCORE_MILESTONES=[1000,2500,5000,10000,20000,50000];
+    const prevScore=gs.score-pts;
+    const crossed=SCORE_MILESTONES.find(m=>prevScore<m&&gs.score>=m);
+    if(crossed&&!cfg?.isZen){
+      const canvas2=canvasRef.current;const cw4=canvas2?.width||390,ch4=canvas2?.height||700;
+      const isEpic=crossed>=10000;
+      const milestoneColor=isEpic?"#ffd700":crossed>=5000?"#c084fc":crossed>=2500?"#f97316":"#34d399";
+      spawnPopup(cw4/2,ch4*0.28,`🏅 ${crossed.toLocaleString()} PTS!`,milestoneColor,isEpic?24:20);
+      spawnParticles(cw4/2,ch4*0.3,milestoneColor,isEpic?20:12,"spark");
+      if(isEpic){sfx("legendary");setEpicFlash(true);setTimeout(()=>setEpicFlash(false),400);}
+      else sfx("chainBonus");
+      vibrate(isEpic?[15,8,15,8,25]:[10,5,15]);
+    }}
+
     // SFX + particles
     if(hit.rarity.name==="legendary"){
       sfx("legendary");vibrate([30,15,30,15,60,15,90]);spawnParticles(hit.x,hit.y,hit.color,55,"spark");
@@ -5845,6 +6091,8 @@ export default function NexusTap(){
     const feverPotion=shopCart.includes("fever_potion");
     const xpBomb=shopCart.includes("xp_bomb");
     const streakSaver=shopCart.includes("streak_saver");
+    const timeWarpStart=shopCart.includes("time_warp_start");
+    const doubleSpawn=shopCart.includes("double_spawn");
 
     const isRescue=rescuedRef.current;rescuedRef.current=false;
     tensionRef.current=0;setTensionLevel(0);setBonusRound(false);setMysteryReveal(null);
@@ -5869,11 +6117,15 @@ export default function NexusTap(){
       _adaptMult:1.0, // current adaptive multiplier (0.7-1.3)
       _xpBombActive:!!xpBomb, // doubles XP at level end
       _streakSaverActive:!!streakSaver, // saves streak once on miss
+      _timeWarpEndsAt:timeWarpStart?Date.now()+6000:null,
+      _doubleSpawnActive:!!doubleSpawn,
     };
     if(hasStreakShield&&!isRescue){streakShRef.current=true;setStreakShieldActive(true);}
     if(shieldStart)activePwrRef.current=[{type:"SHIELD",endsAt:Date.now()+25000}];
     if(powerPack){const pt=["SLOW","DOUBLE","SHIELD","FREEZE"];const ty=pt[Math.floor(Math.random()*pt.length)];if(!activePwrRef.current.find(p=>p.type===ty))activePwrRef.current.push({type:ty,endsAt:Date.now()+12000});}
     if(feverPotion){setFeverBorder(true);sfx("feverStart");}
+    if(timeWarpStart){activePwrRef.current.push({type:"TIME_WARP",endsAt:Date.now()+6000});setTimeout(()=>setNotif("⏱️ Time Warp active!"),600);}
+    if(doubleSpawn){setTimeout(()=>setNotif("🌊 Target Rush! 2× spawns!"),600);}
     setActivePwrDisp([...activePwrRef.current]);
     setHud({score:headStart?300:0,lives:gsRef.current.lives,streak:0,fever:false,coins:saveRef.current.coins,timeLeft:null,modGoal:cfg.modifier?.desc||null});
     setLevelCompleteData(null);setGameOverData(null);setEpicFlash(false);setFeverBorder(false);setComboLabel("");
@@ -6307,7 +6559,8 @@ export default function NexusTap(){
     spawnTimer.current+=dt;
     const rushSpawnMult=isRush?0.65:1;
     const conductorMult=(gs._conductorEndsAt&&Date.now()<gs._conductorEndsAt)?0.45:1;
-    if(spawnTimer.current>=(rageSpawn?cfg.spawnInterval*0.5:cfg.spawnInterval*rushSpawnMult*conductorMult)){spawnTimer.current=0;spawnTarget();}
+    const doubleSpawnMult=gs._doubleSpawnActive?0.5:1;
+    if(spawnTimer.current>=(rageSpawn?cfg.spawnInterval*0.5:cfg.spawnInterval*rushSpawnMult*conductorMult*doubleSpawnMult)){spawnTimer.current=0;spawnTarget();}
 
     // Bounty Target — once per level, designate one normal target as a bounty (3× coins)
     if(!cfg.isBoss&&!cfg.isZen&&!cfg.isGauntlet&&!gs.bountySet){
@@ -7437,6 +7690,9 @@ export default function NexusTap(){
           if(id>=30) previews.push({icon:"🌈",label:"Rainbow",desc:"Cycling rarity tiers"});
           if(id>=35) previews.push({icon:"🥷",label:"Ninja",desc:"Invisible mostly!"});
           if(id>=40) previews.push({icon:"💥",label:"Splitter",desc:"Splits into 3!"});
+          if(id>=10) previews.push({icon:"🍀",label:"Clover",desc:"Random ×1-10 multiplier!"});
+          if(id>=15) previews.push({icon:"⚡",label:"Voltage",desc:"Chain zaps 3 targets!"});
+          if(id>=35) previews.push({icon:"🌀",label:"Void",desc:"Absorbs nearby targets"});
           if(cfg.isBoss) previews.push({icon:WORLDS[cfg.world-1].emoji,label:"BOSS",desc:"Multi-hit epic fight!"});
           const show=previews.slice(-8); // Show last 8 relevant types for this level
           return(
@@ -8739,7 +8995,7 @@ export default function NexusTap(){
   // Achievement tab state — "all" | "gameplay" | "progression" | "social"
   const [achTab, setAchTab] = React.useState("all");
   const ACH_CATS = {
-    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect","prism_tap","comet_tap","comet_early","mirrorball_tap","nexus_tap","phoenix_tap","phoenix_risen"],
+    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect","prism_tap","comet_tap","comet_early","mirrorball_tap","nexus_tap","phoenix_tap","phoenix_risen","icecomet_tap","voltage_tap","void_tap","void_master","clover_tap","clover_jackpot"],
     progression: ["level_10","level_50","level_100","prestige_1","three_stars_5","mascot_lv10","streak_25","streak_50","streak_10","streak_5","score_2000","world_complete"],
     social:      ["missions_all","daily_7","friday_fever","weekend_warrior","all_worlds","streak_saver","loot_chest"],
   };
