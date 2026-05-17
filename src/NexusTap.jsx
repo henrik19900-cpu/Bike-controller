@@ -310,6 +310,17 @@ function getInfinityLevelConfig(round) {
   };
 }
 
+function getZenConfig(worldId=1) {
+  const w=WORLDS[(worldId-1)%10];
+  return {
+    id:`zen${worldId}`, world:worldId, worldName:w.name, worldColor:w.color, worldBg:w.bg, worldGrid:w.grid,
+    name:`☯ Zen — ${w.name}`, scoreGoal:99999, lives:99, spawnInterval:700,
+    targetLifetime:3000, bombRate:0, movingRate:0.30, ghostRate:0.15,
+    bossEnabled:false, bossRate:0, modifier:{type:"zen_timer",desc:"90s Zen — Pure tapping"},
+    rarityBonus:0.15, isBoss:false, isLast:false, isZen:true, zenDuration:90000,
+  };
+}
+
 // ═══════════════════════════════════════════════════════════════
 // GAME CONSTANTS
 // ═══════════════════════════════════════════════════════════════
@@ -376,6 +387,7 @@ const ACHIEVEMENTS = [
   { id:"combo_15",     label:"Combo Master",      desc:"Reach a 15× combo",                icon:"💫", xp:30 },
   { id:"three_stars_5",label:"Star Collector",    desc:"Get 3 stars on 5 different levels",icon:"✨", xp:60 },
   { id:"mimic_hit",    label:"Mirror Master",     desc:"Tap a Mimic target",               icon:"🪞", xp:25 },
+  { id:"shielded_hit", label:"Shield Breaker",    desc:"Destroy a Shielded target",        icon:"🛡", xp:30 },
   { id:"chain_4",      label:"Chain Reaction",    desc:"Trigger 4 chains in one tap",      icon:"⚡", xp:45 },
   { id:"mascot_lv10",  label:"Best Friends",      desc:"Level up a mascot to LV10",        icon:"🐾", xp:80 },
   { id:"prestige_1",   label:"Prestige Pioneer",  desc:"Prestige for the first time",      icon:"👑", xp:200 },
@@ -563,7 +575,19 @@ const DEFAULT_SAVE = {
   skillPoints:0,          // earned via XP milestones, spent in skill tree
   skills:{},              // { skillId: level }
   adaptiveDifficulty:false, // auto-adjusts spawn rate to keep player challenged
+  zenBest:0,               // best score in zen mode
+  zenBestWorld:1,          // world of best zen run
+  lastActiveTime:null,     // timestamp (ms) when player last closed/backgrounded app
 };
+
+// ── Offline coin calculation (max 4 hours, 1 coin per 10s) ──
+function calcOfflineCoins(lastActiveMs) {
+  if(!lastActiveMs) return 0;
+  const elapsed=Date.now()-lastActiveMs;
+  const maxMs=4*60*60*1000; // 4 hours
+  const cappedMs=Math.min(elapsed,maxMs);
+  return Math.floor(cappedMs/10000); // 1 coin every 10 seconds
+}
 
 // ═══════════════════════════════════════════════════════════════
 // AUDIO ENGINE
@@ -1321,6 +1345,51 @@ function drawSplitter(ctx, r, ts) {
   ctx.restore();
 }
 
+// ── Shielded target — 2 taps (shield absorbs first) ──
+function drawShielded(ctx, r, shieldUp, ts) {
+  const pulse=0.5+0.5*Math.sin(ts*0.004);
+  const spin=ts*0.0015;
+  ctx.save();
+  // Outer glow
+  const grd=ctx.createRadialGradient(0,0,r*0.3,0,0,r*2.1);
+  grd.addColorStop(0,"#818cf855");grd.addColorStop(0.6,"#818cf822");grd.addColorStop(1,"transparent");
+  ctx.fillStyle=grd;ctx.beginPath();ctx.arc(0,0,r*2.1,0,Math.PI*2);ctx.fill();
+  // Target body (indigo)
+  ctx.shadowColor="#6366f1";ctx.shadowBlur=r*(0.5+pulse*0.3);
+  const body=ctx.createRadialGradient(-r*0.3,-r*0.3,0,0,0,r);
+  body.addColorStop(0,"#c7d2fe");body.addColorStop(0.5,"#6366f1");body.addColorStop(1,"#3730a3");
+  ctx.fillStyle=body;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  // Shield ring (hexagonal spinning)
+  if(shieldUp){
+    ctx.save();ctx.rotate(spin);
+    ctx.strokeStyle=`rgba(165,180,252,${0.7+pulse*0.3})`;ctx.lineWidth=3;
+    ctx.shadowColor="#a5b4fc";ctx.shadowBlur=12+pulse*8;
+    ctx.beginPath();
+    for(let i=0;i<6;i++){
+      const a=i*Math.PI/3;const nr=(i+1)*Math.PI/3;
+      ctx.lineTo(Math.cos(a)*r*1.5,Math.sin(a)*r*1.5);
+    }
+    ctx.closePath();ctx.stroke();
+    // Shield "S" icon
+    ctx.font=`bold ${r*0.55}px sans-serif`;ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.fillStyle="rgba(255,255,255,0.9)";ctx.shadowBlur=6;ctx.shadowColor="#a5b4fc";
+    ctx.fillText("🛡",0,0);
+    ctx.restore();
+  } else {
+    // Cracked shield (shield broken — one more hit)
+    ctx.save();
+    ctx.strokeStyle=`rgba(253,186,116,${0.5+pulse*0.3})`;ctx.lineWidth=1.5;
+    ctx.setLineDash([4,4]);ctx.lineDashOffset=ts*0.02;
+    ctx.beginPath();ctx.arc(0,0,r*1.45,0,Math.PI*2);ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font=`bold ${r*0.55}px sans-serif`;ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.fillStyle="rgba(255,200,100,0.8)";ctx.shadowColor="#fb923c";ctx.shadowBlur=4;
+    ctx.fillText("💥",0,0);
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
 // ── Motion trail for moving targets ──
 function drawTrail(ctx, t) {
   if(!t.trail||t.trail.length<2) return;
@@ -1411,6 +1480,7 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="mimic")    drawMimic(ctx,t.radius,ts);
   else if(t.type==="anchor")   drawAnchor(ctx,t.radius,ts);
   else if(t.type==="splitter") drawSplitter(ctx,t.radius,ts);
+  else if(t.type==="shielded") drawShielded(ctx,t.radius,t.hitsLeft>=2,ts);
   else{
     const nm=t.rarity?.name;
     if     (nm==="common")    drawCommon(ctx,t.radius,t.color,t.glow,ts,timeLeft);
@@ -2041,6 +2111,7 @@ export default function NexusTap(){
   const [mascotDancing, setMascotDancing] = useState(false);
   const [mascotUnlockedData, setMascotUnlockedData] = useState(null); // newly unlocked mascot
   const [dailyBonusData, setDailyBonusData] = useState(null); // {day, coins, xp, isWeekly}
+  const [offlineCoinsData, setOfflineCoinsData] = useState(null); // {coins, hours} shown once on startup
   const [shopConfirm, setShopConfirm] = useState(null); // {total, items, onConfirm}
   const [spinState,     setSpinState]     = useState(null);
   const [spinResult,    setSpinResult]    = useState(null);
@@ -2071,6 +2142,7 @@ export default function NexusTap(){
   const [prestigeAnim,   setPrestigeAnim]   = useState(false);
   const [chainFlash,     setChainFlash]     = useState(null); // null | {label, at}
   const [lbTab,          setLbTab]          = useState("all"); // "today"|"week"|"all"
+  const [zenWorld,       setZenWorld]       = useState(1);    // world selector for zen mode
 
   // Canvas & game refs
   const canvasRef    = useRef(null);
@@ -2157,6 +2229,25 @@ export default function NexusTap(){
     flushSave();
     // Show popup
     setDailyBonusData({day:dayInCycle,streak:sv.loginStreak,coins:coinsGiven,xp:xpGiven,isJackpot:dayInCycle===7});
+  },[]);// eslint-disable-line
+
+  // Offline coins — award coins earned while away (max 4 hours, 1 coin/10s)
+  useEffect(()=>{
+    const sv=saveRef.current;
+    const earned=calcOfflineCoins(sv.lastActiveTime);
+    if(earned>=5){ // only show if at least 5 coins earned
+      sv.coins=(sv.coins||0)+earned;
+      sv.totalCoins=(sv.totalCoins||0)+earned;
+      const hoursAway=Math.max(0,(Date.now()-(sv.lastActiveTime||Date.now())))/3600000;
+      setOfflineCoinsData({coins:earned,hours:Math.min(4,hoursAway)});
+      flushSave();
+    }
+    // Track active time — update on mount and on page unload
+    sv.lastActiveTime=Date.now();
+    const onHide=()=>{saveRef.current.lastActiveTime=Date.now();flushSave();};
+    document.addEventListener("visibilitychange",onHide);
+    window.addEventListener("pagehide",onHide);
+    return()=>{document.removeEventListener("visibilitychange",onHide);window.removeEventListener("pagehide",onHide);};
   },[]);// eslint-disable-line
 
   // Missions
@@ -2296,6 +2387,9 @@ export default function NexusTap(){
     } else if((cfg.id||0)>=12&&Math.random()<0.025&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 2.5% Splitter — splits into 3 small targets when tapped
       type="splitter";color="#f97316";glow="#c2410c";
+    } else if((cfg.id||0)>=10&&Math.random()<0.03&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 3% Shielded — requires 2 taps (shield absorbs first hit)
+      type="shielded";color="#6366f1";glow="#4f46e5";hitsLeft=2;maxHits=2;
     } else if(Math.random()<0.035&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")&&!gs.mysteryPause){
       // 3.5% Mystery Box — Las Vegas variable-ratio slot machine
       type="mystery";color="#ffd700";glow="#b8860b";
@@ -2308,7 +2402,7 @@ export default function NexusTap(){
       }
       if(!moving&&Math.random()<effGhost)ghost=true;
     }
-    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
+    const baseR=type==="boss"?BASE_R*2.4:type==="treasure"?BASE_R*1.7:type==="mystery"?BASE_R*1.5:type==="mimic"?BASE_R*1.35:type==="anchor"?BASE_R*1.3:type==="splitter"?BASE_R*1.4:type==="shielded"?BASE_R*1.25:type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
     // World modifiers: Ocean Deep (8) — slower targets (calmer waters), longer lifetimes
@@ -2422,6 +2516,11 @@ export default function NexusTap(){
         if(score>(sv.infinityBest||0))sv.infinityBest=score;
         sv.infinityScores=[score,...(sv.infinityScores||[])].slice(0,10).sort((a,b)=>b-a);
       }
+      // Zen mode best update
+      if(cfg.isZen){
+        if(score>(sv.zenBest||0)){sv.zenBest=score;sv.zenBestWorld=cfg.world;}
+        coinsEarned+=Math.floor(score*0.08); // bonus coins for zen
+      }
       flushSave();
       const canPrestige=cfg.id===100&&(sv.prestigeLevel||0)<5;
       setLevelCompleteData({score,stars,newStars,xpEarned,coinsEarned,levelId:cfg.id,isLast:cfg.isLast,
@@ -2466,6 +2565,43 @@ export default function NexusTap(){
     }
     ripplesRef.current.push({x:tx,y:ty,r:12,alpha:0.7,color:hit?(hit.color||"#a78bfa"):"#ffffff44"});
     if(!hit)return;
+
+    // SHIELDED — first tap destroys shield, second tap scores
+    if(hit.type==="shielded"){
+      if(hit.hitsLeft>1){
+        // Shield absorbs hit — crack it
+        hit.hitsLeft=1;
+        sfx("nearMiss");vibrate([8,5,8]);
+        spawnParticles(hit.x,hit.y,"#a5b4fc",16,"spark");
+        spawnParticles(hit.x,hit.y,"#818cf8",6,"dot");
+        spawnPopup(hit.x,hit.y-22,"🛡 SHIELD BREAK!","#a5b4fc",15);
+        // Brief flash — shield cracked visual already handled by drawShielded(hitsLeft<2)
+        return;
+      }
+      // Shield is broken — final tap scores
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const prestigeMult=1+(Math.min(5,saveRef.current.prestigeLevel||0)*0.05);
+      const pts=Math.round(200*combo*feverMult*prestigeMult); // 2× bonus for persistence
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      gs.sessionStats.tapsTotal++;gs.sessionStats.score=gs.score;
+      gs.sessionStats.rareHits++;
+      hit.dying=performance.now();
+      const coinBonus=Math.max(2,Math.floor(pts*0.12));
+      saveRef.current.coins=(saveRef.current.coins||0)+coinBonus;
+      saveRef.current.totalCoins=(saveRef.current.totalCoins||0)+coinBonus;
+      sfx("rare");vibrate([10,8,25]);
+      spawnParticles(hit.x,hit.y,"#6366f1",30,"spark");
+      spawnParticles(hit.x,hit.y,"#c7d2fe",12,"dot");
+      spawnPopup(hit.x,hit.y-24,`🛡 CRACKED! +${pts}`,"#818cf8",20);
+      setEpicFlash(true);setTimeout(()=>setEpicFlash(false),600);
+      sfx("comboNote",gs.streak);
+      unlock("shielded_hit");
+      const cfg=levelCfgRef.current;
+      if(cfg){if(gs.score>=cfg.scoreGoal&&(!cfg.modifier||checkModGoal(cfg.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
 
     // MIMIC — copies last tapped rarity for its score
     if(hit.type==="mimic"){
@@ -3003,7 +3139,7 @@ export default function NexusTap(){
       streak:feverPotion?FEVER_STREAK:0,
       feverActive:!!feverPotion, feverTimeLeft:feverPotion?Math.round(FEVER_DUR*feverMult2*1.5):0,
       startTime:Date.now(), lastTapTime:Date.now(),
-      sessionStats:{tapsTotal:0,rareHits:0,bestCombo:0,score:0,feverCount:feverPotion?1:0,powerupCollected:0,bossKills:0,perfectTaps:0},
+      sessionStats:{tapsTotal:0,rareHits:0,bestCombo:0,score:0,feverCount:feverPotion?1:0,powerupCollected:0,bossKills:0,perfectTaps:0,missedTargets:0},
       _hitLog:[], // [{t:timestamp, hit:bool}] for adaptive difficulty
       _adaptNextEval:Date.now()+4000, // first eval after 4 seconds
       _adaptMult:1.0, // current adaptive multiplier (0.7-1.3)
@@ -3045,7 +3181,7 @@ export default function NexusTap(){
 
   // Menu canvas loop
   useEffect(()=>{
-    if(screen!=="menu"&&screen!=="levelmap"&&screen!=="shop"&&screen!=="levelcomplete"&&screen!=="gameover"&&screen!=="spinwheel"&&screen!=="missions"&&screen!=="achievements"&&screen!=="leaderboard"&&screen!=="settings"&&screen!=="infinity"&&screen!=="gauntlet"&&screen!=="mascotcollection"&&screen!=="weekly"&&screen!=="tournament"&&screen!=="skilltree")return;
+    if(screen!=="menu"&&screen!=="levelmap"&&screen!=="shop"&&screen!=="levelcomplete"&&screen!=="gameover"&&screen!=="spinwheel"&&screen!=="missions"&&screen!=="achievements"&&screen!=="leaderboard"&&screen!=="settings"&&screen!=="infinity"&&screen!=="gauntlet"&&screen!=="mascotcollection"&&screen!=="weekly"&&screen!=="tournament"&&screen!=="skilltree"&&screen!=="zen")return;
     let raf;
     const loop=(ts)=>{
       const canvas=canvasRef.current;if(!canvas)return;
@@ -3161,6 +3297,7 @@ export default function NexusTap(){
       // Expiry
       if((now-t.spawnedAt)>=t.lifetime){
         if(t.type==="powerup"||t.type==="bomb"||t.type==="boss"||t.type==="treasure")return false;
+        if(t.type==="normal"&&!t._isShard)gs.sessionStats.missedTargets=(gs.sessionStats.missedTargets||0)+1;
         const hasShield=activePwrRef.current.some(p=>p.type==="SHIELD"&&p.endsAt>now);
         if(hasShield){activePwrRef.current=activePwrRef.current.filter(p=>p.type!=="SHIELD");setActivePwrDisp([...activePwrRef.current]);}
         else if(streakShRef.current){
@@ -3276,8 +3413,16 @@ export default function NexusTap(){
       hudRef.current=ts;
       const decayMs2=cfg?.world===5?1500:2500;
       const decayPct=gs.streak>0&&gs.lastTapTime?Math.max(0,1-(Date.now()-gs.lastTapTime)/decayMs2):1;
+      const bossT=targetsRef.current.find(t=>t.type==="boss"&&!t.dying);
+      // Zen mode: countdown timer
+      let zenTimeLeft=null;
+      if(cfg?.isZen){
+        zenTimeLeft=Math.max(0,Math.ceil((cfg.zenDuration-(Date.now()-gs.startTime))/1000));
+        if(zenTimeLeft<=0){endLevel(true);return;}
+      }
       setHud({score:gs.score,lives:gs.lives,streak:gs.streak,fever:gs.feverActive,coins:saveRef.current.coins,
-        timeLeft:null,modGoal:cfg?.modifier?.desc||null,decayPct});
+        timeLeft:zenTimeLeft,modGoal:cfg?.isZen?null:cfg?.modifier?.desc||null,decayPct,
+        boss:bossT?{hp:bossT.hitsLeft,max:bossT.maxHits,phase:bossT.bossPhase||1,rage:!!bossT.rage}:null});
     }
 
     rafRef.current=requestAnimationFrame(gl=>gameLoopFn(gl));
@@ -3787,6 +3932,15 @@ export default function NexusTap(){
         </NeonButton>
       );})()}
 
+      {/* Zen Mode — always accessible from level 5+ */}
+      {(sv.unlockedLevel||1)>=5&&(
+        <NeonButton onClick={()=>go("zen")}
+          className="w-full py-3 text-base font-black"
+          style={{background:"linear-gradient(135deg,#05966922,#34d39933)",border:"2px solid #34d39966",
+            color:"#34d399",boxShadow:"0 0 20px #34d39933",letterSpacing:"0.06em"}}>
+          ☯ ZEN MODE {sv.zenBest>0?`• Best: ${sv.zenBest.toLocaleString()}`:""}
+        </NeonButton>
+      )}
       {/* Infinity Mode — unlocked after level 100 */}
       {(sv.unlockedLevel||1)>100&&(
         <NeonButton onClick={()=>go("infinity")}
@@ -4361,9 +4515,33 @@ export default function NexusTap(){
             </div>
           </div>
         )}
+        {/* Boss HP Bar */}
+        {hud.boss&&(
+          <div className="absolute left-0 right-0 z-20 pointer-events-none flex flex-col items-center gap-0.5" style={{top:76}}>
+            <div style={{fontSize:9,fontWeight:"black",letterSpacing:"0.08em",color:hud.boss.rage?"#ff0000":hud.boss.phase===3?"#ef4444":hud.boss.phase===2?"#fbbf24":"#ff6030",
+              textTransform:"uppercase",textShadow:hud.boss.rage?"0 0 8px #ff0000":hud.boss.phase===2?"0 0 6px #fbbf24":"none",
+              animation:hud.boss.rage?"heartbeat 0.5s ease-in-out infinite":"none"}}>
+              {hud.boss.rage?"⚠️ RAGE":"💀 BOSS"} {BOSS_EMOJIS[(cfg?.world||1)-1]}
+            </div>
+            <div style={{width:160,height:8,background:"#ffffff15",borderRadius:4,overflow:"hidden",
+              boxShadow:"0 0 8px rgba(0,0,0,0.5)"}}>
+              <div style={{
+                width:`${(hud.boss.hp/hud.boss.max)*100}%`,height:"100%",borderRadius:4,
+                background:hud.boss.rage?"#ff0000":hud.boss.phase===3?"#ef4444":hud.boss.phase===2?"#fbbf24":"#4ade80",
+                boxShadow:hud.boss.rage?"0 0 8px #ff0000":hud.boss.phase===2?"0 0 6px #fbbf24":"0 0 4px #4ade80",
+                transition:"width 0.25s ease-out",
+              }}/>
+            </div>
+            <div style={{fontSize:8,color:"#ffffff44",letterSpacing:"0.04em"}}>
+              {Array.from({length:hud.boss.max},(_,i)=>(
+                <span key={i} style={{marginRight:1,opacity:i<hud.boss.hp?1:0.15}}>♦</span>
+              ))}
+            </div>
+          </div>
+        )}
         {/* Modifier goal hint */}
         {hud.modGoal&&(
-          <div className="absolute left-0 right-0 flex justify-center z-20" style={{top:76}}>
+          <div className="absolute left-0 right-0 flex justify-center z-20" style={{top:hud.boss?120:76}}>
             <div className="px-3 py-1 rounded-xl text-xs font-bold" style={{background:"#fbbf2420",border:"1px solid #fbbf2444",color:"#fbbf24"}}>
               ⚡ {hud.modGoal}
             </div>
@@ -4371,7 +4549,7 @@ export default function NexusTap(){
         )}
         {/* Power-ups */}
         {activePwrDisp.length>0&&(
-          <div className="absolute left-0 right-0 flex justify-center gap-2 z-20" style={{top:hud.modGoal?108:76}}>
+          <div className="absolute left-0 right-0 flex justify-center gap-2 z-20" style={{top:hud.boss?148:hud.modGoal?108:76}}>
             {activePwrDisp.map(p=>(
               <div key={p.type} className="px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1"
                 style={{background:"#1e3a8acc",border:"1px solid #60a5fa55",color:"#60a5fa"}}>
@@ -4625,6 +4803,9 @@ export default function NexusTap(){
     const cfg=getLevelConfig(levelId);
     const wld=WORLDS[cfg.world-1];
     const isBossLevel=cfg.isBoss;
+    const totalAttempted=(sessionStats.tapsTotal||0)+(sessionStats.missedTargets||0);
+    const accuracyPct=totalAttempted>0?Math.round((sessionStats.tapsTotal||0)/totalAttempted*100):100;
+    const isSniper=accuracyPct>=95&&totalAttempted>=8;
     return(<>
       <div className="flex flex-col items-center h-full overflow-y-auto px-5 py-5 gap-3.5 relative z-10">
         {/* Coin shower — falling coins animation */}
@@ -4722,6 +4903,20 @@ export default function NexusTap(){
               <div className="font-black text-sm" style={{color:wld.color}}>{v}</div>
             </div>
           ))}
+          {/* Accuracy rating */}
+          <div className="col-span-3 flex items-center justify-center gap-2 py-2 rounded-xl mt-1"
+            style={{background:isSniper?"#ffd70015":"#ffffff06",border:`1px solid ${isSniper?"#ffd70066":"#ffffff10"}`}}>
+            <span style={{fontSize:16}}>{isSniper?"🎯":"📊"}</span>
+            <div>
+              <div style={{fontSize:10,color:isSniper?"#ffd700":"#ffffff55",fontWeight:"bold",letterSpacing:"0.06em"}}>
+                {isSniper?"⭐ SNIPER ACCURACY!":"Accuracy"}
+              </div>
+              <div style={{fontSize:13,fontWeight:"black",color:isSniper?"#ffd700":wld.color}}>{accuracyPct}%</div>
+            </div>
+            <div style={{flex:1,height:4,background:"#ffffff10",borderRadius:2,overflow:"hidden",maxWidth:60}}>
+              <div style={{width:`${accuracyPct}%`,height:"100%",background:isSniper?"#ffd700":wld.color,boxShadow:`0 0 4px ${wld.color}`}}/>
+            </div>
+          </div>
         </div>
 
         {/* Boss victory story */}
@@ -5666,6 +5861,52 @@ export default function NexusTap(){
     );
   };
 
+  // ── Zen Mode Screen ──
+  const renderZen=()=>{
+
+    const zenBest=sv.zenBest||0;
+    const worldCfg=getZenConfig(zenWorld);
+    return(
+      <div className="flex flex-col h-full px-5 py-6 gap-5 relative z-10 items-center justify-center">
+        <NeonButton onClick={()=>go("menu")} className="absolute top-4 left-4 px-3 py-2 text-sm" style={{background:"#ffffff10"}}>← Back</NeonButton>
+        <div className="text-center">
+          <div className="text-5xl mb-2" style={{animation:"floatGlow 2.5s ease-in-out infinite",filter:"drop-shadow(0 0 20px #34d399)"}}>☯</div>
+          <h2 className="font-black text-3xl" style={{color:"#34d399",textShadow:"0 0 30px #34d399aa",fontFamily:"'Rajdhani',sans-serif",letterSpacing:"0.1em"}}>ZEN MODE</h2>
+          <p className="text-sm opacity-60 mt-1" style={{color:"#34d399"}}>90 seconds. No bombs. Pure flow.</p>
+        </div>
+        {zenBest>0&&(
+          <div className="px-6 py-3 rounded-2xl text-center" style={{background:"#34d39918",border:"1px solid #34d39944"}}>
+            <div className="text-xs opacity-50 mb-1" style={{color:"#34d399"}}>Personal Best</div>
+            <div className="text-2xl font-black" style={{color:"#34d399"}}>{zenBest.toLocaleString()}</div>
+            <div className="text-xs opacity-40" style={{color:"#34d399"}}>World {sv.zenBestWorld}: {WORLDS[(sv.zenBestWorld||1)-1].name}</div>
+          </div>
+        )}
+        {/* World selector */}
+        <div className="w-full rounded-2xl p-3" style={{background:"#ffffff08",border:"1px solid #34d39933"}}>
+          <div className="text-xs opacity-40 mb-2 uppercase tracking-widest text-center" style={{color:"#34d399"}}>Choose World</div>
+          <div className="grid grid-cols-5 gap-1.5">
+            {WORLDS.map(w=>(
+              <NeonButton key={w.id} onClick={()=>setZenWorld(w.id)}
+                className="py-2 text-center text-lg rounded-xl"
+                style={{background:zenWorld===w.id?`${w.color}33`:"#ffffff06",
+                  border:`1px solid ${zenWorld===w.id?w.color:"#ffffff10"}`,
+                  boxShadow:zenWorld===w.id?`0 0 8px ${w.color}66`:"none"}}>
+                {w.emoji}
+              </NeonButton>
+            ))}
+          </div>
+          <div className="text-center mt-2 text-xs font-bold" style={{color:WORLDS[zenWorld-1].color}}>{WORLDS[zenWorld-1].name}</div>
+        </div>
+        <NeonButton onClick={()=>startGame(0,[],worldCfg)}
+          className="w-full py-5 text-xl font-black"
+          style={{background:"linear-gradient(135deg,#059669,#34d399)",boxShadow:"0 0 40px #34d39966",letterSpacing:"0.1em"}}>
+          ☯ BEGIN ZEN
+        </NeonButton>
+        <p className="text-xs text-center opacity-30" style={{color:"#34d399"}}>Unlimited lives · No bombs · 90 second countdown</p>
+      </div>
+    );
+  };
+
   // ── Weekly Challenge Screen ──
   const renderWeekly=()=>{
     const wk=getWeekKey();
@@ -5970,6 +6211,7 @@ export default function NexusTap(){
       {screen==="mascotcollection" &&renderMascotCollection()}
       {screen==="spinwheel"     &&renderSpinWheel()}
       {screen==="infinity"      &&renderInfinity()}
+      {screen==="zen"           &&renderZen()}
       {screen==="gauntlet"      &&renderGauntlet()}
       {screen==="weekly"        &&renderWeekly()}
       {screen==="tournament"    &&renderTournament()}
@@ -6093,6 +6335,30 @@ export default function NexusTap(){
               style={{background:dailyBonusData.isJackpot?"linear-gradient(135deg,#b45309,#fbbf24)":"linear-gradient(135deg,#6d28d9,#a78bfa)",
                 boxShadow:`0 0 30px ${dailyBonusData.isJackpot?"#fbbf24":"#a78bfa"}66`,letterSpacing:"0.05em"}}>
               {dailyBonusData.isJackpot?"🎉 CLAIM JACKPOT":"✨ Awesome!"}
+            </NeonButton>
+          </div>
+        </div>
+      )}
+
+      {/* Offline coins overlay */}
+      {offlineCoinsData&&(
+        <div className="fixed inset-0 z-[120] flex items-center justify-center" style={{background:"rgba(0,0,0,0.72)"}}>
+          <div className="relative rounded-2xl p-6 flex flex-col items-center gap-3 text-center"
+            style={{background:"linear-gradient(160deg,#14532d22 0%,#0a0218 70%)",border:"1px solid #4ade8055",
+              boxShadow:"0 0 60px #4ade8055",maxWidth:320,width:"90%"}}>
+            <div className="text-5xl mb-1" style={{filter:"drop-shadow(0 0 16px #4ade80)"}}>🌙</div>
+            <h2 className="text-xl font-black" style={{color:"#4ade80"}}>Welcome Back!</h2>
+            <p className="text-sm" style={{color:"#86efac"}}>Your coins kept rolling while you were away.</p>
+            <div className="rounded-xl px-5 py-3 mt-1" style={{background:"#4ade8018",border:"1px solid #4ade8044"}}>
+              <div className="text-4xl font-black" style={{color:"#4ade80"}}>+🪙 {offlineCoinsData.coins}</div>
+              <div className="text-xs mt-1" style={{color:"#86efac"}}>
+                {offlineCoinsData.hours>=3.9?"4h (max)":offlineCoinsData.hours>=1?`${offlineCoinsData.hours.toFixed(1)}h away`:"~1h away"}
+              </div>
+            </div>
+            <p className="text-xs" style={{color:"#4ade8066"}}>Earn up to 1 coin/10s · max 4 hours</p>
+            <NeonButton onClick={()=>setOfflineCoinsData(null)}
+              style={{background:"linear-gradient(135deg,#15803d,#4ade80)",boxShadow:"0 0 20px #4ade8066",letterSpacing:"0.05em"}}>
+              ✅ Sweet!
             </NeonButton>
           </div>
         </div>
