@@ -587,6 +587,14 @@ const ACHIEVEMENTS = [
   { id:"shardstorm_align",   label:"Perfect Alignment","desc":"Tap Shard Storm when shards align",     icon:"💠",xp:85 },
   { id:"pulsenova_tap",      label:"Nova Rider",       desc:"Tap a Pulse Nova target",                icon:"💥",xp:20 },
   { id:"pulsenova_release",  label:"Nova Surfer",      desc:"Tap Pulse Nova during nova release",     icon:"🔥",xp:80 },
+  { id:"bubble_tap",         label:"Bubble Popper",    desc:"Tap a Bubble Cluster target",            icon:"🫧",xp:15 },
+  { id:"bubble_all",         label:"Full Burst",       desc:"Pop a Bubble Cluster in one tap",        icon:"💨",xp:60 },
+  { id:"voidshard_tap",      label:"Void Walker",      desc:"Tap a Void Shard target",                icon:"🌑",xp:20 },
+  { id:"voidshard_rich",     label:"Absorbed Wealth",  desc:"Tap Void Shard with 200+ absorbed pts",  icon:"💫",xp:80 },
+  { id:"stasis_tap",         label:"Frozen Moment",    desc:"Tap a Stasis Field target",              icon:"❄️",xp:20 },
+  { id:"stasis_core",        label:"Core Breach",      desc:"Tap Stasis Field before ring expands",   icon:"🎯",xp:75 },
+  { id:"crystalline_tap",    label:"Gem Cutter",       desc:"Tap a Crystalline target",               icon:"💎",xp:20 },
+  { id:"crystalline_facets", label:"Full Spectrum",    desc:"Crystalline scored 7-facet bonus",       icon:"✨",xp:70 },
 ];
 
 const MISSION_TEMPLATES = [
@@ -2996,6 +3004,88 @@ function drawAuraRing(ctx,r,ts){
   }
   ctx.globalAlpha=1;ctx.restore();
 }
+// ── Bubble Cluster — 5 linked soap bubbles; pop them all in one tap for bonus ──
+function drawBubbleCluster(ctx,r,ts,popped){
+  ctx.save();
+  const positions=[{x:0,y:0},{x:r*0.52,y:-r*0.42},{x:-r*0.5,y:-r*0.4},{x:r*0.46,y:r*0.44},{x:-r*0.48,y:r*0.44}];
+  positions.forEach((p,i)=>{
+    if(popped&&popped[i])return;
+    const br=r*(i===0?0.42:0.32);
+    const hue=(i*72+ts*0.12)%360;
+    ctx.save();ctx.translate(p.x,p.y);
+    ctx.globalAlpha=0.55;ctx.fillStyle=`hsl(${hue},80%,75%)`;
+    ctx.beginPath();ctx.arc(0,0,br,0,Math.PI*2);ctx.fill();
+    ctx.globalAlpha=0.85;ctx.strokeStyle=`hsl(${hue},90%,85%)`;ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.arc(0,0,br,0,Math.PI*2);ctx.stroke();
+    ctx.globalAlpha=0.55;ctx.fillStyle="#fff";
+    ctx.beginPath();ctx.arc(-br*0.3,-br*0.3,br*0.22,0,Math.PI*2);ctx.fill();
+    ctx.restore();
+  });
+  ctx.globalAlpha=1;ctx.restore();
+}
+// ── Void Shard — dark matter shard; absorbs pts from nearby targets while alive; tap to reclaim ──
+function drawVoidShard(ctx,r,ts,absorbedPts){
+  ctx.save();
+  const pulse=0.9+0.1*Math.sin(ts*0.013);
+  ctx.shadowBlur=20;ctx.shadowColor="#0ea5e9";
+  // dark shard body
+  ctx.fillStyle="#020617";ctx.globalAlpha=0.95;
+  ctx.beginPath();
+  ctx.moveTo(0,-r*0.9*pulse);ctx.lineTo(r*0.5,r*0.25);ctx.lineTo(r*0.2,r*0.9);
+  ctx.lineTo(-r*0.2,r*0.9);ctx.lineTo(-r*0.5,r*0.25);ctx.closePath();ctx.fill();
+  // energy crack lines
+  ctx.globalAlpha=0.9;ctx.strokeStyle="#38bdf8";ctx.lineWidth=1.8;
+  ctx.beginPath();ctx.moveTo(0,-r*0.6);ctx.lineTo(r*0.1,r*0.2);ctx.lineTo(-r*0.05,r*0.6);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(r*0.2,-r*0.1);ctx.lineTo(-r*0.2,r*0.4);ctx.stroke();
+  // absorbed pts counter
+  ctx.globalAlpha=1;ctx.fillStyle="#38bdf8";
+  ctx.font=`bold ${Math.round(r*0.32)}px sans-serif`;ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.fillText(`+${absorbedPts||0}`,0,0);ctx.restore();
+}
+// ── Stasis Field — freezes ring expands outward from center; tap inside ring for jackpot ──
+function drawStasisField(ctx,r,ts,agePct){
+  ctx.save();
+  // Frozen core
+  ctx.shadowBlur=14;ctx.shadowColor="#bae6fd";
+  const g=ctx.createRadialGradient(0,0,0,0,0,r*0.6);
+  g.addColorStop(0,"#e0f2fe");g.addColorStop(0.5,"#38bdf8");g.addColorStop(1,"#0c4a6e");
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,0,r*0.6,0,Math.PI*2);ctx.fill();
+  // Ice crystal pattern on core
+  for(let i=0;i<6;i++){
+    const a=(i/6)*Math.PI*2;
+    ctx.strokeStyle="#e0f2fe";ctx.lineWidth=1.5;ctx.globalAlpha=0.6;
+    ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(Math.cos(a)*r*0.5,Math.sin(a)*r*0.5);ctx.stroke();
+  }
+  // Expanding freeze ring
+  const ringR=r*0.7+agePct*r*1.5;
+  ctx.globalAlpha=Math.max(0,0.9-agePct*0.7);
+  ctx.strokeStyle="#38bdf8";ctx.lineWidth=3;
+  ctx.beginPath();ctx.arc(0,0,ringR,0,Math.PI*2);ctx.stroke();
+  ctx.globalAlpha=1;ctx.restore();
+}
+// ── Crystalline — multi-faceted gem; score depends on how many facets are visible (angle) ──
+function drawCrystalline(ctx,r,ts){
+  ctx.save();
+  const rot=ts*0.008;
+  ctx.shadowBlur=18;ctx.shadowColor="#c084fc";
+  const facets=7;
+  for(let i=0;i<facets;i++){
+    const a1=rot+(i/facets)*Math.PI*2;
+    const a2=rot+((i+1)/facets)*Math.PI*2;
+    const hue=250+i*15;
+    ctx.fillStyle=`hsl(${hue},75%,${60+i*4}%)`;ctx.globalAlpha=0.8;
+    ctx.beginPath();ctx.moveTo(0,0);
+    ctx.lineTo(Math.cos(a1)*r,Math.sin(a1)*r);
+    ctx.lineTo(Math.cos((a1+a2)/2)*r*0.7,Math.sin((a1+a2)/2)*r*0.7);
+    ctx.lineTo(Math.cos(a2)*r,Math.sin(a2)*r);
+    ctx.closePath();ctx.fill();
+    ctx.strokeStyle="#e9d5ff";ctx.lineWidth=0.8;ctx.globalAlpha=0.5;ctx.stroke();
+  }
+  // inner glow
+  ctx.globalAlpha=1;ctx.shadowBlur=24;ctx.shadowColor="#f0abfc";
+  ctx.fillStyle="#fff";ctx.beginPath();ctx.arc(0,0,r*0.2,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+}
 // ── Gravity Well — dark sphere that warps space; distortion ring grows with time ──
 function drawGravityWell(ctx,r,ts,agePct){
   ctx.save();
@@ -4233,6 +4323,13 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="chain_bomb")    drawChainBomb(ctx,t.radius,ts);
   else if(t.type==="warp_gate")     drawWarpGate(ctx,t.radius,ts);
   else if(t.type==="mirage")        drawMirage(ctx,t.radius,ts);
+  else if(t.type==="bubble_cluster")drawBubbleCluster(ctx,t.radius,ts,t._popped);
+  else if(t.type==="void_shard")    drawVoidShard(ctx,t.radius,ts,t._absorbedPts||0);
+  else if(t.type==="stasis_field"){
+    const agePct=Math.min(1,(Date.now()-t.spawnedAt)/(t.lifetime||2500));
+    drawStasisField(ctx,t.radius,ts,agePct);
+  }
+  else if(t.type==="crystalline")   drawCrystalline(ctx,t.radius,ts);
   else if(t.type==="gravity_well"){
     const agePct=Math.min(1,(Date.now()-t.spawnedAt)/(t.lifetime||4200));
     drawGravityWell(ctx,t.radius,ts,agePct);
@@ -5914,6 +6011,18 @@ export default function NexusTap(){
     } else if((cfg.id||0)>=26&&Math.random()<0.012&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1.2% Pulse Nova — charges then releases; big pts during release window
       type="pulse_nova";color="#fb7185";glow="#fda4af";
+    } else if((cfg.id||0)>=8&&Math.random()<0.019&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.9% Bubble Cluster — 5 linked soap bubbles; pop all for burst bonus
+      type="bubble_cluster";color="#7dd3fc";glow="#e0f2fe";
+    } else if((cfg.id||0)>=28&&!cfg.isZen&&Math.random()<0.012&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.2% Void Shard — absorbs pts from nearby targets while alive; tap to reclaim all
+      type="void_shard";color="#0ea5e9";glow="#38bdf8";
+    } else if((cfg.id||0)>=18&&Math.random()<0.016&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.6% Stasis Field — expanding freeze ring; jackpot inside the ring before it passes
+      type="stasis_field";color="#38bdf8";glow="#bae6fd";
+    } else if((cfg.id||0)>=12&&Math.random()<0.017&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.7% Crystalline — rotating faceted gem; score based on visible facets at tap time
+      type="crystalline";color="#c084fc";glow="#e9d5ff";
     } else if(Math.random()<0.035&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")&&!gs.mysteryPause){
       // 3.5% Mystery Box — Las Vegas variable-ratio slot machine
       type="mystery";color="#ffd700";glow="#b8860b";
@@ -5936,6 +6045,7 @@ type==="solar_drone"?BASE_R*1.15:type==="crystal_cluster"?BASE_R*1.5:type==="swa
 type==="smoke_ring"?BASE_R*1.2:type==="chain_bomb"?BASE_R*1.25:type==="warp_gate"?BASE_R*1.3:type==="mirage"?BASE_R*(rarity?.size||1.0):
 type==="surge_ball"?BASE_R*1.2:type==="ticking_clock"?BASE_R*1.3:type==="echo_pulse"?BASE_R*1.4:
 type==="gravity_well"?BASE_R*1.45:type==="spectrum_orb"?BASE_R*1.25:type==="shard_storm"?BASE_R*1.3:type==="pulse_nova"?BASE_R*1.35:
+type==="bubble_cluster"?BASE_R*1.5:type==="void_shard"?BASE_R*1.1:type==="stasis_field"?BASE_R*1.4:type==="crystalline"?BASE_R*1.2:
 type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
@@ -6035,6 +6145,14 @@ type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     if(type==="shard_storm")lifetime=Math.max(lifetime,3500);
     // Pulse Nova: medium — 1.5s charge then 2s release window
     if(type==="pulse_nova")lifetime=3800;
+    // Bubble Cluster: medium — 5 bubbles, tap soon before they drift apart
+    if(type==="bubble_cluster")lifetime=Math.max(lifetime,3200);
+    // Void Shard: medium-long — needs time to absorb pts
+    if(type==="void_shard")lifetime=Math.max(lifetime,4500);
+    // Stasis Field: medium — ring expands over 2.5s
+    if(type==="stasis_field")lifetime=2500;
+    // Crystalline: medium — spins through facet angles
+    if(type==="crystalline")lifetime=Math.max(lifetime,3000);
     // Solar Drone: medium
     if(type==="solar_drone")lifetime=Math.max(lifetime,3200);
     // Crystal Cluster: medium-long
@@ -7681,6 +7799,82 @@ type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
       updateMissions(gs.sessionStats);
       const cfgMr=levelCfgRef.current;
       if(cfgMr){if(gs.score>=cfgMr.scoreGoal&&(!cfgMr.modifier||checkModGoal(cfgMr.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+    // BUBBLE CLUSTER — pop all 5 bubbles; 120pts per bubble + 300pt combo if all hit
+    if(hit.type==="bubble_cluster"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const bubblesPopped=5;const allBonus=300;
+      const pts=Math.round((bubblesPopped*120+allBonus)*combo*feverMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      for(let i=0;i<5;i++){spawnParticles(hit.x+(Math.random()-0.5)*hit.radius*1.2,hit.y+(Math.random()-0.5)*hit.radius*1.2,"#7dd3fc",3,"spark");}
+      spawnPopup(hit.x,hit.y-26,`🫧 BURST! +${pts}`,"#7dd3fc",20);
+      sfx("chainBonus");vibrate([4,2,4,2,4,2,4,2,4]);
+      unlock("bubble_tap");unlock("bubble_all");
+      gs.sessionStats.tapsTotal++;updateMissions(gs.sessionStats);
+      const cfgBC=levelCfgRef.current;
+      if(cfgBC){if(gs.score>=cfgBC.scoreGoal&&(!cfgBC.modifier||checkModGoal(cfgBC.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+    // VOID SHARD — reclaims all absorbed pts + 200 base; bonus if absorbed >= 200
+    if(hit.type==="void_shard"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const absorbed=hit._absorbedPts||0;
+      const pts=Math.round((200+absorbed)*combo*feverMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      spawnPopup(hit.x,hit.y-26,absorbed>=200?`💫 ABSORBED! +${pts}`:`🌑 SHARD! +${pts}`,absorbed>=200?"#38bdf8":"#0ea5e9",absorbed>=200?22:16);
+      spawnParticles(hit.x,hit.y,"#38bdf8",12,"spark");
+      sfx(absorbed>=200?"chainBonus":"tap");vibrate(absorbed>=200?[8,4,10,4,8]:7);
+      unlock("voidshard_tap");
+      if(absorbed>=200)unlock("voidshard_rich");
+      gs.sessionStats.tapsTotal++;updateMissions(gs.sessionStats);
+      const cfgVS=levelCfgRef.current;
+      if(cfgVS){if(gs.score>=cfgVS.scoreGoal&&(!cfgVS.modifier||checkModGoal(cfgVS.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+    // STASIS FIELD — jackpot 800pts if tapped before the ring expands (agePct < 0.3)
+    if(hit.type==="stasis_field"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const agePct=Math.min(1,(Date.now()-hit.spawnedAt)/(hit.lifetime||2500));
+      const isCore=agePct<0.3;
+      const pts=Math.round((isCore?800:200)*combo*feverMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      spawnPopup(hit.x,hit.y-26,isCore?`🎯 CORE! +${pts}`:`❄️ STASIS! +${pts}`,isCore?"#ffd700":"#38bdf8",isCore?24:16);
+      spawnParticles(hit.x,hit.y,isCore?"#ffd700":"#38bdf8",isCore?14:8,"spark");
+      sfx(isCore?"jackpot":"tap");vibrate(isCore?[10,5,14,5,10]:7);
+      unlock("stasis_tap");
+      if(isCore)unlock("stasis_core");
+      gs.sessionStats.tapsTotal++;updateMissions(gs.sessionStats);
+      const cfgSF=levelCfgRef.current;
+      if(cfgSF){if(gs.score>=cfgSF.scoreGoal&&(!cfgSF.modifier||checkModGoal(cfgSF.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+    // CRYSTALLINE — score based on how many facets are lit at tap time (7 = full spectrum)
+    if(hit.type==="crystalline"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const elapsed=(Date.now()-hit.spawnedAt)/1000;
+      const rot=elapsed*0.008*1000;
+      // how many facets face the viewer: based on spin angle alignment
+      const visibleFacets=Math.round(4+3*Math.abs(Math.sin(rot)));
+      const isFullSpectrum=visibleFacets>=7;
+      const pts=Math.round((180+visibleFacets*40)*combo*feverMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      spawnPopup(hit.x,hit.y-26,isFullSpectrum?`✨ FULL FACET! +${pts}`:`💎 CRYSTAL! +${pts}`,isFullSpectrum?"#f0abfc":"#c084fc",isFullSpectrum?22:16);
+      spawnParticles(hit.x,hit.y,"#e9d5ff",isFullSpectrum?14:8,"spark");
+      sfx(isFullSpectrum?"feverStart":"tap");vibrate(isFullSpectrum?[8,4,10,4,8]:7);
+      unlock("crystalline_tap");
+      if(isFullSpectrum)unlock("crystalline_facets");
+      gs.sessionStats.tapsTotal++;updateMissions(gs.sessionStats);
+      const cfgCR=levelCfgRef.current;
+      if(cfgCR){if(gs.score>=cfgCR.scoreGoal&&(!cfgCR.modifier||checkModGoal(cfgCR.modifier,gs))){endLevel(true);return;}}
       return;
     }
     // GRAVITY WELL — pts scale with how many targets it pulled in over its lifetime
@@ -9959,6 +10153,21 @@ type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
           }
         });
         t._vtxPulled=pulled;
+      }
+      // Void Shard — absorbs a few pts from nearby normal targets every 600ms
+      if(t.type==="void_shard"&&!t.dying){
+        const now2=Date.now();
+        if(!t._lastAbsorbAt||now2-t._lastAbsorbAt>600){
+          t._lastAbsorbAt=now2;
+          targetsRef.current.forEach(other=>{
+            if(other===t||other.dying||other.type!=="normal"||Date.now()<other.spawnedAt)return;
+            const dist=Math.hypot(other.x-t.x,other.y-t.y);
+            if(dist<120){
+              const stolen=5;
+              t._absorbedPts=(t._absorbedPts||0)+stolen;
+            }
+          });
+        }
       }
       // Gravity Well — pulls nearby targets with increasing force as it ages
       if(t.type==="gravity_well"&&!t.dying){
@@ -12752,7 +12961,7 @@ type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
   // Achievement tab state — "all" | "gameplay" | "progression" | "social"
   const [achTab, setAchTab] = React.useState("all");
   const ACH_CATS = {
-    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect","prism_tap","comet_tap","comet_early","mirrorball_tap","nexus_tap","phoenix_tap","phoenix_risen","icecomet_tap","voltage_tap","void_tap","void_master","clover_tap","clover_jackpot","ricochet_tap","ricochet_double","aurora_tap","aurora_perfect","fury_mode","score_10k","portal_tap","portal_chaos","particlebomb_tap","beacon_tap","beacon_surge","shadow_tap","shadow_clone_catch","spectral_tap","spectral_perfect","heart_tap","nova_tap","firefly_tap","firefly_swift","geode_crack","geode_gem","timebomb_defuse","timebomb_clutch","thunderbolt_tap","thunderbolt_clutch","gravityorb_tap","gravityorb_cluster","crystalball_tap","quantum_tap","quantum_stable","clockwork_tap","bloom_tap","bloom_harvest","reflector_tap","reflector_chaos","chain_collect","chain_triple","stardust_tap","stardust_shower","score_25k","solarflare_tap","solarflare_early","magma_tap","prismbomb_tap","prismbomb_triple","icecage_tap","icecage_full","pinwheel_tap","pinwheel_jackpot","supercell_tap","supercell_storm","vortex_tap","vortex_feast","pixel_tap","pixel_speedrun","neon_tap","neon_gold","lantern_tap","lantern_chain","drift_tap","drift_max","berserker_use","ghost_mode_use","nebula_tap","nebula_cluster","wisp_tap","wisp_still","meteor_tap","meteor_early","aura_tap","aura_edge","thunderclap_tap","thunderclap_surge","mirror_tap","mirror_triple","rune_tap","rune_power","score_50k","fractal_tap","fractal_cascade","plasma_tap","plasma_surge","timewarp_target_tap","timewarp_hoard","solar_drone_tap","solar_drone_orbit","cluster_tap","cluster_rainbow","swarm_tap","swarm_master","celestial_tap","celestial_legend","smoke_tap","smoke_early","chainbomb_tap","chainbomb_safe","warpgate_tap","warpgate_chaos","mirage_tap","mirage_avoid","surgeball_tap","surgeball_chain","clock_tap","clock_jackpot","echopulse_tap","echopulse_bonus","gravwell_tap","gravwell_feast","spectrum_tap","spectrum_gold","shardstorm_tap","shardstorm_align","pulsenova_tap","pulsenova_release"],
+    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect","prism_tap","comet_tap","comet_early","mirrorball_tap","nexus_tap","phoenix_tap","phoenix_risen","icecomet_tap","voltage_tap","void_tap","void_master","clover_tap","clover_jackpot","ricochet_tap","ricochet_double","aurora_tap","aurora_perfect","fury_mode","score_10k","portal_tap","portal_chaos","particlebomb_tap","beacon_tap","beacon_surge","shadow_tap","shadow_clone_catch","spectral_tap","spectral_perfect","heart_tap","nova_tap","firefly_tap","firefly_swift","geode_crack","geode_gem","timebomb_defuse","timebomb_clutch","thunderbolt_tap","thunderbolt_clutch","gravityorb_tap","gravityorb_cluster","crystalball_tap","quantum_tap","quantum_stable","clockwork_tap","bloom_tap","bloom_harvest","reflector_tap","reflector_chaos","chain_collect","chain_triple","stardust_tap","stardust_shower","score_25k","solarflare_tap","solarflare_early","magma_tap","prismbomb_tap","prismbomb_triple","icecage_tap","icecage_full","pinwheel_tap","pinwheel_jackpot","supercell_tap","supercell_storm","vortex_tap","vortex_feast","pixel_tap","pixel_speedrun","neon_tap","neon_gold","lantern_tap","lantern_chain","drift_tap","drift_max","berserker_use","ghost_mode_use","nebula_tap","nebula_cluster","wisp_tap","wisp_still","meteor_tap","meteor_early","aura_tap","aura_edge","thunderclap_tap","thunderclap_surge","mirror_tap","mirror_triple","rune_tap","rune_power","score_50k","fractal_tap","fractal_cascade","plasma_tap","plasma_surge","timewarp_target_tap","timewarp_hoard","solar_drone_tap","solar_drone_orbit","cluster_tap","cluster_rainbow","swarm_tap","swarm_master","celestial_tap","celestial_legend","smoke_tap","smoke_early","chainbomb_tap","chainbomb_safe","warpgate_tap","warpgate_chaos","mirage_tap","mirage_avoid","surgeball_tap","surgeball_chain","clock_tap","clock_jackpot","echopulse_tap","echopulse_bonus","gravwell_tap","gravwell_feast","spectrum_tap","spectrum_gold","shardstorm_tap","shardstorm_align","pulsenova_tap","pulsenova_release","bubble_tap","bubble_all","voidshard_tap","voidshard_rich","stasis_tap","stasis_core","crystalline_tap","crystalline_facets"],
     progression: ["level_10","level_50","level_100","prestige_1","three_stars_5","mascot_lv10","streak_25","streak_50","streak_10","streak_5","score_2000","world_complete"],
     social:      ["missions_all","daily_7","friday_fever","weekend_warrior","all_worlds","streak_saver","loot_chest"],
   };
