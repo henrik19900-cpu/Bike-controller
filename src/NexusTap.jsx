@@ -555,6 +555,15 @@ const ACHIEVEMENTS = [
   { id:"plasma_surge",       label:"Full Charge!",     desc:"Tap Plasma during the surge window (70-90%)", icon:"🌊",xp:100 },
   { id:"timewarp_target_tap",label:"Time Bender",      desc:"Tap a Timewarp target to extend time",   icon:"⏱️",xp:35 },
   { id:"timewarp_hoard",     label:"Time Hoarder",     desc:"Timewarp extends 5+ targets",            icon:"🕰️",xp:85 },
+  // Batch 15 — Solar Drone, Crystal Cluster, Swarm, Celestial Orb
+  { id:"solar_drone_tap",    label:"Drone Strike",     desc:"Tap a Solar Drone target",               icon:"☀️",xp:30 },
+  { id:"solar_drone_orbit",  label:"Sun Surfer",       desc:"Catch Solar Drone while it orbits",      icon:"🛸",xp:70 },
+  { id:"cluster_tap",        label:"Crystal Smasher",  desc:"Tap a Crystal Cluster target",           icon:"💠",xp:30 },
+  { id:"cluster_rainbow",    label:"Rainbow Smash",    desc:"Shatter all 4 crystals in one tap",      icon:"🌈",xp:80 },
+  { id:"swarm_tap",          label:"Swarm Lord",       desc:"Tap a Swarm target",                     icon:"🐝",xp:25 },
+  { id:"swarm_master",       label:"Swarm Master",     desc:"Pop 3 Swarm targets in a single game",   icon:"🐝",xp:75 },
+  { id:"celestial_tap",      label:"Star Gazer",       desc:"Tap a Celestial Orb target",             icon:"🌠",xp:35 },
+  { id:"celestial_legend",   label:"Celestial Legend", desc:"Tap 5 Celestial Orbs in a single game",  icon:"🌌",xp:100 },
 ];
 
 const MISSION_TEMPLATES = [
@@ -2964,6 +2973,94 @@ function drawAuraRing(ctx,r,ts){
   }
   ctx.globalAlpha=1;ctx.restore();
 }
+// ── Solar Drone — small sun-like bot that circles the player area, 2× pts in orbit ──
+function drawSolarDrone(ctx,r,ts){
+  ctx.save();
+  const spin=ts*0.005;
+  ctx.shadowBlur=16;ctx.shadowColor="#fbbf24";
+  const grad=ctx.createRadialGradient(0,0,0,0,0,r);
+  grad.addColorStop(0,"#fffde7");grad.addColorStop(0.45,"#fbbf24");grad.addColorStop(0.8,"#b45309");
+  grad.addColorStop(1,"#78350f");
+  ctx.fillStyle=grad;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  // Solar panel wings
+  ctx.save();ctx.rotate(spin);
+  for(let w=0;w<2;w++){
+    ctx.save();ctx.rotate(w*Math.PI);
+    ctx.fillStyle="#475569";ctx.fillRect(r*0.7,-r*0.18,r*0.7,r*0.36);
+    ctx.fillStyle="#0ea5e9";ctx.fillRect(r*0.72,-r*0.16,r*0.65,r*0.32);
+    ctx.restore();
+  }
+  ctx.restore();
+  // Corona rays
+  for(let i=0;i<6;i++){
+    const a=(i/6)*Math.PI*2+spin*0.5;
+    ctx.strokeStyle="#fde68a";ctx.lineWidth=1.5;ctx.globalAlpha=0.7;
+    ctx.beginPath();ctx.moveTo(Math.cos(a)*r*1.0,Math.sin(a)*r*1.0);
+    ctx.lineTo(Math.cos(a)*r*1.35,Math.sin(a)*r*1.35);ctx.stroke();
+  }
+  ctx.globalAlpha=1;ctx.restore();
+}
+// ── Crystal Cluster — group of 4 mini crystals; tap to shatter all at once ──
+function drawCrystalCluster(ctx,r,ts){
+  ctx.save();
+  const pulse=0.9+0.1*Math.sin(ts*0.007);
+  const offsets=[[0,-r*0.55],[r*0.5,r*0.3],[-r*0.5,r*0.3],[0,r*0.65]];
+  const colors=["#38bdf8","#818cf8","#34d399","#f472b6"];
+  offsets.forEach(([ox,oy],i)=>{
+    ctx.save();ctx.translate(ox*pulse,oy*pulse);
+    ctx.shadowBlur=10;ctx.shadowColor=colors[i];ctx.fillStyle=colors[i];
+    // Crystal shard shape
+    ctx.beginPath();ctx.moveTo(0,-r*0.32);ctx.lineTo(r*0.18,0);ctx.lineTo(0,r*0.32);ctx.lineTo(-r*0.18,0);ctx.closePath();
+    ctx.fill();
+    // Shine facet
+    ctx.strokeStyle="#ffffff55";ctx.lineWidth=0.8;
+    ctx.beginPath();ctx.moveTo(0,-r*0.32);ctx.lineTo(r*0.18,0);ctx.stroke();
+    ctx.restore();
+  });
+  // Center connector
+  ctx.shadowBlur=8;ctx.shadowColor="#ffffff";ctx.fillStyle="#ffffff";
+  ctx.beginPath();ctx.arc(0,0,r*0.12,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+}
+// ── Swarm — tiny target surrounded by 6 orbiting dots; pop any dot to score all ──
+function drawSwarm(ctx,r,ts){
+  ctx.save();
+  const spin=ts*0.008;
+  ctx.shadowBlur=12;ctx.shadowColor="#f97316";
+  const grad=ctx.createRadialGradient(0,0,0,0,0,r*0.55);
+  grad.addColorStop(0,"#fed7aa");grad.addColorStop(1,"#ea580c");
+  ctx.fillStyle=grad;ctx.beginPath();ctx.arc(0,0,r*0.5,0,Math.PI*2);ctx.fill();
+  // Orbiting swarm dots
+  for(let i=0;i<6;i++){
+    const a=spin+(i/6)*Math.PI*2;
+    const dx=Math.cos(a)*r*0.82,dy=Math.sin(a)*r*0.82;
+    ctx.shadowBlur=8;ctx.shadowColor="#fb923c";
+    ctx.fillStyle="#fb923c";ctx.beginPath();ctx.arc(dx,dy,r*0.18,0,Math.PI*2);ctx.fill();
+  }
+  ctx.fillStyle="#fff7ed";ctx.font=`bold ${Math.round(r*0.38)}px serif`;
+  ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("🐝",0,0);
+  ctx.restore();
+}
+// ── Celestial Orb — large slow target; worth pts based on which constellation it shows ──
+function drawCelestialOrb(ctx,r,ts){
+  ctx.save();
+  const twinkle=0.75+0.25*Math.abs(Math.sin(ts*0.006));
+  ctx.shadowBlur=22;ctx.shadowColor="#1e40af";
+  const grad=ctx.createRadialGradient(0,0,0,0,0,r);
+  grad.addColorStop(0,"#1e3a8a");grad.addColorStop(0.5,"#1e40af");grad.addColorStop(1,"#0c1445");
+  ctx.fillStyle=grad;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  // Star field
+  ctx.fillStyle="#e0e7ff";
+  const starPos=[[0,-r*0.6],[r*0.4,-r*0.3],[r*0.5,r*0.2],[-r*0.3,r*0.4],[-r*0.5,-r*0.1],[r*0.15,r*0.55]];
+  starPos.forEach(([sx,sy])=>{ctx.globalAlpha=twinkle*0.9;ctx.beginPath();ctx.arc(sx,sy,1.6,0,Math.PI*2);ctx.fill();});
+  // Connect constellation lines
+  ctx.strokeStyle="#93c5fd";ctx.lineWidth=0.7;ctx.globalAlpha=0.4;
+  ctx.beginPath();ctx.moveTo(starPos[0][0],starPos[0][1]);
+  starPos.slice(1).forEach(p=>ctx.lineTo(p[0],p[1]));ctx.stroke();
+  ctx.globalAlpha=1;
+  ctx.font=`${Math.round(r*0.52)}px serif`;ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.fillText("🌠",0,-r*0.05);ctx.restore();
+}
 // ── Fractal — geometric burst; splits into 2 smaller fractals on tap ──
 function drawFractal(ctx,r,ts,depth){
   ctx.save();
@@ -3869,6 +3966,10 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="wisp")       drawWisp(ctx,t.radius,ts,t.moving&&(Math.hypot(t.vx||0,t.vy||0)>0.1));
   else if(t.type==="meteor")     drawMeteor(ctx,t.radius,ts,t.trail);
   else if(t.type==="aura")       drawAuraRing(ctx,t.radius,ts);
+  else if(t.type==="solar_drone")   drawSolarDrone(ctx,t.radius,ts);
+  else if(t.type==="crystal_cluster") drawCrystalCluster(ctx,t.radius,ts);
+  else if(t.type==="swarm")         drawSwarm(ctx,t.radius,ts);
+  else if(t.type==="celestial")     drawCelestialOrb(ctx,t.radius,ts);
   else if(t.type==="fractal"||t.type==="fractal_mini") drawFractal(ctx,t.radius,ts,t._fractalDepth||0);
   else if(t.type==="plasma"){const chg=Math.min(1,(Date.now()-t.spawnedAt)/(t.lifetime||3000));drawPlasma(ctx,t.radius,ts,chg);}
   else if(t.type==="timewarp_tgt") drawTimewarpTarget(ctx,t.radius,ts);
@@ -5450,6 +5551,23 @@ export default function NexusTap(){
     } else if((cfg.id||0)>=14&&Math.random()<0.018&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1.8% Aura Ring — pulsing ring; edge tap = jackpot vs center = base pts
       type="aura";color="#818cf8";glow="#6366f1";
+    } else if((cfg.id||0)>=14&&Math.random()<0.017&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.7% Solar Drone — orbiting solar target; 2× pts if caught mid-orbit
+      type="solar_drone";color="#fbbf24";glow="#f97316";moving=true;
+      const sda=Math.random()*Math.PI*2,sds=0.8+Math.random()*0.6;
+      vx=Math.cos(sda)*sds;vy=Math.sin(sda)*sds;
+    } else if((cfg.id||0)>=18&&Math.random()<0.016&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.6% Crystal Cluster — 4 mini crystals; shatter all at once for rainbow bonus
+      type="crystal_cluster";color="#38bdf8";glow="#818cf8";
+    } else if((cfg.id||0)>=10&&Math.random()<0.019&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.9% Swarm — orbit bee swarm; big pts plus session counter for master
+      type="swarm";color="#f97316";glow="#fed7aa";moving=true;
+      const swa=Math.random()*Math.PI*2,sws=0.7+Math.random()*0.7;
+      vx=Math.cos(swa)*sws;vy=Math.sin(swa)*sws;
+    } else if((cfg.id||0)>=24&&Math.random()<0.013&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.3% Celestial Orb — large slow target; each tap tracked for celestial_legend
+      type="celestial";color="#1e40af";glow="#93c5fd";moving=Math.random()<0.2;
+      if(moving){const ca=Math.random()*Math.PI*2;vx=Math.cos(ca)*0.4;vy=Math.sin(ca)*0.4;}
     } else if((cfg.id||0)>=18&&Math.random()<0.016&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1.6% Fractal — splits into 2 smaller copies on tap (up to depth 2)
       type="fractal";color="#818cf8";glow="#6366f1";
@@ -5486,6 +5604,7 @@ type==="lantern"?BASE_R*1.2:type==="drift"?BASE_R*1.1:
 type==="nebula"?BASE_R*1.5:type==="wisp"?BASE_R*1.2:type==="meteor"?BASE_R*1.1:type==="aura"?BASE_R*1.55:
 type==="thunderclap"?BASE_R*1.4:type==="mirror_shard"?BASE_R*1.0:type==="rune_stone"?BASE_R*1.3:
 type==="fractal"?BASE_R*1.2:type==="fractal_mini"?BASE_R*0.7:type==="plasma"?BASE_R*1.25:type==="timewarp_tgt"?BASE_R*1.3:
+type==="solar_drone"?BASE_R*1.15:type==="crystal_cluster"?BASE_R*1.5:type==="swarm"?BASE_R*1.35:type==="celestial"?BASE_R*1.7:
 type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
@@ -5563,6 +5682,14 @@ type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     if(type==="meteor")lifetime=Math.min(lifetime,2600);
     // Aura: medium — let ring pulse a few times
     if(type==="aura")lifetime=Math.max(lifetime,3400);
+    // Solar Drone: medium
+    if(type==="solar_drone")lifetime=Math.max(lifetime,3200);
+    // Crystal Cluster: medium-long
+    if(type==="crystal_cluster")lifetime=Math.max(lifetime,3500);
+    // Swarm: medium
+    if(type==="swarm")lifetime=Math.max(lifetime,3000);
+    // Celestial: long (it's big and slow)
+    if(type==="celestial")lifetime=Math.max(lifetime,5000);
     // Fractal: medium
     if(type==="fractal"||type==="fractal_mini")lifetime=Math.max(lifetime,3000);
     // Plasma: medium-long (needs to charge up fully)
@@ -7117,6 +7244,87 @@ type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
       updateMissions(gs.sessionStats);
       const cfgDr=levelCfgRef.current;
       if(cfgDr){if(gs.score>=cfgDr.scoreGoal&&(!cfgDr.modifier||checkModGoal(cfgDr.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+    // SOLAR DRONE — scores 300pts normally; 700pts if it was "mid-orbit" (speed > threshold)
+    if(hit.type==="solar_drone"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const speed=Math.hypot(hit.vx||0,hit.vy||0);
+      const isMidOrbit=speed>0.9;
+      const pts=Math.round((isMidOrbit?700:300)*combo*feverMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      spawnPopup(hit.x,hit.y-28,isMidOrbit?`☀️ SOLAR HIT! +${pts}`:`☀️ DRONE! +${pts}`,"#fbbf24",isMidOrbit?22:16);
+      spawnParticles(hit.x,hit.y,"#fbbf24",14,"spark");
+      sfx(isMidOrbit?"chainBonus":"tap");vibrate(isMidOrbit?[10,5,12]:8);
+      unlock("solar_drone_tap");
+      if(isMidOrbit)unlock("solar_drone_orbit");
+      mascotHappyRef.current+=2;updateMissions(gs.sessionStats);
+      const cfgSD=levelCfgRef.current;
+      if(cfgSD){if(gs.score>=cfgSD.scoreGoal&&(!cfgSD.modifier||checkModGoal(cfgSD.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+    // CRYSTAL CLUSTER — shatters all 4 crystals simultaneously; 100pts each + bonus
+    if(hit.type==="crystal_cluster"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const crystalCount=4;const perCrystal=100;
+      const pts=Math.round((perCrystal*crystalCount+200)*combo*feverMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      // Spawn crystal shard visuals
+      for(let i=0;i<8;i++){
+        const a=(i/8)*Math.PI*2;
+        particlesRef.current.push({type:"dot",x:hit.x+Math.cos(a)*hit.radius*0.6,y:hit.y+Math.sin(a)*hit.radius*0.6,
+          color:["#38bdf8","#818cf8","#34d399","#f472b6"][i%4],alpha:1,size:5,
+          vx:Math.cos(a)*1.5,vy:Math.sin(a)*1.5,born:performance.now(),duration:800});
+      }
+      particlesRef.current.push({type:"shockwave",x:hit.x,y:hit.y,color:"#ffffff",size:160,born:performance.now(),duration:500,alpha:0.6});
+      spawnPopup(hit.x,hit.y-34,`💠 CLUSTER SMASH! +${pts}`,"#38bdf8",22);
+      spawnParticles(hit.x,hit.y,"#818cf8",20,"spark");
+      sfx("legendary");vibrate([12,6,16]);
+      unlock("cluster_tap");unlock("cluster_rainbow");
+      mascotHappyRef.current+=4;updateMissions(gs.sessionStats);
+      const cfgCC=levelCfgRef.current;
+      if(cfgCC){if(gs.score>=cfgCC.scoreGoal&&(!cfgCC.modifier||checkModGoal(cfgCC.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+    // SWARM — pops the entire swarm for 500pts; tracks session kills for master
+    if(hit.type==="swarm"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const pts=Math.round(500*combo*feverMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      gsRef.current._swarmKills=(gsRef.current._swarmKills||0)+1;
+      spawnPopup(hit.x,hit.y-30,`🐝 SWARM! +${pts}`,"#fb923c",20);
+      spawnParticles(hit.x,hit.y,"#f97316",18,"spark");
+      sfx("chainBonus");vibrate([10,5,10]);
+      unlock("swarm_tap");
+      if((gsRef.current._swarmKills||0)>=3)unlock("swarm_master");
+      mascotHappyRef.current+=3;updateMissions(gs.sessionStats);
+      const cfgSw=levelCfgRef.current;
+      if(cfgSw){if(gs.score>=cfgSw.scoreGoal&&(!cfgSw.modifier||checkModGoal(cfgSw.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+    // CELESTIAL ORB — large slow target; 600pts; tracks session count for legend
+    if(hit.type==="celestial"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const pts=Math.round(600*combo*feverMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      gsRef.current._celestialHits=(gsRef.current._celestialHits||0)+1;
+      particlesRef.current.push({type:"shockwave",x:hit.x,y:hit.y,color:"#93c5fd",size:240,born:performance.now(),duration:700,alpha:0.5});
+      spawnPopup(hit.x,hit.y-34,`🌠 CELESTIAL! +${pts}`,"#93c5fd",22);
+      spawnParticles(hit.x,hit.y,"#1e40af",20,"spark");spawnParticles(hit.x,hit.y,"#93c5fd",8,"dot");
+      sfx("legendary");vibrate([14,8,18]);
+      unlock("celestial_tap");
+      if((gsRef.current._celestialHits||0)>=5)unlock("celestial_legend");
+      mascotHappyRef.current+=4;updateMissions(gs.sessionStats);
+      const cfgCe=levelCfgRef.current;
+      if(cfgCe){if(gs.score>=cfgCe.scoreGoal&&(!cfgCe.modifier||checkModGoal(cfgCe.modifier,gs))){endLevel(true);return;}}
       return;
     }
     // FRACTAL — splits into 2 smaller fractals on tap (depth 0→1); depth 1 fractals score directly
@@ -11936,7 +12144,7 @@ type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
   // Achievement tab state — "all" | "gameplay" | "progression" | "social"
   const [achTab, setAchTab] = React.useState("all");
   const ACH_CATS = {
-    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect","prism_tap","comet_tap","comet_early","mirrorball_tap","nexus_tap","phoenix_tap","phoenix_risen","icecomet_tap","voltage_tap","void_tap","void_master","clover_tap","clover_jackpot","ricochet_tap","ricochet_double","aurora_tap","aurora_perfect","fury_mode","score_10k","portal_tap","portal_chaos","particlebomb_tap","beacon_tap","beacon_surge","shadow_tap","shadow_clone_catch","spectral_tap","spectral_perfect","heart_tap","nova_tap","firefly_tap","firefly_swift","geode_crack","geode_gem","timebomb_defuse","timebomb_clutch","thunderbolt_tap","thunderbolt_clutch","gravityorb_tap","gravityorb_cluster","crystalball_tap","quantum_tap","quantum_stable","clockwork_tap","bloom_tap","bloom_harvest","reflector_tap","reflector_chaos","chain_collect","chain_triple","stardust_tap","stardust_shower","score_25k","solarflare_tap","solarflare_early","magma_tap","prismbomb_tap","prismbomb_triple","icecage_tap","icecage_full","pinwheel_tap","pinwheel_jackpot","supercell_tap","supercell_storm","vortex_tap","vortex_feast","pixel_tap","pixel_speedrun","neon_tap","neon_gold","lantern_tap","lantern_chain","drift_tap","drift_max","berserker_use","ghost_mode_use","nebula_tap","nebula_cluster","wisp_tap","wisp_still","meteor_tap","meteor_early","aura_tap","aura_edge","thunderclap_tap","thunderclap_surge","mirror_tap","mirror_triple","rune_tap","rune_power","score_50k","fractal_tap","fractal_cascade","plasma_tap","plasma_surge","timewarp_target_tap","timewarp_hoard"],
+    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect","prism_tap","comet_tap","comet_early","mirrorball_tap","nexus_tap","phoenix_tap","phoenix_risen","icecomet_tap","voltage_tap","void_tap","void_master","clover_tap","clover_jackpot","ricochet_tap","ricochet_double","aurora_tap","aurora_perfect","fury_mode","score_10k","portal_tap","portal_chaos","particlebomb_tap","beacon_tap","beacon_surge","shadow_tap","shadow_clone_catch","spectral_tap","spectral_perfect","heart_tap","nova_tap","firefly_tap","firefly_swift","geode_crack","geode_gem","timebomb_defuse","timebomb_clutch","thunderbolt_tap","thunderbolt_clutch","gravityorb_tap","gravityorb_cluster","crystalball_tap","quantum_tap","quantum_stable","clockwork_tap","bloom_tap","bloom_harvest","reflector_tap","reflector_chaos","chain_collect","chain_triple","stardust_tap","stardust_shower","score_25k","solarflare_tap","solarflare_early","magma_tap","prismbomb_tap","prismbomb_triple","icecage_tap","icecage_full","pinwheel_tap","pinwheel_jackpot","supercell_tap","supercell_storm","vortex_tap","vortex_feast","pixel_tap","pixel_speedrun","neon_tap","neon_gold","lantern_tap","lantern_chain","drift_tap","drift_max","berserker_use","ghost_mode_use","nebula_tap","nebula_cluster","wisp_tap","wisp_still","meteor_tap","meteor_early","aura_tap","aura_edge","thunderclap_tap","thunderclap_surge","mirror_tap","mirror_triple","rune_tap","rune_power","score_50k","fractal_tap","fractal_cascade","plasma_tap","plasma_surge","timewarp_target_tap","timewarp_hoard","solar_drone_tap","solar_drone_orbit","cluster_tap","cluster_rainbow","swarm_tap","swarm_master","celestial_tap","celestial_legend"],
     progression: ["level_10","level_50","level_100","prestige_1","three_stars_5","mascot_lv10","streak_25","streak_50","streak_10","streak_5","score_2000","world_complete"],
     social:      ["missions_all","daily_7","friday_fever","weekend_warrior","all_worlds","streak_saver","loot_chest"],
   };
