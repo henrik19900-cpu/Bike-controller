@@ -1319,7 +1319,7 @@ function drawPowerup(ctx, r, pwrType, ts) {
   ctx.setLineDash([r*0.35,r*0.18]); ctx.beginPath(); ctx.arc(0,0,r-4,0,Math.PI*2); ctx.stroke();
   ctx.setLineDash([]); ctx.restore();
   // Icon
-  const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",LIFE:"❤️",FREEZE:"❄️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐",CHAIN_LIGHTNING:"⚡",TIME_WARP:"⏱️",SCORE_BOOST:"×5",LIFE_SURGE:"❤️+2",MAGNET_FIELD:"🧲",OVERCLOCK:"⚡",SHIELD_WALL:"🏰",PHANTOM_TOUCH:"👻",COIN_RAIN:"🪙",BERSERKER:"⚔️",GHOST_MODE:"👻"};
+  const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",LIFE:"❤️",FREEZE:"❄️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐",CHAIN_LIGHTNING:"⚡",TIME_WARP:"⏱️",SCORE_BOOST:"×5",LIFE_SURGE:"❤️+2",MAGNET_FIELD:"🧲",OVERCLOCK:"⚡",SHIELD_WALL:"🏰",PHANTOM_TOUCH:"👻",COIN_RAIN:"🪙",BERSERKER:"⚔️",GHOST_MODE:"👻",SCORE_SHIELD:"🔰",DOUBLE_SPAWN:"×2+",STAR_RAIN:"⭐"};
   if(pwrType==="LUCKY"){ctx.shadowColor="#ffd700";ctx.shadowBlur=r*(1.2+pulse*0.8);}
   const label=icons[pwrType]||"⚡";
   ctx.font=`bold ${r*0.9}px serif`; ctx.textAlign="center"; ctx.textBaseline="middle";
@@ -4553,6 +4553,17 @@ function drawTarget(ctx, t, ts) {
     for(let i=0;i<6;i++){const a=(i/6)*Math.PI*2;ctx.lineTo(Math.cos(a)*fsr,Math.sin(a)*fsr);}
     ctx.closePath();ctx.fill();ctx.restore();
   }
+  else if(t.type==="star_rain_drop"){
+    ctx.save();ctx.shadowBlur=16;ctx.shadowColor="#ffd700";
+    const pulse=0.9+0.1*Math.sin(ts*0.015);
+    // 5-point star shape
+    ctx.fillStyle="#ffd700";ctx.globalAlpha=0.95;ctx.beginPath();
+    for(let i=0;i<10;i++){
+      const a=(i/10)*Math.PI*2-Math.PI/2;const sr=t.radius*(i%2===0?1:0.45)*pulse;
+      i===0?ctx.moveTo(Math.cos(a)*sr,Math.sin(a)*sr):ctx.lineTo(Math.cos(a)*sr,Math.sin(a)*sr);
+    }
+    ctx.closePath();ctx.fill();ctx.restore();
+  }
   else if(t.type==="frost_comet")   drawFrostComet(ctx,t.radius,ts);
   else if(t.type==="energy_web"){
     const webCount=(t._webNodes||0);
@@ -5880,6 +5891,41 @@ export default function NexusTap(){
       sfx("lucky");vibrate([10,5,10,5,10]);
       setNotif("👻 Ghost Mode! Bombs harmless for 7s!");
       unlock("ghost_mode_use");
+    } else if(ptype==="SCORE_SHIELD"){
+      // SCORE_SHIELD — next 3 misses don't reset streak (score protected)
+      gs._scoreShieldCharges=3;
+      activePwrRef.current=activePwrRef.current.filter(p=>p.type!=="SCORE_SHIELD");
+      activePwrRef.current.push({type:"SCORE_SHIELD",endsAt:Date.now()+30000,charges:3});
+      setActivePwrDisp([...activePwrRef.current]);
+      spawnPopup(x,y,"🔰 SCORE SHIELD!","#a3e635",20);
+      spawnParticles(x,y,"#a3e635",12,"spark");
+      sfx("lucky");vibrate([8,4,8]);
+      setNotif("🔰 Score Shield! Next 3 misses won't break streak!");
+    } else if(ptype==="DOUBLE_SPAWN"){
+      // DOUBLE_SPAWN — next 10 spawns create 2 targets at once
+      gs._doubleSpawnLeft=10;
+      spawnPopup(x,y,"🎯×2 DOUBLE SPAWN!","#f0abfc",20);
+      spawnParticles(x,y,"#f0abfc",12,"spark");
+      sfx("lucky");vibrate([8,4,8]);
+      setNotif("🎯 Double Spawn! 10× dual-target spawns!");
+    } else if(ptype==="STAR_RAIN"){
+      // STAR_RAIN — spawns 5 star targets (each worth 200pts extra)
+      for(let i=0;i<5;i++){
+        setTimeout(()=>{
+          const cw=canvasRef.current?.width||390;const ch=canvasRef.current?.height||700;
+          const sx=20+Math.random()*(cw-40),sy=100+Math.random()*(ch-180);
+          targetsRef.current.push({
+            id:Math.random().toString(36).slice(2),type:"star_rain_drop",
+            x:sx,y:sy,radius:22,color:"#ffd700",glow:"#fbbf24",
+            lifetime:2200,spawnedAt:Date.now(),born:performance.now(),
+            moving:false,ghost:false,vx:0,vy:0,trail:[],hitsLeft:1,maxHits:1,dying:null,
+          });
+        },i*250);
+      }
+      spawnPopup(x,y,"⭐ STAR RAIN!","#ffd700",20);
+      spawnParticles(x,y,"#ffd700",14,"spark");
+      sfx("starEarn");vibrate([6,3,10,3,6]);
+      setNotif("⭐ Star Rain! 5 golden stars incoming!");
     } else {
       const dur=ptype==="SLOW"?7000:ptype==="FREEZE"?5000:9000;
       activePwrRef.current=activePwrRef.current.filter(p=>p.type!==ptype);
@@ -5917,7 +5963,7 @@ export default function NexusTap(){
       type="bomb";color="#ef4444";glow="#dc2626";sfx("bombSpawn");
     } else if(r<(bossRate||0)+effBomb+0.07){
       type="powerup";color="#60a5fa";glow="#3b82f6";
-      const pt=["SHIELD","SLOW","DOUBLE","LIFE","FREEZE","LUCKY","MIRROR","MULTIPLIER","COMBO_FREEZE","GRAVITY","CHAIN_LIGHTNING","TIME_WARP","SCORE_BOOST","LIFE_SURGE","MAGNET_FIELD","OVERCLOCK","SHIELD_WALL","PHANTOM_TOUCH","COIN_RAIN","BERSERKER","GHOST_MODE"];
+      const pt=["SHIELD","SLOW","DOUBLE","LIFE","FREEZE","LUCKY","MIRROR","MULTIPLIER","COMBO_FREEZE","GRAVITY","CHAIN_LIGHTNING","TIME_WARP","SCORE_BOOST","LIFE_SURGE","MAGNET_FIELD","OVERCLOCK","SHIELD_WALL","PHANTOM_TOUCH","COIN_RAIN","BERSERKER","GHOST_MODE","SCORE_SHIELD","DOUBLE_SPAWN","STAR_RAIN"];
       pwrType=pt[Math.floor(Math.random()*pt.length)];
     } else if(r<(bossRate||0)+effBomb+0.07+0.045&&(gs.score>0||Math.random()<0.3)&&luckyRef.current!=="active"){
       // 4.5% treasure chest — the variable reward slot machine
@@ -6318,7 +6364,7 @@ type==="surge_ball"?BASE_R*1.2:type==="ticking_clock"?BASE_R*1.3:type==="echo_pu
 type==="gravity_well"?BASE_R*1.45:type==="spectrum_orb"?BASE_R*1.25:type==="shard_storm"?BASE_R*1.3:type==="pulse_nova"?BASE_R*1.35:
 type==="bubble_cluster"?BASE_R*1.5:type==="void_shard"?BASE_R*1.1:type==="stasis_field"?BASE_R*1.4:type==="crystalline"?BASE_R*1.2:
 type==="quantum_leap"?BASE_R*1.15:type==="magma_burst"?BASE_R*1.25:type==="lightning_rod"?BASE_R*1.3:type==="prism_gate"?BASE_R*1.35:type==="prism_shard"?BASE_R*0.38:
-type==="solar_burst"?BASE_R*1.4:type==="frost_comet"?BASE_R*1.15:type==="frost_shard"?BASE_R*0.35:type==="energy_web"?BASE_R*1.35:type==="void_rift"?BASE_R*1.6:
+type==="solar_burst"?BASE_R*1.4:type==="frost_comet"?BASE_R*1.15:type==="frost_shard"?BASE_R*0.35:type==="energy_web"?BASE_R*1.35:type==="void_rift"?BASE_R*1.6:type==="star_rain_drop"?BASE_R*0.85:
 type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
@@ -8088,6 +8134,21 @@ type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
       updateMissions(gs.sessionStats);
       const cfgMr=levelCfgRef.current;
       if(cfgMr){if(gs.score>=cfgMr.scoreGoal&&(!cfgMr.modifier||checkModGoal(cfgMr.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+    // STAR RAIN DROP — 200pts bonus star; spawned by STAR_RAIN power-up
+    if(hit.type==="star_rain_drop"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const pts=Math.round(200*combo*feverMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      spawnPopup(hit.x,hit.y-18,`⭐ +${pts}`,"#ffd700",15);
+      spawnParticles(hit.x,hit.y,"#ffd700",8,"spark");
+      sfx("starEarn");vibrate(5);
+      gs.sessionStats.tapsTotal++;updateMissions(gs.sessionStats);
+      const cfgSR=levelCfgRef.current;
+      if(cfgSR){if(gs.score>=cfgSR.scoreGoal&&(!cfgSR.modifier||checkModGoal(cfgSR.modifier,gs))){endLevel(true);return;}}
       return;
     }
     // SOLAR BURST — AoE; 200pts base + 150pts per extra target within 1.5× radius
@@ -10907,6 +10968,15 @@ type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
             // COMBO_FREEZE active — protect streak, just flash blue
             spawnParticles(t.x,t.y,"#67e8f9",8,"spark");
             spawnPopup(t.x,t.y-18,"🧊 COMBO SAVED!","#67e8f9",13);
+          } else if(gs._scoreShieldCharges>0){
+            // SCORE_SHIELD active — absorb one miss without breaking streak
+            gs._scoreShieldCharges--;
+            const shields=activePwrRef.current.find(p=>p.type==="SCORE_SHIELD");
+            if(shields)shields.charges=gs._scoreShieldCharges;
+            if(gs._scoreShieldCharges<=0)activePwrRef.current=activePwrRef.current.filter(p=>p.type!=="SCORE_SHIELD");
+            setActivePwrDisp([...activePwrRef.current]);
+            spawnParticles(t.x,t.y,"#a3e635",8,"spark");
+            spawnPopup(t.x,t.y-18,`🔰 SHIELDED! (${gs._scoreShieldCharges} left)`,"#a3e635",13);
           } else {
             gs._comboGuardCount=0;
             gs.streak=0;streakShRef.current=false;setStreakShieldActive(false);setMascotMood("sad");
@@ -11050,7 +11120,11 @@ type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const rushSpawnMult=isRush?0.65:1;
     const conductorMult=(gs._conductorEndsAt&&Date.now()<gs._conductorEndsAt)?0.45:1;
     const doubleSpawnMult=gs._doubleSpawnActive?0.5:1;
-    if(spawnTimer.current>=(rageSpawn?cfg.spawnInterval*0.5:cfg.spawnInterval*rushSpawnMult*conductorMult*doubleSpawnMult)){spawnTimer.current=0;spawnTarget();}
+    if(spawnTimer.current>=(rageSpawn?cfg.spawnInterval*0.5:cfg.spawnInterval*rushSpawnMult*conductorMult*doubleSpawnMult)){
+      spawnTimer.current=0;spawnTarget();
+      // DOUBLE_SPAWN power-up — spawn an additional target
+      if(gs._doubleSpawnLeft>0){gs._doubleSpawnLeft--;setTimeout(()=>spawnTarget(),80);}
+    }
 
     // Bounty Target — once per level, designate one normal target as a bounty (3× coins)
     if(!cfg.isBoss&&!cfg.isZen&&!cfg.isGauntlet&&!gs.bountySet){
@@ -12540,8 +12614,8 @@ type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
               const totalSecs=p.type==="SHIELD"?25:p.type==="SLOW"?8:p.type==="DOUBLE"?10:p.type==="FREEZE"?4:p.type==="MULTIPLIER"?8:p.type==="COMBO_FREEZE"?10:p.type==="TIME_WARP"?6:12;
               const pct=Math.min(100,Math.round(secsLeft/totalSecs*100));
               const isExpiring=secsLeft<=2&&secsLeft>0;
-              const colors={SHIELD:"#fbbf24",SLOW:"#60a5fa",DOUBLE:"#f97316",FREEZE:"#06b6d4",LIFE:"#4ade80",LUCKY:"#ffd700",MIRROR:"#c084fc",MULTIPLIER:"#f43f5e",COMBO_FREEZE:"#67e8f9",GRAVITY:"#a78bfa",TIME_WARP:"#818cf8",SCORE_BOOST:"#f43f5e",LIFE_SURGE:"#4ade80",MAGNET_FIELD:"#ec4899",OVERCLOCK:"#fbbf24",SHIELD_WALL:"#a78bfa",PHANTOM_TOUCH:"#818cf8",COIN_RAIN:"#ffd700",BERSERKER:"#ef4444",GHOST_MODE:"#818cf8"};
-              const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",FREEZE:"❄️",LIFE:"❤️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐",TIME_WARP:"⏱️",SCORE_BOOST:"×5",LIFE_SURGE:"💚",MAGNET_FIELD:"🧲",OVERCLOCK:"⚡",SHIELD_WALL:"🏰",PHANTOM_TOUCH:"👻",COIN_RAIN:"🪙"};
+              const colors={SHIELD:"#fbbf24",SLOW:"#60a5fa",DOUBLE:"#f97316",FREEZE:"#06b6d4",LIFE:"#4ade80",LUCKY:"#ffd700",MIRROR:"#c084fc",MULTIPLIER:"#f43f5e",COMBO_FREEZE:"#67e8f9",GRAVITY:"#a78bfa",TIME_WARP:"#818cf8",SCORE_BOOST:"#f43f5e",LIFE_SURGE:"#4ade80",MAGNET_FIELD:"#ec4899",OVERCLOCK:"#fbbf24",SHIELD_WALL:"#a78bfa",PHANTOM_TOUCH:"#818cf8",COIN_RAIN:"#ffd700",BERSERKER:"#ef4444",GHOST_MODE:"#818cf8",SCORE_SHIELD:"#a3e635",DOUBLE_SPAWN:"#f0abfc",STAR_RAIN:"#ffd700"};
+              const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",FREEZE:"❄️",LIFE:"❤️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐",TIME_WARP:"⏱️",SCORE_BOOST:"×5",LIFE_SURGE:"💚",MAGNET_FIELD:"🧲",OVERCLOCK:"⚡",SHIELD_WALL:"🏰",PHANTOM_TOUCH:"👻",COIN_RAIN:"🪙",BERSERKER:"⚔️",GHOST_MODE:"👻",SCORE_SHIELD:"🔰",DOUBLE_SPAWN:"×2+",STAR_RAIN:"⭐"};
               const c=colors[p.type]||"#60a5fa";
               return(
                 <div key={p.type} className="flex flex-col items-center gap-0.5"
