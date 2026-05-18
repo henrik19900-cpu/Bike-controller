@@ -1385,7 +1385,7 @@ function drawPowerup(ctx, r, pwrType, ts) {
   ctx.setLineDash([r*0.35,r*0.18]); ctx.beginPath(); ctx.arc(0,0,r-4,0,Math.PI*2); ctx.stroke();
   ctx.setLineDash([]); ctx.restore();
   // Icon
-  const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",LIFE:"❤️",FREEZE:"❄️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐",CHAIN_LIGHTNING:"⚡",TIME_WARP:"⏱️",SCORE_BOOST:"×5",LIFE_SURGE:"❤️+2",MAGNET_FIELD:"🧲",OVERCLOCK:"⚡",SHIELD_WALL:"🏰",PHANTOM_TOUCH:"👻",COIN_RAIN:"🪙",BERSERKER:"⚔️",GHOST_MODE:"👻",SCORE_SHIELD:"🔰",DOUBLE_SPAWN:"×2+",STAR_RAIN:"⭐"};
+  const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",LIFE:"❤️",FREEZE:"❄️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐",CHAIN_LIGHTNING:"⚡",TIME_WARP:"⏱️",SCORE_BOOST:"×5",LIFE_SURGE:"❤️+2",MAGNET_FIELD:"🧲",OVERCLOCK:"⚡",SHIELD_WALL:"🏰",PHANTOM_TOUCH:"👻",COIN_RAIN:"🪙",BERSERKER:"⚔️",GHOST_MODE:"👻",SCORE_SHIELD:"🔰",DOUBLE_SPAWN:"×2+",STAR_RAIN:"⭐",TIME_STOP:"⏸️",MEGA_TAP:"💥",RAINBOW_SURGE:"🌈"};
   if(pwrType==="LUCKY"){ctx.shadowColor="#ffd700";ctx.shadowBlur=r*(1.2+pulse*0.8);}
   const label=icons[pwrType]||"⚡";
   ctx.font=`bold ${r*0.9}px serif`; ctx.textAlign="center"; ctx.textBaseline="middle";
@@ -6805,6 +6805,34 @@ export default function NexusTap(){
       spawnParticles(x,y,"#f0abfc",12,"spark");
       sfx("lucky");vibrate([8,4,8]);
       setNotif("🎯 Double Spawn! 10× dual-target spawns!");
+    } else if(ptype==="TIME_STOP"){
+      // TIME_STOP — freeze target expiry timers for 4s (nothing expires while active)
+      activePwrRef.current=activePwrRef.current.filter(p=>p.type!=="TIME_STOP");
+      activePwrRef.current.push({type:"TIME_STOP",endsAt:Date.now()+4000});
+      setActivePwrDisp([...activePwrRef.current]);
+      spawnPopup(x,y,"⏸️ TIME STOP!","#67e8f9",22);
+      spawnParticles(x,y,"#67e8f9",14,"spark");
+      sfx("feverStart");vibrate([8,4,12,4,8]);
+      setNotif("⏸️ Time Stop! Nothing expires for 4s!");
+    } else if(ptype==="MEGA_TAP"){
+      // MEGA_TAP — next 10 taps each give 3× pts
+      gsRef.current._megaTapCharges=10;
+      activePwrRef.current=activePwrRef.current.filter(p=>p.type!=="MEGA_TAP");
+      activePwrRef.current.push({type:"MEGA_TAP",charges:10,endsAt:Date.now()+20000});
+      setActivePwrDisp([...activePwrRef.current]);
+      spawnPopup(x,y,"💥 MEGA TAP!","#fb923c",22);
+      spawnParticles(x,y,"#fb923c",14,"spark");
+      sfx("chainBonus");vibrate([8,4,14,4,8]);
+      setNotif("💥 Mega Tap! Next 10 taps = 3× pts!");
+    } else if(ptype==="RAINBOW_SURGE"){
+      // RAINBOW_SURGE — all targets spawn as Legendary quality for 6s
+      activePwrRef.current=activePwrRef.current.filter(p=>p.type!=="RAINBOW_SURGE");
+      activePwrRef.current.push({type:"RAINBOW_SURGE",endsAt:Date.now()+6000});
+      setActivePwrDisp([...activePwrRef.current]);
+      spawnPopup(x,y,"🌈 RAINBOW SURGE!","#f472b6",22);
+      spawnParticles(x,y,"#f472b6",16,"spark");
+      sfx("legendary");vibrate([8,4,12,4,8]);
+      setNotif("🌈 Rainbow Surge! All targets are LEGENDARY for 6s!");
     } else if(ptype==="STAR_RAIN"){
       // STAR_RAIN — spawns 5 star targets (each worth 200pts extra)
       for(let i=0;i<5;i++){
@@ -6860,7 +6888,7 @@ export default function NexusTap(){
       type="bomb";color="#ef4444";glow="#dc2626";sfx("bombSpawn");
     } else if(r<(bossRate||0)+effBomb+0.07){
       type="powerup";color="#60a5fa";glow="#3b82f6";
-      const pt=["SHIELD","SLOW","DOUBLE","LIFE","FREEZE","LUCKY","MIRROR","MULTIPLIER","COMBO_FREEZE","GRAVITY","CHAIN_LIGHTNING","TIME_WARP","SCORE_BOOST","LIFE_SURGE","MAGNET_FIELD","OVERCLOCK","SHIELD_WALL","PHANTOM_TOUCH","COIN_RAIN","BERSERKER","GHOST_MODE","SCORE_SHIELD","DOUBLE_SPAWN","STAR_RAIN"];
+      const pt=["SHIELD","SLOW","DOUBLE","LIFE","FREEZE","LUCKY","MIRROR","MULTIPLIER","COMBO_FREEZE","GRAVITY","CHAIN_LIGHTNING","TIME_WARP","SCORE_BOOST","LIFE_SURGE","MAGNET_FIELD","OVERCLOCK","SHIELD_WALL","PHANTOM_TOUCH","COIN_RAIN","BERSERKER","GHOST_MODE","SCORE_SHIELD","DOUBLE_SPAWN","STAR_RAIN","TIME_STOP","MEGA_TAP","RAINBOW_SURGE"];
       pwrType=pt[Math.floor(Math.random()*pt.length)];
     } else if(r<(bossRate||0)+effBomb+0.07+0.045&&(gs.score>0||Math.random()<0.3)&&luckyRef.current!=="active"){
       // 4.5% treasure chest — the variable reward slot machine
@@ -7345,7 +7373,7 @@ export default function NexusTap(){
       // 3.5% Mystery Box — Las Vegas variable-ratio slot machine
       type="mystery";color="#ffd700";glow="#b8860b";
     } else {
-      if(gs.bonusRoundActive)rarity=RARITY.LEGENDARY; // Bonus Round: ALL LEGENDARY!
+      if(gs.bonusRoundActive||activePwrRef.current.some(p=>p.type==="RAINBOW_SURGE"&&p.endsAt>Date.now()))rarity=RARITY.LEGENDARY; // Bonus Round or Rainbow Surge: ALL LEGENDARY!
       color=rarity.color;glow=rarity.glow;
       if(Math.random()<effMoving){
         moving=true;const a=Math.random()*Math.PI*2,sp=0.6+Math.random()*1.4;
@@ -11783,7 +11811,8 @@ type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const bounty=bountyRef.current;
     const bountyHit=bounty&&bounty.expiresAt>Date.now()&&hit.rarity?.name===bounty.rarity;
     const bountyMult=bountyHit?bounty.mult:1;
-    const pts=Math.round(hit.rarity.mult*combo*feverMult*(isDouble?2:1)*(isMultiplier?3:1)*(isPerfect?1.5:1)*(isLastBreath?1.5:1)*prestigeMult*shardMult*poisonMult*scoreBoostMult*beaconMult*overclockMult*bountyMult*supercellMult*berserkerMult);
+    const megaTapMult=(()=>{const mt=activePwrRef.current.find(p=>p.type==="MEGA_TAP"&&p.endsAt>Date.now());if(!mt||!gs._megaTapCharges||gs._megaTapCharges<=0)return 1;gs._megaTapCharges--;mt.charges=gs._megaTapCharges;if(gs._megaTapCharges<=0){activePwrRef.current=activePwrRef.current.filter(p=>p.type!=="MEGA_TAP");setActivePwrDisp([...activePwrRef.current]);}return 3;})();
+    const pts=Math.round(hit.rarity.mult*combo*feverMult*(isDouble?2:1)*(isMultiplier?3:1)*(isPerfect?1.5:1)*(isLastBreath?1.5:1)*prestigeMult*shardMult*poisonMult*scoreBoostMult*beaconMult*overclockMult*bountyMult*supercellMult*berserkerMult*megaTapMult);
     gs.score+=pts;
     if(bountyHit){
       spawnPopup(hit.x,hit.y-38,`🎯 BOUNTY! ×${bounty.mult} +${pts}`,bounty.color,22);
@@ -12713,6 +12742,8 @@ type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
       // Expiry
       if((now-t.spawnedAt)>=t.lifetime){
         if(t.type==="powerup"||t.type==="bomb"||t.type==="boss"||t.type==="treasure")return false;
+        // TIME_STOP — freeze normal target expiry (bombs and bosses still expire)
+        if(activePwrRef.current.some(p=>p.type==="TIME_STOP"&&p.endsAt>now)&&t.type!=="drift_mine"&&t.type!=="timebomb"&&t.type!=="siphon"&&t.type!=="poison"){return true;}
         // PHOENIX expired — respawns once as phoenix2 (risen form)
         if(t.type==="phoenix"&&!t._hasRisen){
           spawnParticles(t.x,t.y,"#f97316",12,"spark");
@@ -14497,8 +14528,8 @@ type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
               const totalSecs=p.type==="SHIELD"?25:p.type==="SLOW"?8:p.type==="DOUBLE"?10:p.type==="FREEZE"?4:p.type==="MULTIPLIER"?8:p.type==="COMBO_FREEZE"?10:p.type==="TIME_WARP"?6:12;
               const pct=Math.min(100,Math.round(secsLeft/totalSecs*100));
               const isExpiring=secsLeft<=2&&secsLeft>0;
-              const colors={SHIELD:"#fbbf24",SLOW:"#60a5fa",DOUBLE:"#f97316",FREEZE:"#06b6d4",LIFE:"#4ade80",LUCKY:"#ffd700",MIRROR:"#c084fc",MULTIPLIER:"#f43f5e",COMBO_FREEZE:"#67e8f9",GRAVITY:"#a78bfa",TIME_WARP:"#818cf8",SCORE_BOOST:"#f43f5e",LIFE_SURGE:"#4ade80",MAGNET_FIELD:"#ec4899",OVERCLOCK:"#fbbf24",SHIELD_WALL:"#a78bfa",PHANTOM_TOUCH:"#818cf8",COIN_RAIN:"#ffd700",BERSERKER:"#ef4444",GHOST_MODE:"#818cf8",SCORE_SHIELD:"#a3e635",DOUBLE_SPAWN:"#f0abfc",STAR_RAIN:"#ffd700"};
-              const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",FREEZE:"❄️",LIFE:"❤️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐",TIME_WARP:"⏱️",SCORE_BOOST:"×5",LIFE_SURGE:"💚",MAGNET_FIELD:"🧲",OVERCLOCK:"⚡",SHIELD_WALL:"🏰",PHANTOM_TOUCH:"👻",COIN_RAIN:"🪙",BERSERKER:"⚔️",GHOST_MODE:"👻",SCORE_SHIELD:"🔰",DOUBLE_SPAWN:"×2+",STAR_RAIN:"⭐"};
+              const colors={SHIELD:"#fbbf24",SLOW:"#60a5fa",DOUBLE:"#f97316",FREEZE:"#06b6d4",LIFE:"#4ade80",LUCKY:"#ffd700",MIRROR:"#c084fc",MULTIPLIER:"#f43f5e",COMBO_FREEZE:"#67e8f9",GRAVITY:"#a78bfa",TIME_WARP:"#818cf8",SCORE_BOOST:"#f43f5e",LIFE_SURGE:"#4ade80",MAGNET_FIELD:"#ec4899",OVERCLOCK:"#fbbf24",SHIELD_WALL:"#a78bfa",PHANTOM_TOUCH:"#818cf8",COIN_RAIN:"#ffd700",BERSERKER:"#ef4444",GHOST_MODE:"#818cf8",SCORE_SHIELD:"#a3e635",DOUBLE_SPAWN:"#f0abfc",STAR_RAIN:"#ffd700",TIME_STOP:"#67e8f9",MEGA_TAP:"#fb923c",RAINBOW_SURGE:"#f472b6"};
+              const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",FREEZE:"❄️",LIFE:"❤️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐",TIME_WARP:"⏱️",SCORE_BOOST:"×5",LIFE_SURGE:"💚",MAGNET_FIELD:"🧲",OVERCLOCK:"⚡",SHIELD_WALL:"🏰",PHANTOM_TOUCH:"👻",COIN_RAIN:"🪙",BERSERKER:"⚔️",GHOST_MODE:"👻",SCORE_SHIELD:"🔰",DOUBLE_SPAWN:"×2+",STAR_RAIN:"⭐",TIME_STOP:"⏸️",MEGA_TAP:"💥",RAINBOW_SURGE:"🌈"};
               const c=colors[p.type]||"#60a5fa";
               return(
                 <div key={p.type} className="flex flex-col items-center gap-0.5"
