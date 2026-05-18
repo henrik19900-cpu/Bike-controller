@@ -573,6 +573,12 @@ const ACHIEVEMENTS = [
   { id:"warpgate_chaos",     label:"Chaos Warp",       desc:"Warp Gate teleports 5+ targets at once", icon:"🌪️",xp:80 },
   { id:"mirage_tap",         label:"Mirage Buster",    desc:"Spot and tap a Mirage target",           icon:"🏜️",xp:15 },
   { id:"mirage_avoid",       label:"Sharp Eyes",       desc:"Let a Mirage expire without tapping it", icon:"👁️",xp:55 },
+  { id:"surgeball_tap",      label:"Arc Striker",      desc:"Tap a Surge Ball target",                icon:"⚡",xp:20 },
+  { id:"surgeball_chain",    label:"Chain Reaction",   desc:"Surge Ball chains to 3+ targets at once",icon:"🔗",xp:70 },
+  { id:"clock_tap",          label:"Clockwatcher",     desc:"Tap a Ticking Clock target",             icon:"🕐",xp:20 },
+  { id:"clock_jackpot",      label:"On the Dot",       desc:"Tap Ticking Clock as hand hits 12",      icon:"🎯",xp:90 },
+  { id:"echopulse_tap",      label:"Wave Rider",       desc:"Tap an Echo Pulse target",               icon:"◎",xp:20 },
+  { id:"echopulse_bonus",    label:"Ring Collector",   desc:"Collect 3+ rings from one Echo Pulse",   icon:"💜",xp:75 },
 ];
 
 const MISSION_TEMPLATES = [
@@ -2982,6 +2988,76 @@ function drawAuraRing(ctx,r,ts){
   }
   ctx.globalAlpha=1;ctx.restore();
 }
+// ── Surge Ball — charged electric sphere; creates a chain of lightning on tap ──
+function drawSurgeBall(ctx,r,ts){
+  ctx.save();
+  const pulse=0.8+0.2*Math.abs(Math.sin(ts*0.011));
+  ctx.shadowBlur=22*pulse;ctx.shadowColor="#facc15";
+  const grad=ctx.createRadialGradient(0,0,0,0,0,r);
+  grad.addColorStop(0,"#fefce8");grad.addColorStop(0.35,"#facc15");
+  grad.addColorStop(0.7,"#ca8a04");grad.addColorStop(1,"#1a0a00");
+  ctx.fillStyle=grad;ctx.beginPath();ctx.arc(0,0,r*pulse,0,Math.PI*2);ctx.fill();
+  // Electric arcs
+  for(let i=0;i<4;i++){
+    const a1=(i/4)*Math.PI*2+ts*0.006;
+    const a2=a1+Math.PI*0.35;
+    ctx.strokeStyle="#fef08a";ctx.lineWidth=1.5;ctx.globalAlpha=0.8*pulse;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a1)*r*0.55,Math.sin(a1)*r*0.55);
+    const mx=Math.cos((a1+a2)/2)*r*(0.95+Math.random()*0.2);
+    const my=Math.sin((a1+a2)/2)*r*(0.95+Math.random()*0.2);
+    ctx.quadraticCurveTo(mx,my,Math.cos(a2)*r*0.55,Math.sin(a2)*r*0.55);
+    ctx.stroke();
+  }
+  ctx.globalAlpha=1;ctx.fillStyle="#fefce8";
+  ctx.font=`${Math.round(r*0.6)}px serif`;ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.fillText("⚡",0,0);ctx.restore();
+}
+// ── Ticking Clock — counts down; tap as clock hand hits 12 for jackpot ──
+function drawTickingClock(ctx,r,ts,secsLeft,totalSecs){
+  ctx.save();
+  const handAngle=((totalSecs-secsLeft)/totalSecs)*Math.PI*2-Math.PI/2;
+  const isNearTop=Math.abs(secsLeft-totalSecs)<0.3||secsLeft<0.3;
+  ctx.shadowBlur=isNearTop?22:10;ctx.shadowColor=isNearTop?"#ffd700":"#94a3b8";
+  // Clock body
+  const grad=ctx.createRadialGradient(0,0,0,0,0,r);
+  grad.addColorStop(0,"#1e293b");grad.addColorStop(0.7,"#0f172a");grad.addColorStop(1,"#020617");
+  ctx.fillStyle=grad;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  // Clock rim
+  ctx.strokeStyle=isNearTop?"#ffd700":"#475569";ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.stroke();
+  // Hour markers
+  for(let i=0;i<12;i++){
+    const a=(i/12)*Math.PI*2-Math.PI/2;
+    const big=i%3===0;
+    ctx.fillStyle=big?"#94a3b8":"#475569";
+    ctx.beginPath();ctx.arc(Math.cos(a)*r*0.82,Math.sin(a)*r*0.82,big?r*0.06:r*0.04,0,Math.PI*2);ctx.fill();
+  }
+  // Clock hand (sweeps from 12 as time passes)
+  ctx.strokeStyle=isNearTop?"#ffd700":"#f1f5f9";ctx.lineWidth=2.5;ctx.lineCap="round";
+  ctx.shadowBlur=isNearTop?12:0;ctx.shadowColor="#ffd700";
+  ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(Math.cos(handAngle)*r*0.68,Math.sin(handAngle)*r*0.68);ctx.stroke();
+  // Seconds left
+  ctx.fillStyle=isNearTop?"#ffd700":"#94a3b8";ctx.font=`bold ${Math.round(r*0.3)}px sans-serif`;
+  ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(`${Math.ceil(secsLeft)}s`,0,r*0.22);
+  ctx.restore();
+}
+// ── Echo Pulse — emits rings that grow outward; each ring is a scoreable tap ──
+function drawEchoPulse(ctx,r,ts,rings){
+  ctx.save();
+  // Center orb
+  ctx.shadowBlur=14;ctx.shadowColor="#c084fc";
+  const g=ctx.createRadialGradient(0,0,0,0,0,r*0.6);
+  g.addColorStop(0,"#e879f9");g.addColorStop(1,"#7e22ce");
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,0,r*0.55,0,Math.PI*2);ctx.fill();
+  // Pulse rings at expanding radii
+  rings.forEach((ring,i)=>{
+    const ringR=ring.r||0;const alpha=(ring.maxR-ringR)/ring.maxR;
+    ctx.strokeStyle=`rgba(192,132,252,${alpha*0.7})`;ctx.lineWidth=2.5-alpha*1;
+    ctx.beginPath();ctx.arc(0,0,ringR,0,Math.PI*2);ctx.stroke();
+  });
+  ctx.fillStyle="#f5d0fe";ctx.font=`bold ${Math.round(r*0.38)}px sans-serif`;
+  ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("◎",0,-r*0.02);ctx.restore();
+}
 // ── Smoke Ring — expands outward; tap it before it fades for pts based on ring size ──
 function drawSmokeRing(ctx,r,ts,expandPct){
   ctx.save();
@@ -4051,6 +4127,24 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="chain_bomb")    drawChainBomb(ctx,t.radius,ts);
   else if(t.type==="warp_gate")     drawWarpGate(ctx,t.radius,ts);
   else if(t.type==="mirage")        drawMirage(ctx,t.radius,ts);
+  else if(t.type==="surge_ball")    drawSurgeBall(ctx,t.radius,ts);
+  else if(t.type==="ticking_clock"){
+    const elapsed=(Date.now()-t.spawnedAt)/1000;
+    const totalSecs=(t.lifetime||4000)/1000;
+    const secsLeft=Math.max(0,totalSecs-elapsed);
+    drawTickingClock(ctx,t.radius,ts,secsLeft,totalSecs);
+  }
+  else if(t.type==="echo_pulse"){
+    if(!t._rings)t._rings=[];
+    const now2=Date.now();const interval=700;
+    if(!t._lastRingAt||now2-t._lastRingAt>interval){
+      t._lastRingAt=now2;
+      t._rings.push({r:t.radius*0.55,maxR:t.radius*2.2,born:now2,life:900});
+    }
+    t._rings=t._rings.filter(rg=>now2-rg.born<rg.life);
+    t._rings.forEach(rg=>{const age=(now2-rg.born)/rg.life;rg.r=t.radius*0.55+age*(rg.maxR-t.radius*0.55);});
+    drawEchoPulse(ctx,t.radius,ts,t._rings);
+  }
   else if(t.type==="solar_drone")   drawSolarDrone(ctx,t.radius,ts);
   else if(t.type==="crystal_cluster") drawCrystalCluster(ctx,t.radius,ts);
   else if(t.type==="swarm")         drawSwarm(ctx,t.radius,ts);
@@ -5683,6 +5777,15 @@ export default function NexusTap(){
     } else if((cfg.id||0)>=20&&Math.random()<0.015&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1.5% Rune Stone — cycles power runes; score based on which rune phase when tapped
       type="rune_stone";color="#7c3aed";glow="#a855f7";
+    } else if((cfg.id||0)>=16&&Math.random()<0.016&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.6% Surge Ball — charged electric sphere; chains lightning to 3 nearest targets on tap
+      type="surge_ball";color="#facc15";glow="#fef08a";
+    } else if((cfg.id||0)>=22&&Math.random()<0.014&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.4% Ticking Clock — tap as the hand sweeps near 12 o'clock for jackpot
+      type="ticking_clock";color="#94a3b8";glow="#e2e8f0";
+    } else if((cfg.id||0)>=18&&Math.random()<0.015&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.5% Echo Pulse — emits expanding rings; tap to collect all live rings for bonus
+      type="echo_pulse";color="#c084fc";glow="#e879f9";
     } else if(Math.random()<0.035&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")&&!gs.mysteryPause){
       // 3.5% Mystery Box — Las Vegas variable-ratio slot machine
       type="mystery";color="#ffd700";glow="#b8860b";
@@ -5703,6 +5806,7 @@ type==="thunderclap"?BASE_R*1.4:type==="mirror_shard"?BASE_R*1.0:type==="rune_st
 type==="fractal"?BASE_R*1.2:type==="fractal_mini"?BASE_R*0.7:type==="plasma"?BASE_R*1.25:type==="timewarp_tgt"?BASE_R*1.3:
 type==="solar_drone"?BASE_R*1.15:type==="crystal_cluster"?BASE_R*1.5:type==="swarm"?BASE_R*1.35:type==="celestial"?BASE_R*1.7:
 type==="smoke_ring"?BASE_R*1.2:type==="chain_bomb"?BASE_R*1.25:type==="warp_gate"?BASE_R*1.3:type==="mirage"?BASE_R*(rarity?.size||1.0):
+type==="surge_ball"?BASE_R*1.2:type==="ticking_clock"?BASE_R*1.3:type==="echo_pulse"?BASE_R*1.4:
 type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
@@ -5788,6 +5892,12 @@ type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     if(type==="warp_gate")lifetime=Math.max(lifetime,3000);
     // Mirage: medium-long — time to spot it
     if(type==="mirage")lifetime=Math.max(lifetime,4000);
+    // Surge Ball: medium — enough for 1-2 arc cycles
+    if(type==="surge_ball")lifetime=Math.max(lifetime,3200);
+    // Ticking Clock: fixed 4s sweep — hand makes full rotation
+    if(type==="ticking_clock")lifetime=4000;
+    // Echo Pulse: 3.5s — rings expand and fade over that window
+    if(type==="echo_pulse")lifetime=3500;
     // Solar Drone: medium
     if(type==="solar_drone")lifetime=Math.max(lifetime,3200);
     // Crystal Cluster: medium-long
@@ -7434,6 +7544,74 @@ type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
       updateMissions(gs.sessionStats);
       const cfgMr=levelCfgRef.current;
       if(cfgMr){if(gs.score>=cfgMr.scoreGoal&&(!cfgMr.modifier||checkModGoal(cfgMr.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+    // SURGE BALL — base 250pts; chains lightning to up to 3 nearest non-bomb targets (+100pts each)
+    if(hit.type==="surge_ball"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      // find nearest non-bomb targets for chain
+      const candidates=targetsRef.current.filter(t=>t.type!=="bomb"&&t.type!=="chain_bomb"&&!t.dying&&Date.now()>=t.spawnedAt);
+      candidates.sort((a,b)=>Math.hypot(a.x-hit.x,a.y-hit.y)-Math.hypot(b.x-hit.x,b.y-hit.y));
+      const chainTargets=candidates.slice(0,3);
+      const chainPts=chainTargets.length*100;
+      const basePts=250;
+      const pts=Math.round((basePts+chainPts)*combo*feverMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      // visual chain arcs to each chained target
+      chainTargets.forEach(ct=>{
+        ct.dying=performance.now();
+        spawnParticles(ct.x,ct.y,"#facc15",6,"spark");
+        spawnPopup(ct.x,ct.y-16,"⚡+100","#facc15",12);
+      });
+      spawnPopup(hit.x,hit.y-26,`⚡ SURGE! +${pts}`,"#facc15",18);
+      spawnParticles(hit.x,hit.y,"#fef08a",12,"spark");
+      sfx("chainBonus");vibrate([8,4,8,4,8]);
+      unlock("surgeball_tap");
+      if(chainTargets.length>=3)unlock("surgeball_chain");
+      gs.sessionStats.tapsTotal++;updateMissions(gs.sessionStats);
+      const cfgSB=levelCfgRef.current;
+      if(cfgSB){if(gs.score>=cfgSB.scoreGoal&&(!cfgSB.modifier||checkModGoal(cfgSB.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+    // TICKING CLOCK — base 200pts; jackpot 800pts if hand is within 15° of 12 o'clock on tap
+    if(hit.type==="ticking_clock"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const elapsed=(Date.now()-hit.spawnedAt)/1000;
+      const totalSecs=(hit.lifetime||4000)/1000;
+      const handAngleDeg=((elapsed/totalSecs)*360)%360;
+      const isJackpot=handAngleDeg<=15||handAngleDeg>=345;
+      const pts=Math.round((isJackpot?800:200)*combo*feverMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      spawnPopup(hit.x,hit.y-26,isJackpot?`🕐 JACKPOT! +${pts}`:`🕐 TICK! +${pts}`,isJackpot?"#ffd700":"#94a3b8",isJackpot?22:16);
+      spawnParticles(hit.x,hit.y,isJackpot?"#ffd700":"#94a3b8",isJackpot?14:8,"spark");
+      sfx(isJackpot?"jackpot":"tap");vibrate(isJackpot?[10,5,15,5,10]:7);
+      unlock("clock_tap");
+      if(isJackpot)unlock("clock_jackpot");
+      gs.sessionStats.tapsTotal++;updateMissions(gs.sessionStats);
+      const cfgTC=levelCfgRef.current;
+      if(cfgTC){if(gs.score>=cfgTC.scoreGoal&&(!cfgTC.modifier||checkModGoal(cfgTC.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+    // ECHO PULSE — collects all currently-live rings; 80pts per ring; base 150pts
+    if(hit.type==="echo_pulse"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const ringCount=(hit._rings||[]).length;
+      const pts=Math.round((150+ringCount*80)*combo*feverMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      spawnPopup(hit.x,hit.y-26,ringCount>=3?`◎ RING BURST! +${pts}`:`◎ PULSE! +${pts}`,"#c084fc",ringCount>=3?22:16);
+      for(let i=0;i<Math.max(6,ringCount*3);i++)spawnParticles(hit.x,hit.y,"#e879f9",1,"spark");
+      sfx(ringCount>=3?"feverStart":"tap");vibrate(ringCount>=3?[5,3,10,3,5]:6);
+      unlock("echopulse_tap");
+      if(ringCount>=3)unlock("echopulse_bonus");
+      gs.sessionStats.tapsTotal++;updateMissions(gs.sessionStats);
+      const cfgEP=levelCfgRef.current;
+      if(cfgEP){if(gs.score>=cfgEP.scoreGoal&&(!cfgEP.modifier||checkModGoal(cfgEP.modifier,gs))){endLevel(true);return;}}
       return;
     }
     // SOLAR DRONE — scores 300pts normally; 700pts if it was "mid-orbit" (speed > threshold)
@@ -12341,7 +12519,7 @@ type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
   // Achievement tab state — "all" | "gameplay" | "progression" | "social"
   const [achTab, setAchTab] = React.useState("all");
   const ACH_CATS = {
-    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect","prism_tap","comet_tap","comet_early","mirrorball_tap","nexus_tap","phoenix_tap","phoenix_risen","icecomet_tap","voltage_tap","void_tap","void_master","clover_tap","clover_jackpot","ricochet_tap","ricochet_double","aurora_tap","aurora_perfect","fury_mode","score_10k","portal_tap","portal_chaos","particlebomb_tap","beacon_tap","beacon_surge","shadow_tap","shadow_clone_catch","spectral_tap","spectral_perfect","heart_tap","nova_tap","firefly_tap","firefly_swift","geode_crack","geode_gem","timebomb_defuse","timebomb_clutch","thunderbolt_tap","thunderbolt_clutch","gravityorb_tap","gravityorb_cluster","crystalball_tap","quantum_tap","quantum_stable","clockwork_tap","bloom_tap","bloom_harvest","reflector_tap","reflector_chaos","chain_collect","chain_triple","stardust_tap","stardust_shower","score_25k","solarflare_tap","solarflare_early","magma_tap","prismbomb_tap","prismbomb_triple","icecage_tap","icecage_full","pinwheel_tap","pinwheel_jackpot","supercell_tap","supercell_storm","vortex_tap","vortex_feast","pixel_tap","pixel_speedrun","neon_tap","neon_gold","lantern_tap","lantern_chain","drift_tap","drift_max","berserker_use","ghost_mode_use","nebula_tap","nebula_cluster","wisp_tap","wisp_still","meteor_tap","meteor_early","aura_tap","aura_edge","thunderclap_tap","thunderclap_surge","mirror_tap","mirror_triple","rune_tap","rune_power","score_50k","fractal_tap","fractal_cascade","plasma_tap","plasma_surge","timewarp_target_tap","timewarp_hoard","solar_drone_tap","solar_drone_orbit","cluster_tap","cluster_rainbow","swarm_tap","swarm_master","celestial_tap","celestial_legend","smoke_tap","smoke_early","chainbomb_tap","chainbomb_safe","warpgate_tap","warpgate_chaos","mirage_tap","mirage_avoid"],
+    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect","prism_tap","comet_tap","comet_early","mirrorball_tap","nexus_tap","phoenix_tap","phoenix_risen","icecomet_tap","voltage_tap","void_tap","void_master","clover_tap","clover_jackpot","ricochet_tap","ricochet_double","aurora_tap","aurora_perfect","fury_mode","score_10k","portal_tap","portal_chaos","particlebomb_tap","beacon_tap","beacon_surge","shadow_tap","shadow_clone_catch","spectral_tap","spectral_perfect","heart_tap","nova_tap","firefly_tap","firefly_swift","geode_crack","geode_gem","timebomb_defuse","timebomb_clutch","thunderbolt_tap","thunderbolt_clutch","gravityorb_tap","gravityorb_cluster","crystalball_tap","quantum_tap","quantum_stable","clockwork_tap","bloom_tap","bloom_harvest","reflector_tap","reflector_chaos","chain_collect","chain_triple","stardust_tap","stardust_shower","score_25k","solarflare_tap","solarflare_early","magma_tap","prismbomb_tap","prismbomb_triple","icecage_tap","icecage_full","pinwheel_tap","pinwheel_jackpot","supercell_tap","supercell_storm","vortex_tap","vortex_feast","pixel_tap","pixel_speedrun","neon_tap","neon_gold","lantern_tap","lantern_chain","drift_tap","drift_max","berserker_use","ghost_mode_use","nebula_tap","nebula_cluster","wisp_tap","wisp_still","meteor_tap","meteor_early","aura_tap","aura_edge","thunderclap_tap","thunderclap_surge","mirror_tap","mirror_triple","rune_tap","rune_power","score_50k","fractal_tap","fractal_cascade","plasma_tap","plasma_surge","timewarp_target_tap","timewarp_hoard","solar_drone_tap","solar_drone_orbit","cluster_tap","cluster_rainbow","swarm_tap","swarm_master","celestial_tap","celestial_legend","smoke_tap","smoke_early","chainbomb_tap","chainbomb_safe","warpgate_tap","warpgate_chaos","mirage_tap","mirage_avoid","surgeball_tap","surgeball_chain","clock_tap","clock_jackpot","echopulse_tap","echopulse_bonus"],
     progression: ["level_10","level_50","level_100","prestige_1","three_stars_5","mascot_lv10","streak_25","streak_50","streak_10","streak_5","score_2000","world_complete"],
     social:      ["missions_all","daily_7","friday_fever","weekend_warrior","all_worlds","streak_saver","loot_chest"],
   };
