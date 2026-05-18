@@ -661,6 +661,14 @@ const ACHIEVEMENTS = [
   { id:"pulsar_peak",      label:"Peak Power",       desc:"Tap Neon Pulsar at its maximum size",    icon:"⚡",xp:75 },
   { id:"driftmine_tap",    label:"Mine Defuser",     desc:"Tap a Drift Mine target",                icon:"💣",xp:20 },
   { id:"driftmine_clutch", label:"Clutch Defuse",    desc:"Defuse Drift Mine with <600ms remaining",icon:"⏱️",xp:90 },
+  { id:"eclipse_tap",      label:"Eclipse Watcher",  desc:"Tap an Eclipse Orb target",              icon:"🌗",xp:20 },
+  { id:"eclipse_moon",     label:"Moonshot",         desc:"Tap Eclipse Orb during moon phase",      icon:"🌙",xp:80 },
+  { id:"spinbloom_tap",    label:"Bloom Collector",  desc:"Tap a Spin Bloom target",                icon:"🌸",xp:20 },
+  { id:"spinbloom_full",   label:"Full Bloom",       desc:"Tap Spin Bloom with 7+ petals intact",   icon:"🌺",xp:80 },
+  { id:"teslanode_tap",    label:"Tesla Tapper",     desc:"Tap a Tesla Node target",                icon:"⚡",xp:20 },
+  { id:"teslanode_rich",   label:"Power Surge",      desc:"Claim 400+ banked pts from Tesla Node",  icon:"🔋",xp:85 },
+  { id:"runecircle_tap",   label:"Rune Scholar",     desc:"Tap a Rune Circle target",               icon:"🔮",xp:20 },
+  { id:"runecircle_jackpot",label:"Sacred Rune",     desc:"Tap Rune Circle at the legendary rune",  icon:"✨",xp:90 },
 ];
 
 const MISSION_TEMPLATES = [
@@ -3258,6 +3266,103 @@ function drawEmberRing(ctx,r,ts,agePct){
   ctx.beginPath();ctx.arc(0,0,r*0.22,0,Math.PI*2);ctx.fill();
   ctx.restore();
 }
+// ── Eclipse Orb — cycles sun/moon every 800ms; moon phase = 3× pts ──
+function drawEclipseOrb(ctx,r,ts,isMoon){
+  ctx.save();
+  ctx.shadowBlur=isMoon?22:18;ctx.shadowColor=isMoon?"#818cf8":"#f59e0b";
+  const g=ctx.createRadialGradient(0,0,0,0,0,r);
+  if(isMoon){
+    g.addColorStop(0,"#e0e7ff");g.addColorStop(0.5,"#6366f1");g.addColorStop(1,"#1e1b4b");
+  } else {
+    g.addColorStop(0,"#fef9c3");g.addColorStop(0.5,"#f59e0b");g.addColorStop(1,"#92400e");
+  }
+  ctx.fillStyle=g;ctx.globalAlpha=0.92;
+  ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  // Eclipse crescent (shadow arc for moon phase)
+  if(isMoon){
+    ctx.globalAlpha=0.35;ctx.fillStyle="#000";
+    ctx.beginPath();ctx.arc(r*0.25,0,r*0.85,0,Math.PI*2);ctx.fill();
+  } else {
+    // Sun rays
+    for(let i=0;i<8;i++){const a=(i/8)*Math.PI*2+ts*0.004;
+      ctx.save();ctx.rotate(a);ctx.fillStyle="#fde68a";ctx.globalAlpha=0.5;
+      ctx.fillRect(r*0.95,r*-0.06,r*0.3,r*0.12);ctx.restore();
+    }
+  }
+  ctx.globalAlpha=1;ctx.font=`${Math.floor(r*0.7)}px sans-serif`;
+  ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.fillText(isMoon?"🌙":"☀️",0,2);
+  ctx.restore();
+}
+// ── Spin Bloom — flower with petals that fade; pts per petal remaining ──
+function drawSpinBloom(ctx,r,ts,petalsLeft){
+  ctx.save();
+  const petalCols=["#f472b6","#fb923c","#facc15","#4ade80","#60a5fa","#a78bfa","#f472b6","#34d399"];
+  const spin=ts*0.006;
+  // Petals
+  for(let i=0;i<8;i++){
+    const alive=i<petalsLeft;
+    if(!alive){ctx.save();ctx.rotate(spin+(i/8)*Math.PI*2);ctx.globalAlpha=0.08;ctx.fillStyle="#888";ctx.beginPath();ctx.ellipse(r*0.7,0,r*0.28,r*0.16,0,0,Math.PI*2);ctx.fill();ctx.restore();continue;}
+    const a=spin+(i/8)*Math.PI*2;
+    ctx.save();ctx.rotate(a);
+    ctx.globalAlpha=0.88;ctx.fillStyle=petalCols[i%petalCols.length];ctx.shadowBlur=8;ctx.shadowColor=petalCols[i%petalCols.length];
+    ctx.beginPath();ctx.ellipse(r*0.68,0,r*0.29,r*0.16,0,0,Math.PI*2);ctx.fill();
+    ctx.restore();
+  }
+  // Center
+  ctx.shadowBlur=12;ctx.shadowColor="#fbbf24";ctx.fillStyle="#fef9c3";ctx.globalAlpha=0.95;
+  ctx.beginPath();ctx.arc(0,0,r*0.3,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+}
+// ── Tesla Node — auto-zaps nearest target every 1.2s; tap to claim banked pts ──
+function drawTeslaNode(ctx,r,ts,bankPts){
+  ctx.save();
+  const charge=Math.min(1,bankPts/400);
+  ctx.shadowBlur=16+charge*12;ctx.shadowColor="#38bdf8";
+  const g=ctx.createRadialGradient(0,0,0,0,0,r);
+  g.addColorStop(0,"#e0f2fe");g.addColorStop(0.5,"#0284c7");g.addColorStop(1,"#0c4a6e");
+  ctx.fillStyle=g;ctx.globalAlpha=0.9;
+  ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  // Electric sparks at high charge
+  if(charge>0.3){
+    for(let i=0;i<4;i++){const a=ts*0.014+i*Math.PI/2;const er=r*(0.7+0.3*Math.sin(ts*0.02+i*2.1));
+      ctx.strokeStyle="#7dd3fc";ctx.lineWidth=1.2;ctx.globalAlpha=charge*0.7;
+      ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(Math.cos(a)*er,Math.sin(a)*er);ctx.stroke();
+    }
+  }
+  // Bank indicator text
+  ctx.globalAlpha=1;ctx.font=`bold ${Math.floor(r*0.36)}px sans-serif`;
+  ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillStyle="#fff";ctx.shadowBlur=4;ctx.shadowColor="#38bdf8";
+  ctx.fillText(bankPts>0?`+${bankPts}`:"⚡",0,1);
+  ctx.restore();
+}
+// ── Rune Circle — 6 runes rotate; legendary rune at top = jackpot ──
+function drawRuneCircle(ctx,r,ts,runeIdx){
+  const runes=["🔮","🌟","⚗️","📿","🔯","✨"];
+  const pts=[100,200,350,500,750,1000];
+  ctx.save();
+  ctx.shadowBlur=18;ctx.shadowColor="#a78bfa";
+  const g=ctx.createRadialGradient(0,0,0,0,0,r*0.6);
+  g.addColorStop(0,"#f5f3ff");g.addColorStop(0.5,"#7c3aed");g.addColorStop(1,"#2e1065");
+  ctx.fillStyle=g;ctx.globalAlpha=0.9;
+  ctx.beginPath();ctx.arc(0,0,r*0.6,0,Math.PI*2);ctx.fill();
+  // Rune orbit
+  ctx.setLineDash([3,5]);ctx.strokeStyle="#a78bfa";ctx.lineWidth=1;ctx.globalAlpha=0.3;
+  ctx.beginPath();ctx.arc(0,0,r*1.0,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
+  // Draw all 6 runes
+  const baseAngle=ts*0.0055;
+  runes.forEach((rune,i)=>{
+    const a=baseAngle+(i/6)*Math.PI*2;
+    const rx=Math.cos(a)*r*1.0,ry=Math.sin(a)*r*1.0;
+    const isActive=i===runeIdx;
+    ctx.save();ctx.globalAlpha=isActive?1:0.45;
+    if(isActive){ctx.shadowBlur=14;ctx.shadowColor="#ffd700";}
+    ctx.font=`${Math.floor(r*(isActive?0.42:0.3))}px sans-serif`;
+    ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(rune,rx,ry);
+    ctx.restore();
+  });
+  ctx.restore();
+}
 // ── Solar Orbit — 3 mini-planets orbit it; bonus per planet in alignment arc ──
 function drawSolarOrbit(ctx,r,ts){
   ctx.save();
@@ -5147,6 +5252,20 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="crystal_matrix") drawCrystalMatrix(ctx,t.radius,ts,t.hitsLeft||1);
   else if(t.type==="plasma_storm")   drawPlasmaStorm(ctx,t.radius,ts);
   else if(t.type==="nexus_gate")     drawNexusGate(ctx,t.radius,ts,t._nexusSecondary||false);
+  else if(t.type==="eclipse_orb"){
+    const isMoon=Math.floor((Date.now()-t.spawnedAt)/800)%2===1;
+    drawEclipseOrb(ctx,t.radius,ts,isMoon);
+  }
+  else if(t.type==="spin_bloom"){
+    const agePct=Math.min(1,(Date.now()-t.spawnedAt)/(t.lifetime||4000));
+    const petalsLeft=Math.max(1,Math.ceil(8*(1-agePct*0.9)));
+    drawSpinBloom(ctx,t.radius,ts,petalsLeft);
+  }
+  else if(t.type==="tesla_node") drawTeslaNode(ctx,t.radius,ts,t._bank||0);
+  else if(t.type==="rune_circle"){
+    const runeIdx=Math.floor((Date.now()-t.spawnedAt)/550)%6;
+    drawRuneCircle(ctx,t.radius,ts,runeIdx);
+  }
   else if(t.type==="solar_orbit") drawSolarOrbit(ctx,t.radius,ts);
   else if(t.type==="chroma_shift"){
     const colorIdx=Math.floor((Date.now()-t.spawnedAt)/400)%6;
@@ -7062,6 +7181,18 @@ export default function NexusTap(){
     } else if((cfg.id||0)>=26&&Math.random()<0.011&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")&&!gs._nexusActive){
       // 1.1% Nexus Gate — spawns pair; tap = portal chain
       type="nexus_gate";color="#6366f1";glow="#a5b4fc";gs._nexusActive=true;
+    } else if((cfg.id||0)>=10&&Math.random()<0.016&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.6% Eclipse Orb — cycles sun/moon; moon phase = 3× pts
+      type="eclipse_orb";color="#6366f1";glow="#c7d2fe";
+    } else if((cfg.id||0)>=14&&Math.random()<0.014&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.4% Spin Bloom — 8 petals fade over time; pts per petal remaining
+      type="spin_bloom";color="#f472b6";glow="#fce7f3";
+    } else if((cfg.id||0)>=22&&Math.random()<0.012&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.2% Tesla Node — auto-banks pts by zapping nearby targets every 1.2s
+      type="tesla_node";color="#38bdf8";glow="#e0f2fe";
+    } else if((cfg.id||0)>=18&&Math.random()<0.013&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.3% Rune Circle — 6 rotating runes; legendary rune = jackpot
+      type="rune_circle";color="#a78bfa";glow="#ede9fe";
     } else if((cfg.id||0)>=20&&Math.random()<0.013&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1.3% Solar Orbit — 3 orbiting planets; bonus per planet in alignment
       type="solar_orbit";color="#f59e0b";glow="#fef3c7";
@@ -7119,6 +7250,7 @@ type==="venom_orb"?BASE_R*1.2:type==="thunder_egg"?BASE_R*1.25:type==="moon_glyp
 type==="supernova"?BASE_R*1.5:type==="crystal_matrix"?BASE_R*1.55:type==="plasma_storm"?BASE_R*1.35:type==="nexus_gate"?BASE_R*1.4:
 type==="supernova_mini"?BASE_R*0.45:
 type==="arc_light"?BASE_R*1.3:type==="pulse_chain"?BASE_R*1.25:type==="ghost_orb"?BASE_R*1.2:type==="time_fracture"?BASE_R*1.35:
+type==="eclipse_orb"?BASE_R*1.2:type==="spin_bloom"?BASE_R*1.35:type==="tesla_node"?BASE_R*1.25:type==="rune_circle"?BASE_R*1.4:
 type==="solar_orbit"?BASE_R*1.35:type==="chroma_shift"?BASE_R*1.2:type==="neon_pulsar"?BASE_R*1.15:type==="drift_mine"?BASE_R*1.3:
 type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
@@ -7285,6 +7417,14 @@ type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     if(type==="ghost_orb")lifetime=Math.max(lifetime,4200);
     // Time Fracture: medium
     if(type==="time_fracture")lifetime=Math.max(lifetime,3200);
+    // Eclipse Orb: medium
+    if(type==="eclipse_orb")lifetime=Math.max(lifetime,3200);
+    // Spin Bloom: medium — petals fade over time
+    if(type==="spin_bloom")lifetime=Math.max(lifetime,4000);
+    // Tesla Node: long — needs time to bank pts
+    if(type==="tesla_node")lifetime=Math.max(lifetime,5000);
+    // Rune Circle: medium
+    if(type==="rune_circle")lifetime=Math.max(lifetime,3400);
     // Solar Orbit: medium
     if(type==="solar_orbit")lifetime=Math.max(lifetime,3800);
     // Chroma Shift: medium
@@ -9063,6 +9203,85 @@ type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
       gs.sessionStats.tapsTotal++;updateMissions(gs.sessionStats);
       const cfgNG=levelCfgRef.current;
       if(cfgNG){if(gs.score>=cfgNG.scoreGoal&&(!cfgNG.modifier||checkModGoal(cfgNG.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+    // ECLIPSE ORB — 150pts sun phase; 500pts moon phase
+    if(hit.type==="eclipse_orb"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const isMoon=Math.floor((Date.now()-hit.spawnedAt)/800)%2===1;
+      const pts=Math.round((isMoon?500:150)*combo*feverMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      spawnPopup(hit.x,hit.y-26,isMoon?`🌙 MOONSHOT! +${pts}`:`☀️ SOLAR! +${pts}`,isMoon?"#818cf8":"#f59e0b",isMoon?24:16);
+      spawnParticles(hit.x,hit.y,isMoon?"#c7d2fe":"#fde68a",isMoon?14:8,"spark");
+      sfx(isMoon?"legendary":"tap");vibrate(isMoon?[10,4,14,4,10]:7);
+      unlock("eclipse_tap");
+      if(isMoon)unlock("eclipse_moon");
+      gs.sessionStats.tapsTotal++;updateMissions(gs.sessionStats);
+      const cfgEO=levelCfgRef.current;
+      if(cfgEO){if(gs.score>=cfgEO.scoreGoal&&(!cfgEO.modifier||checkModGoal(cfgEO.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+    // SPIN BLOOM — 50pts × petals remaining (1–8)
+    if(hit.type==="spin_bloom"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const agePct=Math.min(1,(Date.now()-hit.spawnedAt)/(hit.lifetime||4000));
+      const petalsLeft=Math.max(1,Math.ceil(8*(1-agePct*0.9)));
+      const isFull=petalsLeft>=7;
+      const pts=Math.round(50*petalsLeft*combo*feverMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      spawnPopup(hit.x,hit.y-26,isFull?`🌺 FULL BLOOM! +${pts}`:`🌸 ×${petalsLeft} +${pts}`,isFull?"#ffd700":"#f472b6",isFull?24:16);
+      spawnParticles(hit.x,hit.y,"#f9a8d4",6+petalsLeft,"spark");
+      sfx(isFull?"legendary":"tap");vibrate(isFull?[10,4,14,4,10]:7);
+      unlock("spinbloom_tap");
+      if(isFull)unlock("spinbloom_full");
+      gs.sessionStats.tapsTotal++;updateMissions(gs.sessionStats);
+      const cfgSB=levelCfgRef.current;
+      if(cfgSB){if(gs.score>=cfgSB.scoreGoal&&(!cfgSB.modifier||checkModGoal(cfgSB.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+    // TESLA NODE — claims all banked pts (80pts per auto-zapped target)
+    if(hit.type==="tesla_node"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const bank=hit._bank||0;
+      const isRich=bank>=400;
+      const pts=Math.round((100+bank)*combo*feverMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      spawnPopup(hit.x,hit.y-26,isRich?`🔋 POWER SURGE! +${pts}`:`⚡ TESLA! +${pts}`,isRich?"#ffd700":"#38bdf8",isRich?24:16);
+      spawnParticles(hit.x,hit.y,"#7dd3fc",isRich?16:8,"spark");
+      sfx(isRich?"chainBonus":"tap");vibrate(isRich?[10,4,14,4,10]:7);
+      unlock("teslanode_tap");
+      if(isRich)unlock("teslanode_rich");
+      gs.sessionStats.tapsTotal++;updateMissions(gs.sessionStats);
+      const cfgTN=levelCfgRef.current;
+      if(cfgTN){if(gs.score>=cfgTN.scoreGoal&&(!cfgTN.modifier||checkModGoal(cfgTN.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+    // RUNE CIRCLE — pts depend on active rune; legendary (✨ idx=5) = jackpot
+    if(hit.type==="rune_circle"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const runeIdx=Math.floor((Date.now()-hit.spawnedAt)/550)%6;
+      const runePts=[100,200,350,500,750,1000];
+      const runeNames=["🔮 MYSTICAL","🌟 STELLAR","⚗️ ALCHEMIST","📿 SACRED","🔯 HEXAGRAM","✨ LEGENDARY"];
+      const runeCols=["#a78bfa","#fbbf24","#34d399","#f472b6","#60a5fa","#ffd700"];
+      const isLegendary=runeIdx===5;
+      const pts=Math.round(runePts[runeIdx]*combo*feverMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      spawnPopup(hit.x,hit.y-28,`${runeNames[runeIdx]}! +${pts}`,runeCols[runeIdx],isLegendary?26:16);
+      spawnParticles(hit.x,hit.y,runeCols[runeIdx],isLegendary?18:8,"spark");
+      sfx(isLegendary?"jackpot":runeIdx>=4?"legendary":"tap");vibrate(isLegendary?[12,6,18,6,12]:7);
+      unlock("runecircle_tap");
+      if(isLegendary)unlock("runecircle_jackpot");
+      gs.sessionStats.tapsTotal++;updateMissions(gs.sessionStats);
+      const cfgRC=levelCfgRef.current;
+      if(cfgRC){if(gs.score>=cfgRC.scoreGoal&&(!cfgRC.modifier||checkModGoal(cfgRC.modifier,gs))){endLevel(true);return;}}
       return;
     }
     // SOLAR ORBIT — 200pts + 100pts per planet in alignment (top arc, angle near 0°)
@@ -12177,6 +12396,26 @@ type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
         });
         t._rodAttract=attracted;
       }
+      // Tesla Node — auto-zaps nearest normal target every 1200ms, banking 80pts
+      if(t.type==="tesla_node"&&!t.dying){
+        const nowT=Date.now();
+        if(!t._lastZapAt||nowT-t._lastZapAt>1200){
+          t._lastZapAt=nowT;
+          let nearest=null,nearDist=Infinity;
+          targetsRef.current.forEach(other=>{
+            if(other===t||other.dying||other.type!=="normal")return;
+            const d=Math.hypot(other.x-t.x,other.y-t.y);
+            if(d<200&&d<nearDist){nearDist=d;nearest=other;}
+          });
+          if(nearest){
+            nearest.dying=performance.now();
+            t._bank=(t._bank||0)+80;
+            spawnParticles(nearest.x,nearest.y,"#38bdf8",4,"spark");
+            // Arc particle line toward node
+            particlesRef.current.push({type:"dot",x:(nearest.x+t.x)/2,y:(nearest.y+t.y)/2,vx:0,vy:-0.8,alpha:0.9,size:3,color:"#7dd3fc",born:performance.now(),life:350});
+          }
+        }
+      }
       // Plasma Storm — tracks how many targets are within shock range
       if(t.type==="plasma_storm"&&!t.dying){
         let nearby=0;
@@ -15034,7 +15273,7 @@ type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
   // Achievement tab state — "all" | "gameplay" | "progression" | "social"
   const [achTab, setAchTab] = React.useState("all");
   const ACH_CATS = {
-    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect","prism_tap","comet_tap","comet_early","mirrorball_tap","nexus_tap","phoenix_tap","phoenix_risen","icecomet_tap","voltage_tap","void_tap","void_master","clover_tap","clover_jackpot","ricochet_tap","ricochet_double","aurora_tap","aurora_perfect","fury_mode","score_10k","portal_tap","portal_chaos","particlebomb_tap","beacon_tap","beacon_surge","shadow_tap","shadow_clone_catch","spectral_tap","spectral_perfect","heart_tap","nova_tap","firefly_tap","firefly_swift","geode_crack","geode_gem","timebomb_defuse","timebomb_clutch","thunderbolt_tap","thunderbolt_clutch","gravityorb_tap","gravityorb_cluster","crystalball_tap","quantum_tap","quantum_stable","clockwork_tap","bloom_tap","bloom_harvest","reflector_tap","reflector_chaos","chain_collect","chain_triple","stardust_tap","stardust_shower","score_25k","solarflare_tap","solarflare_early","magma_tap","prismbomb_tap","prismbomb_triple","icecage_tap","icecage_full","pinwheel_tap","pinwheel_jackpot","supercell_tap","supercell_storm","vortex_tap","vortex_feast","pixel_tap","pixel_speedrun","neon_tap","neon_gold","lantern_tap","lantern_chain","drift_tap","drift_max","berserker_use","ghost_mode_use","nebula_tap","nebula_cluster","wisp_tap","wisp_still","meteor_tap","meteor_early","aura_tap","aura_edge","thunderclap_tap","thunderclap_surge","mirror_tap","mirror_triple","rune_tap","rune_power","score_50k","fractal_tap","fractal_cascade","plasma_tap","plasma_surge","timewarp_target_tap","timewarp_hoard","solar_drone_tap","solar_drone_orbit","cluster_tap","cluster_rainbow","swarm_tap","swarm_master","celestial_tap","celestial_legend","smoke_tap","smoke_early","chainbomb_tap","chainbomb_safe","warpgate_tap","warpgate_chaos","mirage_tap","mirage_avoid","surgeball_tap","surgeball_chain","clock_tap","clock_jackpot","echopulse_tap","echopulse_bonus","gravwell_tap","gravwell_feast","spectrum_tap","spectrum_gold","shardstorm_tap","shardstorm_align","pulsenova_tap","pulsenova_release","bubble_tap","bubble_all","voidshard_tap","voidshard_rich","stasis_tap","stasis_core","crystalline_tap","crystalline_facets","qleap_tap","qleap_between","magma_burst_tap","magma_burst_hot","lightning_rod_tap","lightning_rod_surge","prismgate_tap","prismgate_triple","solarburst_tap","solarburst_aoe","frostcomet_tap","frostcomet_freeze","energyweb_tap","energyweb_nodes","voidrift_tap","voidrift_feast","lasergrid_tap","lasergrid_beam","bouncing_tap","bouncing_4x","timecapsule_tap","timecapsule_golden","nethershard_tap","nethershard_max","accumulator_tap","accumulator_max","jackpot_tap","phaseorb_tap","phaseorb_bonus","ripplewave_tap","ripplewave_chain","score_100k","venomorb_tap","venomorb_antidote","thunderegg_tap","thunderegg_crack","moonglyph_tap","moonglyph_match","comettail_tap","comettail_early","emberring_tap","emberring_max","supernova_tap","supernova_collect","crystalmatrix_tap","crystalmatrix_shatter","plasmastorm_tap","plasmastorm_surge","nexusgate_tap","nexusgate_chain","arclight_tap","arclight_web","pulsechain_tap","pulsechain_burst","ghostorb_tap","ghostorb_phantom","timefracture_tap","timefracture_haul","solarorbit_tap","solarorbit_align","chroma_tap","chroma_gold","pulsar_tap","pulsar_peak","driftmine_tap","driftmine_clutch"],
+    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect","prism_tap","comet_tap","comet_early","mirrorball_tap","nexus_tap","phoenix_tap","phoenix_risen","icecomet_tap","voltage_tap","void_tap","void_master","clover_tap","clover_jackpot","ricochet_tap","ricochet_double","aurora_tap","aurora_perfect","fury_mode","score_10k","portal_tap","portal_chaos","particlebomb_tap","beacon_tap","beacon_surge","shadow_tap","shadow_clone_catch","spectral_tap","spectral_perfect","heart_tap","nova_tap","firefly_tap","firefly_swift","geode_crack","geode_gem","timebomb_defuse","timebomb_clutch","thunderbolt_tap","thunderbolt_clutch","gravityorb_tap","gravityorb_cluster","crystalball_tap","quantum_tap","quantum_stable","clockwork_tap","bloom_tap","bloom_harvest","reflector_tap","reflector_chaos","chain_collect","chain_triple","stardust_tap","stardust_shower","score_25k","solarflare_tap","solarflare_early","magma_tap","prismbomb_tap","prismbomb_triple","icecage_tap","icecage_full","pinwheel_tap","pinwheel_jackpot","supercell_tap","supercell_storm","vortex_tap","vortex_feast","pixel_tap","pixel_speedrun","neon_tap","neon_gold","lantern_tap","lantern_chain","drift_tap","drift_max","berserker_use","ghost_mode_use","nebula_tap","nebula_cluster","wisp_tap","wisp_still","meteor_tap","meteor_early","aura_tap","aura_edge","thunderclap_tap","thunderclap_surge","mirror_tap","mirror_triple","rune_tap","rune_power","score_50k","fractal_tap","fractal_cascade","plasma_tap","plasma_surge","timewarp_target_tap","timewarp_hoard","solar_drone_tap","solar_drone_orbit","cluster_tap","cluster_rainbow","swarm_tap","swarm_master","celestial_tap","celestial_legend","smoke_tap","smoke_early","chainbomb_tap","chainbomb_safe","warpgate_tap","warpgate_chaos","mirage_tap","mirage_avoid","surgeball_tap","surgeball_chain","clock_tap","clock_jackpot","echopulse_tap","echopulse_bonus","gravwell_tap","gravwell_feast","spectrum_tap","spectrum_gold","shardstorm_tap","shardstorm_align","pulsenova_tap","pulsenova_release","bubble_tap","bubble_all","voidshard_tap","voidshard_rich","stasis_tap","stasis_core","crystalline_tap","crystalline_facets","qleap_tap","qleap_between","magma_burst_tap","magma_burst_hot","lightning_rod_tap","lightning_rod_surge","prismgate_tap","prismgate_triple","solarburst_tap","solarburst_aoe","frostcomet_tap","frostcomet_freeze","energyweb_tap","energyweb_nodes","voidrift_tap","voidrift_feast","lasergrid_tap","lasergrid_beam","bouncing_tap","bouncing_4x","timecapsule_tap","timecapsule_golden","nethershard_tap","nethershard_max","accumulator_tap","accumulator_max","jackpot_tap","phaseorb_tap","phaseorb_bonus","ripplewave_tap","ripplewave_chain","score_100k","venomorb_tap","venomorb_antidote","thunderegg_tap","thunderegg_crack","moonglyph_tap","moonglyph_match","comettail_tap","comettail_early","emberring_tap","emberring_max","supernova_tap","supernova_collect","crystalmatrix_tap","crystalmatrix_shatter","plasmastorm_tap","plasmastorm_surge","nexusgate_tap","nexusgate_chain","arclight_tap","arclight_web","pulsechain_tap","pulsechain_burst","ghostorb_tap","ghostorb_phantom","timefracture_tap","timefracture_haul","solarorbit_tap","solarorbit_align","chroma_tap","chroma_gold","pulsar_tap","pulsar_peak","driftmine_tap","driftmine_clutch","eclipse_tap","eclipse_moon","spinbloom_tap","spinbloom_full","teslanode_tap","teslanode_rich","runecircle_tap","runecircle_jackpot"],
     progression: ["level_10","level_50","level_100","prestige_1","three_stars_5","mascot_lv10","streak_25","streak_50","streak_10","streak_5","score_2000","world_complete","score_100k"],
     social:      ["missions_all","daily_7","friday_fever","weekend_warrior","all_worlds","streak_saver","loot_chest"],
   };
