@@ -701,6 +701,8 @@ const ACHIEVEMENTS = [
   { id:"comborush_tap",    label:"Rush Rider",       desc:"Tap a Combo Rush target",                icon:"🔥",xp:20 },
   { id:"comborush_max",    label:"Rush Frenzy",      desc:"Tap Combo Rush with 30+ streak",         icon:"💥",xp:90 },
   { id:"score_500k",       label:"Half Millionaire", desc:"Score 500,000 pts in a single session",  icon:"💎",xp:500 },
+  { id:"score_250k",       label:"Quarter Million",  desc:"Score 250,000 pts in a single session",  icon:"🏅",xp:300 },
+  { id:"score_1m",         label:"MILLIONAIRE",      desc:"Score 1,000,000 pts in a single session",icon:"👑",xp:1000},
   { id:"twilight_tap",     label:"Twilight Hunter",  desc:"Tap a Twilight Orb target",              icon:"🌙",xp:20 },
   { id:"twilight_catch",   label:"Shadow Catch",     desc:"Tap Twilight Orb at <15% visible",       icon:"🌑",xp:90 },
   { id:"lifeorb_tap",      label:"Life Bringer",     desc:"Tap a Life Orb target",                  icon:"💚",xp:30 },
@@ -1463,7 +1465,7 @@ function drawPowerup(ctx, r, pwrType, ts) {
   ctx.setLineDash([r*0.35,r*0.18]); ctx.beginPath(); ctx.arc(0,0,r-4,0,Math.PI*2); ctx.stroke();
   ctx.setLineDash([]); ctx.restore();
   // Icon
-  const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",LIFE:"❤️",FREEZE:"❄️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐",CHAIN_LIGHTNING:"⚡",TIME_WARP:"⏱️",SCORE_BOOST:"×5",LIFE_SURGE:"❤️+2",MAGNET_FIELD:"🧲",OVERCLOCK:"⚡",SHIELD_WALL:"🏰",PHANTOM_TOUCH:"👻",COIN_RAIN:"🪙",BERSERKER:"⚔️",GHOST_MODE:"👻",SCORE_SHIELD:"🔰",DOUBLE_SPAWN:"×2+",STAR_RAIN:"⭐",TIME_STOP:"⏸️",MEGA_TAP:"💥",RAINBOW_SURGE:"🌈"};
+  const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",LIFE:"❤️",FREEZE:"❄️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐",CHAIN_LIGHTNING:"⚡",TIME_WARP:"⏱️",SCORE_BOOST:"×5",LIFE_SURGE:"❤️+2",MAGNET_FIELD:"🧲",OVERCLOCK:"⚡",SHIELD_WALL:"🏰",PHANTOM_TOUCH:"👻",COIN_RAIN:"🪙",BERSERKER:"⚔️",GHOST_MODE:"👻",SCORE_SHIELD:"🔰",DOUBLE_SPAWN:"×2+",STAR_RAIN:"⭐",TIME_STOP:"⏸️",MEGA_TAP:"💥",RAINBOW_SURGE:"🌈",TWIN_STRIKE:"👥",GOLDEN_TOUCH:"✨",LUCK_SURGE:"🍀"};
   if(pwrType==="LUCKY"){ctx.shadowColor="#ffd700";ctx.shadowBlur=r*(1.2+pulse*0.8);}
   const label=icons[pwrType]||"⚡";
   ctx.font=`bold ${r*0.9}px serif`; ctx.textAlign="center"; ctx.textBaseline="middle";
@@ -7932,6 +7934,34 @@ export default function NexusTap(){
       spawnParticles(x,y,"#f472b6",16,"spark");
       sfx("legendary");vibrate([8,4,12,4,8]);
       setNotif("🌈 Rainbow Surge! All targets are LEGENDARY for 6s!");
+    } else if(ptype==="TWIN_STRIKE"){
+      // TWIN_STRIKE — every tap creates a mirrored second tap for 8s
+      activePwrRef.current=activePwrRef.current.filter(p=>p.type!=="TWIN_STRIKE");
+      activePwrRef.current.push({type:"TWIN_STRIKE",endsAt:Date.now()+8000});
+      setActivePwrDisp([...activePwrRef.current]);
+      spawnPopup(x,y,"👥 TWIN STRIKE!","#f472b6",22);
+      spawnParticles(x,y,"#f472b6",14,"spark");
+      sfx("powerUp");vibrate([6,3,10,3,6]);
+      setNotif("👥 Twin Strike! Every tap fires twice for 8s!");
+    } else if(ptype==="GOLDEN_TOUCH"){
+      // GOLDEN_TOUCH — next 5 taps score Legendary rarity mult regardless
+      activePwrRef.current=activePwrRef.current.filter(p=>p.type!=="GOLDEN_TOUCH");
+      activePwrRef.current.push({type:"GOLDEN_TOUCH",endsAt:Date.now()+30000,charges:5});
+      gsRef.current._goldenCharges=5;
+      setActivePwrDisp([...activePwrRef.current]);
+      spawnPopup(x,y,"✨ GOLDEN TOUCH!","#ffd700",22);
+      spawnParticles(x,y,"#ffd700",18,"spark");
+      sfx("legendary");vibrate([8,4,12,4,8,4,12]);
+      setNotif("✨ Golden Touch! Next 5 taps = LEGENDARY rarity!");
+    } else if(ptype==="LUCK_SURGE"){
+      // LUCK_SURGE — mystery boxes guarantee RARE+ for 12s
+      activePwrRef.current=activePwrRef.current.filter(p=>p.type!=="LUCK_SURGE");
+      activePwrRef.current.push({type:"LUCK_SURGE",endsAt:Date.now()+12000});
+      setActivePwrDisp([...activePwrRef.current]);
+      spawnPopup(x,y,"🍀 LUCK SURGE!","#4ade80",22);
+      spawnParticles(x,y,"#4ade80",16,"spark");
+      sfx("lucky");vibrate([5,3,10,3,15]);
+      setNotif("🍀 Luck Surge! All mystery boxes are RARE+ for 12s!");
     } else if(ptype==="STAR_RAIN"){
       // STAR_RAIN — spawns 5 star targets (each worth 200pts extra)
       for(let i=0;i<5;i++){
@@ -7987,7 +8017,7 @@ export default function NexusTap(){
       type="bomb";color="#ef4444";glow="#dc2626";sfx("bombSpawn");
     } else if(r<(bossRate||0)+effBomb+0.07){
       type="powerup";color="#60a5fa";glow="#3b82f6";
-      const pt=["SHIELD","SLOW","DOUBLE","LIFE","FREEZE","LUCKY","MIRROR","MULTIPLIER","COMBO_FREEZE","GRAVITY","CHAIN_LIGHTNING","TIME_WARP","SCORE_BOOST","LIFE_SURGE","MAGNET_FIELD","OVERCLOCK","SHIELD_WALL","PHANTOM_TOUCH","COIN_RAIN","BERSERKER","GHOST_MODE","SCORE_SHIELD","DOUBLE_SPAWN","STAR_RAIN","TIME_STOP","MEGA_TAP","RAINBOW_SURGE"];
+      const pt=["SHIELD","SLOW","DOUBLE","LIFE","FREEZE","LUCKY","MIRROR","MULTIPLIER","COMBO_FREEZE","GRAVITY","CHAIN_LIGHTNING","TIME_WARP","SCORE_BOOST","LIFE_SURGE","MAGNET_FIELD","OVERCLOCK","SHIELD_WALL","PHANTOM_TOUCH","COIN_RAIN","BERSERKER","GHOST_MODE","SCORE_SHIELD","DOUBLE_SPAWN","STAR_RAIN","TIME_STOP","MEGA_TAP","RAINBOW_SURGE","TWIN_STRIKE","GOLDEN_TOUCH","LUCK_SURGE"];
       pwrType=pt[Math.floor(Math.random()*pt.length)];
     } else if(r<(bossRate||0)+effBomb+0.07+0.045&&(gs.score>0||Math.random()<0.3)&&luckyRef.current!=="active"){
       // 4.5% treasure chest — the variable reward slot machine
@@ -13805,11 +13835,13 @@ type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
       targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
       sfx("jackpot");vibrate([20,15,20,15,40]);
       gs.mysteryPause=Date.now()+1600; // prevent new mystery during reveal
-      // Pick weighted prize
-      const total=MYSTERY_PRIZES.reduce((s,p)=>s+p.weight,0);
+      // Pick weighted prize (LUCK_SURGE: only rare+ prizes)
+      const luckSurge=activePwrRef.current.some(p=>p.type==="LUCK_SURGE"&&p.endsAt>Date.now());
+      const prizePool=luckSurge?MYSTERY_PRIZES.filter(p=>p.weight<=30):MYSTERY_PRIZES;
+      const total=(prizePool.length?prizePool:MYSTERY_PRIZES).reduce((s,p)=>s+p.weight,0);
       let rand=Math.random()*total;
-      let prize=MYSTERY_PRIZES[MYSTERY_PRIZES.length-1];
-      for(const p of MYSTERY_PRIZES){rand-=p.weight;if(rand<=0){prize=p;break;}}
+      let prize=(prizePool.length?prizePool:MYSTERY_PRIZES)[prizePool.length?prizePool.length-1:MYSTERY_PRIZES.length-1];
+      for(const p of (prizePool.length?prizePool:MYSTERY_PRIZES)){rand-=p.weight;if(rand<=0){prize=p;break;}}
       // Build 3 reels — last one is always the actual prize
       const fakeReel=()=>Math.floor(Math.random()*MYSTERY_PRIZES.length);
       const prizeIdx=MYSTERY_PRIZES.indexOf(prize);
@@ -14048,8 +14080,20 @@ type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     if(thunderMult===2){spawnPopup(hit.x,hit.y-32,"⚡ CHARGED! ×2","#fbbf24",14);}
     const scoreAmpMult=targetsRef.current.some(t=>t.type==="score_amp"&&!t.dying&&Math.hypot(t.x-hit.x,t.y-hit.y)<220)?2:1;
     const portalMult=(()=>{if(!gs._portalNextTap)return 1;gs._portalNextTap=false;spawnPopup(hit.x,hit.y-42,"💫 PORTAL ×5!","#c4b5fd",22);unlock("portal_bonus2");return 5;})();
-    const pts=Math.round(hit.rarity.mult*combo*feverMult*(isDouble?2:1)*(isMultiplier?3:1)*(isPerfect?1.5:1)*(isLastBreath?1.5:1)*prestigeMult*shardMult*poisonMult*scoreBoostMult*beaconMult*overclockMult*bountyMult*supercellMult*berserkerMult*megaTapMult*thunderMult*scoreAmpMult*portalMult);
+    const goldenMult=(()=>{const gt=activePwrRef.current.find(p=>p.type==="GOLDEN_TOUCH"&&p.endsAt>Date.now());if(!gt||!gs._goldenCharges||gs._goldenCharges<=0)return 1;gs._goldenCharges--;gt.charges=gs._goldenCharges;if(gs._goldenCharges<=0){activePwrRef.current=activePwrRef.current.filter(p=>p.type!=="GOLDEN_TOUCH");setActivePwrDisp([...activePwrRef.current]);}spawnPopup(hit.x,hit.y-48,"✨ GOLDEN!","#ffd700",12);return RARITY.LEGENDARY.mult/hit.rarity.mult;})();
+    const pts=Math.round(hit.rarity.mult*combo*feverMult*(isDouble?2:1)*(isMultiplier?3:1)*(isPerfect?1.5:1)*(isLastBreath?1.5:1)*prestigeMult*shardMult*poisonMult*scoreBoostMult*beaconMult*overclockMult*bountyMult*supercellMult*berserkerMult*megaTapMult*thunderMult*scoreAmpMult*portalMult*goldenMult);
     gs.score+=pts;
+    // Twin Strike — auto-score nearest non-hit normal target for 50% pts
+    if(activePwrRef.current.some(p=>p.type==="TWIN_STRIKE"&&p.endsAt>Date.now())){
+      const twin=targetsRef.current.find(t=>t.id!==hit.id&&!t.dying&&t.type==="normal"&&Math.hypot(t.x-hit.x,t.y-hit.y)<300);
+      if(twin){
+        const twinPts=Math.round(pts*0.5);
+        gs.score+=twinPts;
+        twin.dying=performance.now();
+        spawnParticles(twin.x,twin.y,"#f472b6",8,"spark");
+        spawnPopup(twin.x,twin.y-18,`👥 TWIN +${twinPts}`,"#f472b6",12);
+      }
+    }
     // Mirror Gate — clone this normal target at mirrored position
     if(gs._mirrorGateActive){
       gs._mirrorGateActive=false;
@@ -14292,7 +14336,7 @@ type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
       const milestoneColor=isEpic?"#ffd700":crossed>=5000?"#c084fc":crossed>=2500?"#f97316":"#34d399";
       spawnPopup(cw4/2,ch4*0.28,`🏅 ${crossed.toLocaleString()} PTS!`,milestoneColor,isEpic?24:20);
       spawnParticles(cw4/2,ch4*0.3,milestoneColor,isEpic?20:12,"spark");
-      if(isEpic){sfx("legendary");setEpicFlash(true);setTimeout(()=>setEpicFlash(false),400);unlock("score_10k");if(crossed>=25000)unlock("score_25k");if(crossed>=50000)unlock("score_50k");if(crossed>=100000)unlock("score_100k");if(crossed>=500000)unlock("score_500k");}
+      if(isEpic){sfx("legendary");setEpicFlash(true);setTimeout(()=>setEpicFlash(false),400);unlock("score_10k");if(crossed>=25000)unlock("score_25k");if(crossed>=50000)unlock("score_50k");if(crossed>=100000)unlock("score_100k");if(crossed>=250000)unlock("score_250k");if(crossed>=500000)unlock("score_500k");if(crossed>=1000000)unlock("score_1m");}
       else sfx("chainBonus");
       vibrate(isEpic?[15,8,15,8,25]:[10,5,15]);
     }}
@@ -16826,8 +16870,8 @@ type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
               const totalSecs=p.type==="SHIELD"?25:p.type==="SLOW"?8:p.type==="DOUBLE"?10:p.type==="FREEZE"?4:p.type==="MULTIPLIER"?8:p.type==="COMBO_FREEZE"?10:p.type==="TIME_WARP"?6:12;
               const pct=Math.min(100,Math.round(secsLeft/totalSecs*100));
               const isExpiring=secsLeft<=2&&secsLeft>0;
-              const colors={SHIELD:"#fbbf24",SLOW:"#60a5fa",DOUBLE:"#f97316",FREEZE:"#06b6d4",LIFE:"#4ade80",LUCKY:"#ffd700",MIRROR:"#c084fc",MULTIPLIER:"#f43f5e",COMBO_FREEZE:"#67e8f9",GRAVITY:"#a78bfa",TIME_WARP:"#818cf8",SCORE_BOOST:"#f43f5e",LIFE_SURGE:"#4ade80",MAGNET_FIELD:"#ec4899",OVERCLOCK:"#fbbf24",SHIELD_WALL:"#a78bfa",PHANTOM_TOUCH:"#818cf8",COIN_RAIN:"#ffd700",BERSERKER:"#ef4444",GHOST_MODE:"#818cf8",SCORE_SHIELD:"#a3e635",DOUBLE_SPAWN:"#f0abfc",STAR_RAIN:"#ffd700",TIME_STOP:"#67e8f9",MEGA_TAP:"#fb923c",RAINBOW_SURGE:"#f472b6"};
-              const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",FREEZE:"❄️",LIFE:"❤️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐",TIME_WARP:"⏱️",SCORE_BOOST:"×5",LIFE_SURGE:"💚",MAGNET_FIELD:"🧲",OVERCLOCK:"⚡",SHIELD_WALL:"🏰",PHANTOM_TOUCH:"👻",COIN_RAIN:"🪙",BERSERKER:"⚔️",GHOST_MODE:"👻",SCORE_SHIELD:"🔰",DOUBLE_SPAWN:"×2+",STAR_RAIN:"⭐",TIME_STOP:"⏸️",MEGA_TAP:"💥",RAINBOW_SURGE:"🌈"};
+              const colors={SHIELD:"#fbbf24",SLOW:"#60a5fa",DOUBLE:"#f97316",FREEZE:"#06b6d4",LIFE:"#4ade80",LUCKY:"#ffd700",MIRROR:"#c084fc",MULTIPLIER:"#f43f5e",COMBO_FREEZE:"#67e8f9",GRAVITY:"#a78bfa",TIME_WARP:"#818cf8",SCORE_BOOST:"#f43f5e",LIFE_SURGE:"#4ade80",MAGNET_FIELD:"#ec4899",OVERCLOCK:"#fbbf24",SHIELD_WALL:"#a78bfa",PHANTOM_TOUCH:"#818cf8",COIN_RAIN:"#ffd700",BERSERKER:"#ef4444",GHOST_MODE:"#818cf8",SCORE_SHIELD:"#a3e635",DOUBLE_SPAWN:"#f0abfc",STAR_RAIN:"#ffd700",TIME_STOP:"#67e8f9",MEGA_TAP:"#fb923c",RAINBOW_SURGE:"#f472b6",TWIN_STRIKE:"#f472b6",GOLDEN_TOUCH:"#ffd700",LUCK_SURGE:"#4ade80"};
+              const icons={SHIELD:"🛡",SLOW:"🐢",DOUBLE:"×2",FREEZE:"❄️",LIFE:"❤️",LUCKY:"⭐",MIRROR:"🪞",MULTIPLIER:"×3",COMBO_FREEZE:"🧊",GRAVITY:"🌐",TIME_WARP:"⏱️",SCORE_BOOST:"×5",LIFE_SURGE:"💚",MAGNET_FIELD:"🧲",OVERCLOCK:"⚡",SHIELD_WALL:"🏰",PHANTOM_TOUCH:"👻",COIN_RAIN:"🪙",BERSERKER:"⚔️",GHOST_MODE:"👻",SCORE_SHIELD:"🔰",DOUBLE_SPAWN:"×2+",STAR_RAIN:"⭐",TIME_STOP:"⏸️",MEGA_TAP:"💥",RAINBOW_SURGE:"🌈",TWIN_STRIKE:"👥",GOLDEN_TOUCH:"✨",LUCK_SURGE:"🍀"};
               const c=colors[p.type]||"#60a5fa";
               return(
                 <div key={p.type} className="flex flex-col items-center gap-0.5"
@@ -17819,8 +17863,8 @@ type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
   // Achievement tab state — "all" | "gameplay" | "progression" | "social"
   const [achTab, setAchTab] = React.useState("all");
   const ACH_CATS = {
-    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect","prism_tap","comet_tap","comet_early","mirrorball_tap","nexus_tap","phoenix_tap","phoenix_risen","icecomet_tap","voltage_tap","void_tap","void_master","clover_tap","clover_jackpot","ricochet_tap","ricochet_double","aurora_tap","aurora_perfect","fury_mode","score_10k","portal_tap","portal_chaos","particlebomb_tap","beacon_tap","beacon_surge","shadow_tap","shadow_clone_catch","spectral_tap","spectral_perfect","heart_tap","nova_tap","firefly_tap","firefly_swift","geode_crack","geode_gem","timebomb_defuse","timebomb_clutch","thunderbolt_tap","thunderbolt_clutch","gravityorb_tap","gravityorb_cluster","crystalball_tap","quantum_tap","quantum_stable","clockwork_tap","bloom_tap","bloom_harvest","reflector_tap","reflector_chaos","chain_collect","chain_triple","stardust_tap","stardust_shower","score_25k","solarflare_tap","solarflare_early","magma_tap","prismbomb_tap","prismbomb_triple","icecage_tap","icecage_full","pinwheel_tap","pinwheel_jackpot","supercell_tap","supercell_storm","vortex_tap","vortex_feast","pixel_tap","pixel_speedrun","neon_tap","neon_gold","lantern_tap","lantern_chain","drift_tap","drift_max","berserker_use","ghost_mode_use","nebula_tap","nebula_cluster","wisp_tap","wisp_still","meteor_tap","meteor_early","aura_tap","aura_edge","thunderclap_tap","thunderclap_surge","mirror_tap","mirror_triple","rune_tap","rune_power","score_50k","fractal_tap","fractal_cascade","plasma_tap","plasma_surge","timewarp_target_tap","timewarp_hoard","solar_drone_tap","solar_drone_orbit","cluster_tap","cluster_rainbow","swarm_tap","swarm_master","celestial_tap","celestial_legend","smoke_tap","smoke_early","chainbomb_tap","chainbomb_safe","warpgate_tap","warpgate_chaos","mirage_tap","mirage_avoid","surgeball_tap","surgeball_chain","clock_tap","clock_jackpot","echopulse_tap","echopulse_bonus","gravwell_tap","gravwell_feast","spectrum_tap","spectrum_gold","shardstorm_tap","shardstorm_align","pulsenova_tap","pulsenova_release","bubble_tap","bubble_all","voidshard_tap","voidshard_rich","stasis_tap","stasis_core","crystalline_tap","crystalline_facets","qleap_tap","qleap_between","magma_burst_tap","magma_burst_hot","lightning_rod_tap","lightning_rod_surge","prismgate_tap","prismgate_triple","solarburst_tap","solarburst_aoe","frostcomet_tap","frostcomet_freeze","energyweb_tap","energyweb_nodes","voidrift_tap","voidrift_feast","lasergrid_tap","lasergrid_beam","bouncing_tap","bouncing_4x","timecapsule_tap","timecapsule_golden","nethershard_tap","nethershard_max","accumulator_tap","accumulator_max","jackpot_tap","phaseorb_tap","phaseorb_bonus","ripplewave_tap","ripplewave_chain","score_100k","venomorb_tap","venomorb_antidote","thunderegg_tap","thunderegg_crack","moonglyph_tap","moonglyph_match","comettail_tap","comettail_early","emberring_tap","emberring_max","supernova_tap","supernova_collect","crystalmatrix_tap","crystalmatrix_shatter","plasmastorm_tap","plasmastorm_surge","nexusgate_tap","nexusgate_chain","arclight_tap","arclight_web","pulsechain_tap","pulsechain_burst","ghostorb_tap","ghostorb_phantom","timefracture_tap","timefracture_haul","solarorbit_tap","solarorbit_align","chroma_tap","chroma_gold","pulsar_tap","pulsar_peak","driftmine_tap","driftmine_clutch","eclipse_tap","eclipse_moon","spinbloom_tap","spinbloom_full","teslanode_tap","teslanode_rich","runecircle_tap","runecircle_jackpot","starforge_tap","starforge_max","magicdice_tap","magicdice_six","wormhole_tap","wormhole_chaos","shadowpulse_tap","shadowpulse_dark","qsplit_tap","qsplit_collect","frostbolt_tap","frostbolt_speed","vortexstar_tap","vortexstar_max","pixelburst_tap","pixelburst_full","neoncrystal_tap","neoncrystal_hot","sonarping_tap","sonarping_cluster","gravitybomb_tap","gravitybomb_early","speednova_tap","speednova_max","omega_tap","omega_legendary","thunderball_tap","thunderball_chain","cosmicaura_tap","comborush_tap","comborush_max","score_500k","twilight_tap","twilight_catch","lifeorb_tap","scoreamp_tap","scoreamp_multi","nightorb_tap","nightorb_bright","shift_tap","shift_legendary","luckwheel_tap","luckwheel_max","abyss_tap","portal_tap2","portal_bonus2","flamering_tap","flamering_sweet","iceclock_tap","iceclock_5","holodecoy_tap","holodecoy_real","mirrorgate_tap","mirrorgate_echo","spiralbomb_tap","spiralbomb_full","chainorb_tap","chainorb_max","bolt_tap","bolt_fast","gemharvest_tap","gemharvest_rich","prismpulse_tap","prismpulse_match","darkmatter_tap","darkmatter_blind","cometblast_tap","cometblast_all","timeprison_tap","timeprison_max","shadowtwin_tap","shadowtwin_lucky","photon_tap","photon_precise","vault_tap","vault_rich","nanoswarm_tap","nanoswarm_all","runechain_tap","runechain_max","plasmaweb_tap","plasmaweb_dense","astral_tap","astral_instant","crystal_clock_tap","crystal_clock_max"],
-    progression: ["level_10","level_50","level_100","prestige_1","three_stars_5","mascot_lv10","streak_25","streak_50","streak_10","streak_5","score_2000","world_complete","score_100k","score_500k"],
+    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect","prism_tap","comet_tap","comet_early","mirrorball_tap","nexus_tap","phoenix_tap","phoenix_risen","icecomet_tap","voltage_tap","void_tap","void_master","clover_tap","clover_jackpot","ricochet_tap","ricochet_double","aurora_tap","aurora_perfect","fury_mode","score_10k","portal_tap","portal_chaos","particlebomb_tap","beacon_tap","beacon_surge","shadow_tap","shadow_clone_catch","spectral_tap","spectral_perfect","heart_tap","nova_tap","firefly_tap","firefly_swift","geode_crack","geode_gem","timebomb_defuse","timebomb_clutch","thunderbolt_tap","thunderbolt_clutch","gravityorb_tap","gravityorb_cluster","crystalball_tap","quantum_tap","quantum_stable","clockwork_tap","bloom_tap","bloom_harvest","reflector_tap","reflector_chaos","chain_collect","chain_triple","stardust_tap","stardust_shower","score_25k","solarflare_tap","solarflare_early","magma_tap","prismbomb_tap","prismbomb_triple","icecage_tap","icecage_full","pinwheel_tap","pinwheel_jackpot","supercell_tap","supercell_storm","vortex_tap","vortex_feast","pixel_tap","pixel_speedrun","neon_tap","neon_gold","lantern_tap","lantern_chain","drift_tap","drift_max","berserker_use","ghost_mode_use","nebula_tap","nebula_cluster","wisp_tap","wisp_still","meteor_tap","meteor_early","aura_tap","aura_edge","thunderclap_tap","thunderclap_surge","mirror_tap","mirror_triple","rune_tap","rune_power","score_50k","fractal_tap","fractal_cascade","plasma_tap","plasma_surge","timewarp_target_tap","timewarp_hoard","solar_drone_tap","solar_drone_orbit","cluster_tap","cluster_rainbow","swarm_tap","swarm_master","celestial_tap","celestial_legend","smoke_tap","smoke_early","chainbomb_tap","chainbomb_safe","warpgate_tap","warpgate_chaos","mirage_tap","mirage_avoid","surgeball_tap","surgeball_chain","clock_tap","clock_jackpot","echopulse_tap","echopulse_bonus","gravwell_tap","gravwell_feast","spectrum_tap","spectrum_gold","shardstorm_tap","shardstorm_align","pulsenova_tap","pulsenova_release","bubble_tap","bubble_all","voidshard_tap","voidshard_rich","stasis_tap","stasis_core","crystalline_tap","crystalline_facets","qleap_tap","qleap_between","magma_burst_tap","magma_burst_hot","lightning_rod_tap","lightning_rod_surge","prismgate_tap","prismgate_triple","solarburst_tap","solarburst_aoe","frostcomet_tap","frostcomet_freeze","energyweb_tap","energyweb_nodes","voidrift_tap","voidrift_feast","lasergrid_tap","lasergrid_beam","bouncing_tap","bouncing_4x","timecapsule_tap","timecapsule_golden","nethershard_tap","nethershard_max","accumulator_tap","accumulator_max","jackpot_tap","phaseorb_tap","phaseorb_bonus","ripplewave_tap","ripplewave_chain","score_100k","venomorb_tap","venomorb_antidote","thunderegg_tap","thunderegg_crack","moonglyph_tap","moonglyph_match","comettail_tap","comettail_early","emberring_tap","emberring_max","supernova_tap","supernova_collect","crystalmatrix_tap","crystalmatrix_shatter","plasmastorm_tap","plasmastorm_surge","nexusgate_tap","nexusgate_chain","arclight_tap","arclight_web","pulsechain_tap","pulsechain_burst","ghostorb_tap","ghostorb_phantom","timefracture_tap","timefracture_haul","solarorbit_tap","solarorbit_align","chroma_tap","chroma_gold","pulsar_tap","pulsar_peak","driftmine_tap","driftmine_clutch","eclipse_tap","eclipse_moon","spinbloom_tap","spinbloom_full","teslanode_tap","teslanode_rich","runecircle_tap","runecircle_jackpot","starforge_tap","starforge_max","magicdice_tap","magicdice_six","wormhole_tap","wormhole_chaos","shadowpulse_tap","shadowpulse_dark","qsplit_tap","qsplit_collect","frostbolt_tap","frostbolt_speed","vortexstar_tap","vortexstar_max","pixelburst_tap","pixelburst_full","neoncrystal_tap","neoncrystal_hot","sonarping_tap","sonarping_cluster","gravitybomb_tap","gravitybomb_early","speednova_tap","speednova_max","omega_tap","omega_legendary","thunderball_tap","thunderball_chain","cosmicaura_tap","comborush_tap","comborush_max","score_500k","twilight_tap","twilight_catch","lifeorb_tap","scoreamp_tap","scoreamp_multi","nightorb_tap","nightorb_bright","shift_tap","shift_legendary","luckwheel_tap","luckwheel_max","abyss_tap","portal_tap2","portal_bonus2","flamering_tap","flamering_sweet","iceclock_tap","iceclock_5","holodecoy_tap","holodecoy_real","mirrorgate_tap","mirrorgate_echo","spiralbomb_tap","spiralbomb_full","chainorb_tap","chainorb_max","bolt_tap","bolt_fast","gemharvest_tap","gemharvest_rich","prismpulse_tap","prismpulse_match","darkmatter_tap","darkmatter_blind","cometblast_tap","cometblast_all","timeprison_tap","timeprison_max","shadowtwin_tap","shadowtwin_lucky","photon_tap","photon_precise","vault_tap","vault_rich","nanoswarm_tap","nanoswarm_all","runechain_tap","runechain_max","plasmaweb_tap","plasmaweb_dense","astral_tap","astral_instant","crystal_clock_tap","crystal_clock_max","score_250k","score_1m"],
+    progression: ["level_10","level_50","level_100","prestige_1","three_stars_5","mascot_lv10","streak_25","streak_50","streak_10","streak_5","score_2000","world_complete","score_100k","score_250k","score_500k","score_1m"],
     social:      ["missions_all","daily_7","friday_fever","weekend_warrior","all_worlds","streak_saver","loot_chest"],
   };
   const renderAchievements=()=>{
