@@ -603,6 +603,14 @@ const ACHIEVEMENTS = [
   { id:"lightning_rod_surge",label:"Mega Surge",       desc:"Lightning Rod attracts 5+ targets",      icon:"⛈️",xp:85 },
   { id:"prismgate_tap",      label:"Gate Opener",      desc:"Tap a Prism Gate target",                icon:"🔷",xp:20 },
   { id:"prismgate_triple",   label:"Tri-Color",        desc:"Catch all 3 shards from Prism Gate",     icon:"🌈",xp:80 },
+  { id:"solarburst_tap",     label:"Star Striker",     desc:"Tap a Solar Burst target",               icon:"☀️",xp:20 },
+  { id:"solarburst_aoe",     label:"Sunstrike",        desc:"Solar Burst hits 4+ targets at once",    icon:"🌟",xp:90 },
+  { id:"frostcomet_tap",     label:"Ice Chaser",       desc:"Tap a Frost Comet target",               icon:"🌨️",xp:20 },
+  { id:"frostcomet_freeze",  label:"Permafrost",       desc:"Frost Comet shard freezes a target",     icon:"🧊",xp:65 },
+  { id:"energyweb_tap",      label:"Web Spinner",      desc:"Tap an Energy Web target",               icon:"🕸️",xp:20 },
+  { id:"energyweb_nodes",    label:"Full Network",     desc:"Energy Web links 5+ targets",            icon:"🔗",xp:80 },
+  { id:"voidrift_tap",       label:"Rift Caller",      desc:"Tap a Void Rift target",                 icon:"🌀",xp:25 },
+  { id:"voidrift_feast",     label:"Singularity",      desc:"Void Rift devours 5+ targets",           icon:"💀",xp:95 },
 ];
 
 const MISSION_TEMPLATES = [
@@ -3012,6 +3020,107 @@ function drawAuraRing(ctx,r,ts){
   }
   ctx.globalAlpha=1;ctx.restore();
 }
+// ── Solar Burst — radiant sun; AoE hit scores all targets within 1.2× radius on tap ──
+function drawSolarBurst(ctx,r,ts){
+  ctx.save();
+  const pulse=0.88+0.12*Math.abs(Math.sin(ts*0.009));
+  ctx.shadowBlur=22;ctx.shadowColor="#fbbf24";
+  const g=ctx.createRadialGradient(0,0,0,0,0,r*pulse);
+  g.addColorStop(0,"#fef9c3");g.addColorStop(0.3,"#fbbf24");g.addColorStop(0.7,"#d97706");g.addColorStop(1,"#7c2d12");
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,0,r*pulse,0,Math.PI*2);ctx.fill();
+  // Solar rays
+  const rays=8;
+  for(let i=0;i<rays;i++){
+    const a=(i/rays)*Math.PI*2+ts*0.005;
+    const inner=r*(0.85+0.05*Math.sin(ts*0.02+i));
+    const outer=r*(1.35+0.1*Math.cos(ts*0.018+i));
+    ctx.strokeStyle=`rgba(251,191,36,${0.5+0.3*Math.sin(ts*0.01+i)})`;ctx.lineWidth=3;
+    ctx.beginPath();ctx.moveTo(Math.cos(a)*inner,Math.sin(a)*inner);ctx.lineTo(Math.cos(a)*outer,Math.sin(a)*outer);ctx.stroke();
+  }
+  ctx.globalAlpha=1;ctx.fillStyle="#fef9c3";
+  ctx.font=`${Math.round(r*0.38)}px serif`;ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.fillText("☀️",0,0);ctx.restore();
+}
+// ── Frost Comet — icy comet; on tap splits into 3 ice shards that scatter and freeze ──
+function drawFrostComet(ctx,r,ts){
+  ctx.save();
+  const pulse=0.92+0.08*Math.sin(ts*0.012);
+  ctx.shadowBlur=18;ctx.shadowColor="#7dd3fc";
+  // Comet core
+  const g=ctx.createRadialGradient(0,0,0,0,0,r*0.7*pulse);
+  g.addColorStop(0,"#f0f9ff");g.addColorStop(0.4,"#7dd3fc");g.addColorStop(1,"#0c4a6e");
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,0,r*0.7*pulse,0,Math.PI*2);ctx.fill();
+  // Ice tail
+  for(let i=0;i<4;i++){
+    const tailAlpha=0.6-i*0.12;
+    ctx.globalAlpha=tailAlpha;ctx.fillStyle="#bae6fd";
+    ctx.beginPath();ctx.ellipse(-r*(0.7+i*0.5),0,r*(0.25-i*0.05),r*0.18,0,0,Math.PI*2);ctx.fill();
+  }
+  // Frost sparkles
+  ctx.globalAlpha=1;
+  for(let i=0;i<5;i++){
+    const a=(i/5)*Math.PI*2+ts*0.008;
+    ctx.fillStyle=`rgba(186,230,253,${0.6+0.3*Math.sin(ts*0.02+i)})`;
+    ctx.beginPath();ctx.arc(Math.cos(a)*r*0.82,Math.sin(a)*r*0.82,r*0.08,0,Math.PI*2);ctx.fill();
+  }
+  ctx.fillStyle="#f0f9ff";ctx.font=`${Math.round(r*0.4)}px serif`;
+  ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("❄️",0,0);ctx.restore();
+}
+// ── Energy Web — draws connecting lines to nearby targets; score = nodes in web on tap ──
+function drawEnergyWeb(ctx,r,ts,webPts){
+  ctx.save();
+  const pulse=0.9+0.1*Math.sin(ts*0.011);
+  ctx.shadowBlur=16;ctx.shadowColor="#34d399";
+  // Core
+  const g=ctx.createRadialGradient(0,0,0,0,0,r*0.6*pulse);
+  g.addColorStop(0,"#d1fae5");g.addColorStop(0.5,"#34d399");g.addColorStop(1,"#064e3b");
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,0,r*0.6*pulse,0,Math.PI*2);ctx.fill();
+  // Web strands
+  for(let i=0;i<6;i++){
+    const a=(i/6)*Math.PI*2+ts*0.004;
+    ctx.strokeStyle=`rgba(52,211,153,${0.4+0.3*Math.sin(ts*0.009+i)})`;ctx.lineWidth=1.2;
+    ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(Math.cos(a)*r*1.1,Math.sin(a)*r*1.1);ctx.stroke();
+  }
+  // Node count
+  if(webPts>0){
+    ctx.globalAlpha=1;ctx.fillStyle="#34d399";
+    ctx.font=`bold ${Math.round(r*0.28)}px sans-serif`;ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.fillText(`${webPts}×`,0,r*0.55);
+  }
+  ctx.restore();
+}
+// ── Void Rift — black hole that grows and devours nearby targets; massive pts per devoured ──
+function drawVoidRift(ctx,r,ts,agePct,devouredCount){
+  ctx.save();
+  const expandR=r*(0.6+agePct*0.6);
+  ctx.shadowBlur=24+agePct*10;ctx.shadowColor="#7c3aed";
+  // Pitch black core
+  ctx.fillStyle="#000000";ctx.beginPath();ctx.arc(0,0,expandR*0.55,0,Math.PI*2);ctx.fill();
+  // Accretion disk
+  for(let ring=0;ring<3;ring++){
+    const rFrac=0.7+ring*0.18;
+    const ringAlpha=0.6-ring*0.15;
+    ctx.globalAlpha=ringAlpha*(0.7+0.3*Math.sin(ts*0.015+ring*1.1));
+    ctx.strokeStyle=ring===0?"#a78bfa":ring===1?"#7c3aed":"#4c1d95";ctx.lineWidth=2.5-ring*0.5;
+    ctx.beginPath();ctx.arc(0,0,expandR*rFrac,0,Math.PI*2);ctx.stroke();
+  }
+  // Devoured count badge
+  if(devouredCount>0){
+    ctx.globalAlpha=1;ctx.fillStyle="#c4b5fd";
+    ctx.font=`bold ${Math.round(r*0.3)}px sans-serif`;ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.fillText(`×${devouredCount}`,0,0);
+  }
+  // Gravity distortion lines
+  for(let i=0;i<6;i++){
+    const a=(i/6)*Math.PI*2+ts*0.009;
+    ctx.globalAlpha=0.3+agePct*0.2;ctx.strokeStyle="#a78bfa";ctx.lineWidth=1;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a)*expandR,Math.sin(a)*expandR);
+    ctx.quadraticCurveTo(Math.cos(a+0.3)*expandR*0.7,Math.sin(a+0.3)*expandR*0.7,0,0);
+    ctx.stroke();
+  }
+  ctx.globalAlpha=1;ctx.restore();
+}
 // ── Quantum Leap — teleports to random position every 1.2s; trail ghost shows last position ──
 function drawQuantumLeap(ctx,r,ts,trailAlpha){
   ctx.save();
@@ -4436,6 +4545,22 @@ function drawTarget(ctx, t, ts) {
     ctx.beginPath();const pr=t.radius;
     ctx.moveTo(0,-pr);ctx.lineTo(pr*0.6,pr*0.5);ctx.lineTo(-pr*0.6,pr*0.5);ctx.closePath();ctx.fill();
     ctx.restore();
+  }
+  else if(t.type==="solar_burst")   drawSolarBurst(ctx,t.radius,ts);
+  else if(t.type==="frost_shard"){
+    ctx.save();ctx.shadowBlur=10;ctx.shadowColor="#7dd3fc";ctx.fillStyle="#bae6fd";ctx.globalAlpha=0.85;
+    ctx.beginPath();const fsr=t.radius;
+    for(let i=0;i<6;i++){const a=(i/6)*Math.PI*2;ctx.lineTo(Math.cos(a)*fsr,Math.sin(a)*fsr);}
+    ctx.closePath();ctx.fill();ctx.restore();
+  }
+  else if(t.type==="frost_comet")   drawFrostComet(ctx,t.radius,ts);
+  else if(t.type==="energy_web"){
+    const webCount=(t._webNodes||0);
+    drawEnergyWeb(ctx,t.radius,ts,webCount);
+  }
+  else if(t.type==="void_rift"){
+    const agePct=Math.min(1,(Date.now()-t.spawnedAt)/(t.lifetime||5000));
+    drawVoidRift(ctx,t.radius,ts,agePct,t._devouredCount||0);
   }
   else if(t.type==="quantum_leap")  drawQuantumLeap(ctx,t.radius,ts,t._qlTrailAlpha||0);
   else if(t.type==="magma_burst"){
@@ -6156,6 +6281,19 @@ export default function NexusTap(){
     } else if((cfg.id||0)>=22&&Math.random()<0.013&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1.3% Prism Gate — splits into 3 shards on tap; catch all for tri-color bonus
       type="prism_gate";color="#67e8f9";glow="#a5f3fc";
+    } else if((cfg.id||0)>=12&&Math.random()<0.018&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.8% Solar Burst — radiant sun; AoE scores all targets within range on tap
+      type="solar_burst";color="#fbbf24";glow="#fef9c3";
+    } else if((cfg.id||0)>=16&&Math.random()<0.016&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.6% Frost Comet — splits into 3 ice shards; shards can freeze nearby targets
+      type="frost_comet";color="#7dd3fc";glow="#f0f9ff";moving=true;
+      const fca=Math.random()*Math.PI*2;vx=Math.cos(fca)*(1.0+Math.random()*0.8);vy=Math.sin(fca)*(1.0+Math.random()*0.8);
+    } else if((cfg.id||0)>=20&&Math.random()<0.014&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.4% Energy Web — connects to nearby targets; score × node count on tap
+      type="energy_web";color="#34d399";glow="#a7f3d0";
+    } else if((cfg.id||0)>=30&&Math.random()<0.010&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.0% Void Rift — grows over time devouring nearby targets; massive pts per devoured
+      type="void_rift";color="#7c3aed";glow="#a78bfa";
     } else if(Math.random()<0.035&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")&&!gs.mysteryPause){
       // 3.5% Mystery Box — Las Vegas variable-ratio slot machine
       type="mystery";color="#ffd700";glow="#b8860b";
@@ -6180,6 +6318,7 @@ type==="surge_ball"?BASE_R*1.2:type==="ticking_clock"?BASE_R*1.3:type==="echo_pu
 type==="gravity_well"?BASE_R*1.45:type==="spectrum_orb"?BASE_R*1.25:type==="shard_storm"?BASE_R*1.3:type==="pulse_nova"?BASE_R*1.35:
 type==="bubble_cluster"?BASE_R*1.5:type==="void_shard"?BASE_R*1.1:type==="stasis_field"?BASE_R*1.4:type==="crystalline"?BASE_R*1.2:
 type==="quantum_leap"?BASE_R*1.15:type==="magma_burst"?BASE_R*1.25:type==="lightning_rod"?BASE_R*1.3:type==="prism_gate"?BASE_R*1.35:type==="prism_shard"?BASE_R*0.38:
+type==="solar_burst"?BASE_R*1.4:type==="frost_comet"?BASE_R*1.15:type==="frost_shard"?BASE_R*0.35:type==="energy_web"?BASE_R*1.35:type==="void_rift"?BASE_R*1.6:
 type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
@@ -6295,6 +6434,14 @@ type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     if(type==="lightning_rod")lifetime=Math.max(lifetime,4200);
     // Prism Gate: medium — tap then catch shards
     if(type==="prism_gate")lifetime=Math.max(lifetime,3000);
+    // Solar Burst: medium — radiant for a window
+    if(type==="solar_burst")lifetime=Math.max(lifetime,3400);
+    // Frost Comet: short — it speeds across fast
+    if(type==="frost_comet")lifetime=Math.min(lifetime,2800);
+    // Energy Web: medium-long — web builds up connections over time
+    if(type==="energy_web")lifetime=Math.max(lifetime,4000);
+    // Void Rift: medium-long — needs time to devour targets
+    if(type==="void_rift")lifetime=Math.max(lifetime,5000);
     // Solar Drone: medium
     if(type==="solar_drone")lifetime=Math.max(lifetime,3200);
     // Crystal Cluster: medium-long
@@ -7941,6 +8088,115 @@ type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
       updateMissions(gs.sessionStats);
       const cfgMr=levelCfgRef.current;
       if(cfgMr){if(gs.score>=cfgMr.scoreGoal&&(!cfgMr.modifier||checkModGoal(cfgMr.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+    // SOLAR BURST — AoE; 200pts base + 150pts per extra target within 1.5× radius
+    if(hit.type==="solar_burst"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const aoeR=hit.radius*1.5;
+      const aoeTargets=targetsRef.current.filter(t=>
+        !t.dying&&t.type!=="bomb"&&t.type!=="timebomb"&&Date.now()>=t.spawnedAt&&
+        Math.hypot(t.x-hit.x,t.y-hit.y)<aoeR
+      );
+      aoeTargets.forEach(t=>{t.dying=performance.now();spawnParticles(t.x,t.y,"#fbbf24",5,"spark");});
+      const isAoe=aoeTargets.length>=4;
+      const pts=Math.round((200+aoeTargets.length*150)*combo*feverMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      spawnPopup(hit.x,hit.y-28,isAoe?`🌟 SUNSTRIKE! +${pts}`:`☀️ SOLAR! +${pts}`,isAoe?"#fef9c3":"#fbbf24",isAoe?24:18);
+      particlesRef.current.push({type:"shockwave",x:hit.x,y:hit.y,r:hit.radius,maxR:aoeR*1.4,born:performance.now(),color:"#fbbf24",alpha:0.65,life:500});
+      sfx(isAoe?"chainBonus":"tap");vibrate(isAoe?[8,4,14,4,8]:8);
+      unlock("solarburst_tap");
+      if(isAoe)unlock("solarburst_aoe");
+      gs.sessionStats.tapsTotal++;updateMissions(gs.sessionStats);
+      const cfgSBr=levelCfgRef.current;
+      if(cfgSBr){if(gs.score>=cfgSBr.scoreGoal&&(!cfgSBr.modifier||checkModGoal(cfgSBr.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+    // FROST COMET — on tap: 250pts + spawns 3 ice shards that scatter and can freeze normal targets
+    if(hit.type==="frost_comet"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const pts=Math.round(250*combo*feverMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      // spawn 3 ice shards that scatter; they freeze nearby targets on impact
+      for(let i=0;i<3;i++){
+        const sa=(i/3)*Math.PI*2+Math.random()*0.3;
+        const sv2=2.5+Math.random()*1.2;
+        const shardId=Math.random().toString(36).slice(2);
+        targetsRef.current.push({
+          id:shardId,type:"frost_shard",
+          x:hit.x+Math.cos(sa)*15,y:hit.y+Math.sin(sa)*15,
+          radius:hit.radius*0.35,color:"#bae6fd",glow:"#7dd3fc",
+          lifetime:1600,spawnedAt:Date.now(),born:performance.now(),
+          moving:true,vx:Math.cos(sa)*sv2,vy:Math.sin(sa)*sv2,
+          ghost:false,trail:[],hitsLeft:1,maxHits:1,dying:null,
+        });
+      }
+      spawnPopup(hit.x,hit.y-26,`❄️ COMET! +${pts}`,"#7dd3fc",18);
+      spawnParticles(hit.x,hit.y,"#bae6fd",12,"spark");
+      sfx("chainBonus");vibrate([5,3,8,3,5]);
+      unlock("frostcomet_tap");
+      gs.sessionStats.tapsTotal++;updateMissions(gs.sessionStats);
+      const cfgFC=levelCfgRef.current;
+      if(cfgFC){if(gs.score>=cfgFC.scoreGoal&&(!cfgFC.modifier||checkModGoal(cfgFC.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+    // FROST SHARD — 120pts; on contact with a normal target it freezes it
+    if(hit.type==="frost_shard"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const pts=Math.round(120*combo*feverMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      // check if any normal target nearby to freeze
+      const nearby=targetsRef.current.find(t=>!t.dying&&t.type==="normal"&&Math.hypot(t.x-hit.x,t.y-hit.y)<60);
+      if(nearby){nearby.vx=0;nearby.vy=0;nearby.moving=false;nearby._frozen=true;unlock("frostcomet_freeze");}
+      spawnPopup(hit.x,hit.y-14,`🧊 +${pts}`,"#bae6fd",13);
+      spawnParticles(hit.x,hit.y,"#7dd3fc",5,"spark");
+      sfx("tap");vibrate(3);
+      gs.sessionStats.tapsTotal++;updateMissions(gs.sessionStats);
+      const cfgFSh=levelCfgRef.current;
+      if(cfgFSh){if(gs.score>=cfgFSh.scoreGoal&&(!cfgFSh.modifier||checkModGoal(cfgFSh.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+    // ENERGY WEB — base 200pts + 120pts per linked node in range
+    if(hit.type==="energy_web"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const nodes=hit._webNodes||0;
+      const pts=Math.round((200+nodes*120)*combo*feverMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      spawnPopup(hit.x,hit.y-26,nodes>=5?`🔗 FULL NETWORK! +${pts}`:`🕸️ WEB! +${pts}`,nodes>=5?"#a7f3d0":"#34d399",nodes>=5?22:16);
+      spawnParticles(hit.x,hit.y,"#34d399",nodes>=5?14:8,"spark");
+      sfx(nodes>=5?"chainBonus":"tap");vibrate(nodes>=5?[8,4,10,4,8]:7);
+      unlock("energyweb_tap");
+      if(nodes>=5)unlock("energyweb_nodes");
+      gs.sessionStats.tapsTotal++;updateMissions(gs.sessionStats);
+      const cfgEW=levelCfgRef.current;
+      if(cfgEW){if(gs.score>=cfgEW.scoreGoal&&(!cfgEW.modifier||checkModGoal(cfgEW.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+    // VOID RIFT — base 300pts + 200pts per target it devoured while alive
+    if(hit.type==="void_rift"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const devoured=hit._devouredCount||0;
+      const pts=Math.round((300+devoured*200)*combo*feverMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      spawnPopup(hit.x,hit.y-28,devoured>=5?`💀 SINGULARITY! +${pts}`:`🌀 RIFT! +${pts}`,devoured>=5?"#c4b5fd":"#7c3aed",devoured>=5?26:18);
+      for(let i=0;i<(devoured>=5?18:8);i++)spawnParticles(hit.x,hit.y,"#a78bfa",1,"spark");
+      particlesRef.current.push({type:"shockwave",x:hit.x,y:hit.y,r:hit.radius,maxR:hit.radius*5,born:performance.now(),color:"#7c3aed",alpha:0.8,life:600});
+      sfx(devoured>=5?"feverStart":"tap");vibrate(devoured>=5?[12,5,18,5,12]:8);
+      unlock("voidrift_tap");
+      if(devoured>=5)unlock("voidrift_feast");
+      gs.sessionStats.tapsTotal++;updateMissions(gs.sessionStats);
+      const cfgVR=levelCfgRef.current;
+      if(cfgVR){if(gs.score>=cfgVR.scoreGoal&&(!cfgVR.modifier||checkModGoal(cfgVR.modifier,gs))){endLevel(true);return;}}
       return;
     }
     // QUANTUM LEAP — normal 200pts; jackpot 700pts if tapped within 300ms of a teleport
@@ -10408,6 +10664,38 @@ type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
           }
         });
         t._vtxPulled=pulled;
+      }
+      // Energy Web — counts how many non-bomb targets are within web range
+      if(t.type==="energy_web"&&!t.dying){
+        let nodes=0;
+        targetsRef.current.forEach(other=>{
+          if(other===t||other.dying||other.type==="boss"||other.type==="bomb"||other.type==="timebomb")return;
+          const dist=Math.hypot(other.x-t.x,other.y-t.y);
+          if(dist<160)nodes++;
+        });
+        t._webNodes=nodes;
+      }
+      // Void Rift — devours nearby targets into itself for massive pts
+      if(t.type==="void_rift"&&!t.dying){
+        const agePct=Math.min(1,(Date.now()-t.spawnedAt)/(t.lifetime||5000));
+        const VR_R=80+agePct*120,VR_STR=0.035+agePct*0.04;
+        targetsRef.current.forEach(other=>{
+          if(other===t||other.dying||other.type==="boss"||other.type==="bomb"||other.type==="timebomb"||other.type==="void_rift")return;
+          const dx=t.x-other.x,dy=t.y-other.y;
+          const dist=Math.hypot(dx,dy);
+          if(dist>0&&dist<VR_R){
+            const force=VR_STR*(1-dist/VR_R)*dt;
+            other.vx=(other.vx||0)+(dx/dist)*force*3.5;other.vy=(other.vy||0)+(dy/dist)*force*3.5;other.moving=true;
+            // devour into core
+            if(dist<t.radius*0.7&&!other._vrDevoured){
+              other._vrDevoured=true;other.dying=performance.now();
+              t._devouredCount=(t._devouredCount||0)+1;
+              const bonus=150;gsRef.current.score+=bonus;
+              spawnParticles(other.x,other.y,"#7c3aed",6,"spark");
+              spawnPopup(other.x,other.y-12,`+${bonus}`,"#a78bfa",11);
+            }
+          }
+        });
       }
       // Quantum Leap — teleports to a new random canvas position every 1200ms
       if(t.type==="quantum_leap"&&!t.dying){
@@ -13245,7 +13533,7 @@ type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
   // Achievement tab state — "all" | "gameplay" | "progression" | "social"
   const [achTab, setAchTab] = React.useState("all");
   const ACH_CATS = {
-    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect","prism_tap","comet_tap","comet_early","mirrorball_tap","nexus_tap","phoenix_tap","phoenix_risen","icecomet_tap","voltage_tap","void_tap","void_master","clover_tap","clover_jackpot","ricochet_tap","ricochet_double","aurora_tap","aurora_perfect","fury_mode","score_10k","portal_tap","portal_chaos","particlebomb_tap","beacon_tap","beacon_surge","shadow_tap","shadow_clone_catch","spectral_tap","spectral_perfect","heart_tap","nova_tap","firefly_tap","firefly_swift","geode_crack","geode_gem","timebomb_defuse","timebomb_clutch","thunderbolt_tap","thunderbolt_clutch","gravityorb_tap","gravityorb_cluster","crystalball_tap","quantum_tap","quantum_stable","clockwork_tap","bloom_tap","bloom_harvest","reflector_tap","reflector_chaos","chain_collect","chain_triple","stardust_tap","stardust_shower","score_25k","solarflare_tap","solarflare_early","magma_tap","prismbomb_tap","prismbomb_triple","icecage_tap","icecage_full","pinwheel_tap","pinwheel_jackpot","supercell_tap","supercell_storm","vortex_tap","vortex_feast","pixel_tap","pixel_speedrun","neon_tap","neon_gold","lantern_tap","lantern_chain","drift_tap","drift_max","berserker_use","ghost_mode_use","nebula_tap","nebula_cluster","wisp_tap","wisp_still","meteor_tap","meteor_early","aura_tap","aura_edge","thunderclap_tap","thunderclap_surge","mirror_tap","mirror_triple","rune_tap","rune_power","score_50k","fractal_tap","fractal_cascade","plasma_tap","plasma_surge","timewarp_target_tap","timewarp_hoard","solar_drone_tap","solar_drone_orbit","cluster_tap","cluster_rainbow","swarm_tap","swarm_master","celestial_tap","celestial_legend","smoke_tap","smoke_early","chainbomb_tap","chainbomb_safe","warpgate_tap","warpgate_chaos","mirage_tap","mirage_avoid","surgeball_tap","surgeball_chain","clock_tap","clock_jackpot","echopulse_tap","echopulse_bonus","gravwell_tap","gravwell_feast","spectrum_tap","spectrum_gold","shardstorm_tap","shardstorm_align","pulsenova_tap","pulsenova_release","bubble_tap","bubble_all","voidshard_tap","voidshard_rich","stasis_tap","stasis_core","crystalline_tap","crystalline_facets","qleap_tap","qleap_between","magma_burst_tap","magma_burst_hot","lightning_rod_tap","lightning_rod_surge","prismgate_tap","prismgate_triple"],
+    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect","prism_tap","comet_tap","comet_early","mirrorball_tap","nexus_tap","phoenix_tap","phoenix_risen","icecomet_tap","voltage_tap","void_tap","void_master","clover_tap","clover_jackpot","ricochet_tap","ricochet_double","aurora_tap","aurora_perfect","fury_mode","score_10k","portal_tap","portal_chaos","particlebomb_tap","beacon_tap","beacon_surge","shadow_tap","shadow_clone_catch","spectral_tap","spectral_perfect","heart_tap","nova_tap","firefly_tap","firefly_swift","geode_crack","geode_gem","timebomb_defuse","timebomb_clutch","thunderbolt_tap","thunderbolt_clutch","gravityorb_tap","gravityorb_cluster","crystalball_tap","quantum_tap","quantum_stable","clockwork_tap","bloom_tap","bloom_harvest","reflector_tap","reflector_chaos","chain_collect","chain_triple","stardust_tap","stardust_shower","score_25k","solarflare_tap","solarflare_early","magma_tap","prismbomb_tap","prismbomb_triple","icecage_tap","icecage_full","pinwheel_tap","pinwheel_jackpot","supercell_tap","supercell_storm","vortex_tap","vortex_feast","pixel_tap","pixel_speedrun","neon_tap","neon_gold","lantern_tap","lantern_chain","drift_tap","drift_max","berserker_use","ghost_mode_use","nebula_tap","nebula_cluster","wisp_tap","wisp_still","meteor_tap","meteor_early","aura_tap","aura_edge","thunderclap_tap","thunderclap_surge","mirror_tap","mirror_triple","rune_tap","rune_power","score_50k","fractal_tap","fractal_cascade","plasma_tap","plasma_surge","timewarp_target_tap","timewarp_hoard","solar_drone_tap","solar_drone_orbit","cluster_tap","cluster_rainbow","swarm_tap","swarm_master","celestial_tap","celestial_legend","smoke_tap","smoke_early","chainbomb_tap","chainbomb_safe","warpgate_tap","warpgate_chaos","mirage_tap","mirage_avoid","surgeball_tap","surgeball_chain","clock_tap","clock_jackpot","echopulse_tap","echopulse_bonus","gravwell_tap","gravwell_feast","spectrum_tap","spectrum_gold","shardstorm_tap","shardstorm_align","pulsenova_tap","pulsenova_release","bubble_tap","bubble_all","voidshard_tap","voidshard_rich","stasis_tap","stasis_core","crystalline_tap","crystalline_facets","qleap_tap","qleap_between","magma_burst_tap","magma_burst_hot","lightning_rod_tap","lightning_rod_surge","prismgate_tap","prismgate_triple","solarburst_tap","solarburst_aoe","frostcomet_tap","frostcomet_freeze","energyweb_tap","energyweb_nodes","voidrift_tap","voidrift_feast"],
     progression: ["level_10","level_50","level_100","prestige_1","three_stars_5","mascot_lv10","streak_25","streak_50","streak_10","streak_5","score_2000","world_complete"],
     social:      ["missions_all","daily_7","friday_fever","weekend_warrior","all_worlds","streak_saver","loot_chest"],
   };
