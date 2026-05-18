@@ -564,6 +564,15 @@ const ACHIEVEMENTS = [
   { id:"swarm_master",       label:"Swarm Master",     desc:"Pop 3 Swarm targets in a single game",   icon:"🐝",xp:75 },
   { id:"celestial_tap",      label:"Star Gazer",       desc:"Tap a Celestial Orb target",             icon:"🌠",xp:35 },
   { id:"celestial_legend",   label:"Celestial Legend", desc:"Tap 5 Celestial Orbs in a single game",  icon:"🌌",xp:100 },
+  // Batch 16 — Smoke Ring, Chain Bomb, Warp Gate, Mirage
+  { id:"smoke_tap",          label:"Smoke Signal",     desc:"Tap a Smoke Ring target",                icon:"💨",xp:25 },
+  { id:"smoke_early",        label:"Quick Draw",       desc:"Catch a Smoke Ring before 40% expansion",icon:"⚡",xp:70 },
+  { id:"chainbomb_tap",      label:"Chain Defuse",     desc:"Tap a Chain Bomb to defuse both",        icon:"🔗",xp:40 },
+  { id:"chainbomb_safe",     label:"Bomb Squad Pro",   desc:"Chain Bomb defuse without losing lives",  icon:"💚",xp:90 },
+  { id:"warpgate_tap",       label:"Warp Tapper",      desc:"Tap a Warp Gate target",                 icon:"🌀",xp:30 },
+  { id:"warpgate_chaos",     label:"Chaos Warp",       desc:"Warp Gate teleports 5+ targets at once", icon:"🌪️",xp:80 },
+  { id:"mirage_tap",         label:"Mirage Buster",    desc:"Spot and tap a Mirage target",           icon:"🏜️",xp:15 },
+  { id:"mirage_avoid",       label:"Sharp Eyes",       desc:"Let a Mirage expire without tapping it", icon:"👁️",xp:55 },
 ];
 
 const MISSION_TEMPLATES = [
@@ -2973,6 +2982,78 @@ function drawAuraRing(ctx,r,ts){
   }
   ctx.globalAlpha=1;ctx.restore();
 }
+// ── Smoke Ring — expands outward; tap it before it fades for pts based on ring size ──
+function drawSmokeRing(ctx,r,ts,expandPct){
+  ctx.save();
+  const rr=r*(0.4+expandPct*1.2);
+  const alpha=1-expandPct*0.85;
+  ctx.globalAlpha=Math.max(0,alpha);
+  ctx.shadowBlur=10;ctx.shadowColor="#94a3b8";
+  ctx.strokeStyle="#94a3b8";ctx.lineWidth=3-expandPct*1.8;
+  ctx.beginPath();ctx.arc(0,0,rr,0,Math.PI*2);ctx.stroke();
+  // Inner glow
+  const g=ctx.createRadialGradient(0,0,rr*0.5,0,0,rr);
+  g.addColorStop(0,"#e2e8f044");g.addColorStop(1,"#e2e8f000");
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,0,rr,0,Math.PI*2);ctx.fill();
+  ctx.globalAlpha=1;ctx.restore();
+}
+// ── Chain Bomb — connects to nearest bomb; tap it to safely defuse both; risky but 1500pts ──
+function drawChainBomb(ctx,r,ts){
+  ctx.save();
+  const pulse=0.85+0.15*Math.abs(Math.sin(ts*0.012));
+  ctx.shadowBlur=18;ctx.shadowColor="#ff6700";
+  const grad=ctx.createRadialGradient(0,0,0,0,0,r);
+  grad.addColorStop(0,"#fde68a");grad.addColorStop(0.4,"#f97316");grad.addColorStop(1,"#7f1d1d");
+  ctx.fillStyle=grad;ctx.beginPath();ctx.arc(0,0,r*pulse,0,Math.PI*2);ctx.fill();
+  // Chain links decoration
+  ctx.strokeStyle="#f97316";ctx.lineWidth=2;
+  for(let i=0;i<4;i++){
+    const a=(i/4)*Math.PI*2;const d=r*0.75;
+    ctx.beginPath();ctx.arc(Math.cos(a)*d,Math.sin(a)*d,r*0.15,0,Math.PI*2);ctx.stroke();
+  }
+  ctx.fillStyle="#fff";ctx.font=`bold ${Math.round(r*0.65)}px serif`;ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.fillText("💣",0,0);ctx.restore();
+}
+// ── Warp Gate — small teleporter; tap and player jumps all OTHER targets to random positions ──
+function drawWarpGate(ctx,r,ts){
+  ctx.save();
+  const spin=ts*0.006;
+  ctx.shadowBlur=20;ctx.shadowColor="#06b6d4";
+  // Outer ring
+  ctx.strokeStyle="#06b6d4";ctx.lineWidth=2.5;ctx.globalAlpha=0.8;
+  ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.stroke();
+  ctx.globalAlpha=1;
+  // Inner vortex
+  const g=ctx.createRadialGradient(0,0,0,0,0,r*0.65);
+  g.addColorStop(0,"#e0f9ff");g.addColorStop(0.4,"#06b6d4");g.addColorStop(1,"#083344");
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,0,r*0.65,0,Math.PI*2);ctx.fill();
+  // Animated dashes around ring
+  ctx.setLineDash([8,6]);ctx.lineDashOffset=-spin*40;
+  ctx.strokeStyle="#67e8f9";ctx.lineWidth=1.5;ctx.globalAlpha=0.6;
+  ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.stroke();
+  ctx.setLineDash([]);ctx.globalAlpha=1;
+  ctx.font=`${Math.round(r*0.7)}px serif`;ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.fillText("🌀",0,0);ctx.restore();
+}
+// ── Mirage — appears as a normal legendary but is actually just 50pts (decoy); rare miss if tapped ──
+function drawMirage(ctx,r,ts){
+  ctx.save();
+  const shimmer=0.6+0.4*Math.abs(Math.sin(ts*0.009));
+  // Fake legendary appearance
+  ctx.shadowBlur=20*shimmer;ctx.shadowColor="#ffd700";
+  const g=ctx.createRadialGradient(0,0,0,0,0,r);
+  g.addColorStop(0,"#fffde7");g.addColorStop(0.3,"#fbbf24");g.addColorStop(0.7,"#b45309");g.addColorStop(1,"#78350f");
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  // Heat haze distortion hint
+  for(let i=0;i<3;i++){
+    const offset=Math.sin(ts*0.015+i*1.4)*r*0.12;
+    ctx.strokeStyle=`rgba(255,220,100,${0.12+i*0.05})`;ctx.lineWidth=1.2;
+    ctx.beginPath();ctx.arc(offset,0,r*(0.55+i*0.12),0,Math.PI*2);ctx.stroke();
+  }
+  ctx.globalAlpha=shimmer;
+  ctx.font=`${Math.round(r*0.75)}px serif`;ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.fillText("🌟",0,0);ctx.globalAlpha=1;ctx.restore();
+}
 // ── Solar Drone — small sun-like bot that circles the player area, 2× pts in orbit ──
 function drawSolarDrone(ctx,r,ts){
   ctx.save();
@@ -3966,6 +4047,10 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="wisp")       drawWisp(ctx,t.radius,ts,t.moving&&(Math.hypot(t.vx||0,t.vy||0)>0.1));
   else if(t.type==="meteor")     drawMeteor(ctx,t.radius,ts,t.trail);
   else if(t.type==="aura")       drawAuraRing(ctx,t.radius,ts);
+  else if(t.type==="smoke_ring"){const exp=Math.min(1,(Date.now()-t.spawnedAt)/(t.lifetime||3000));drawSmokeRing(ctx,t.radius,ts,exp);}
+  else if(t.type==="chain_bomb")    drawChainBomb(ctx,t.radius,ts);
+  else if(t.type==="warp_gate")     drawWarpGate(ctx,t.radius,ts);
+  else if(t.type==="mirage")        drawMirage(ctx,t.radius,ts);
   else if(t.type==="solar_drone")   drawSolarDrone(ctx,t.radius,ts);
   else if(t.type==="crystal_cluster") drawCrystalCluster(ctx,t.radius,ts);
   else if(t.type==="swarm")         drawSwarm(ctx,t.radius,ts);
@@ -5551,6 +5636,18 @@ export default function NexusTap(){
     } else if((cfg.id||0)>=14&&Math.random()<0.018&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1.8% Aura Ring — pulsing ring; edge tap = jackpot vs center = base pts
       type="aura";color="#818cf8";glow="#6366f1";
+    } else if((cfg.id||0)>=6&&Math.random()<0.02&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 2% Smoke Ring — expands outward; tap early for more pts
+      type="smoke_ring";color="#94a3b8";glow="#cbd5e1";
+    } else if((cfg.id||0)>=20&&!cfg.isZen&&Math.random()<0.012&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&effBomb>0&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.2% Chain Bomb — connected to a bomb; defuse both for 1500pts jackpot
+      type="chain_bomb";color="#f97316";glow="#fde68a";
+    } else if((cfg.id||0)>=25&&Math.random()<0.013&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.3% Warp Gate — teleports all targets to new positions on tap
+      type="warp_gate";color="#06b6d4";glow="#67e8f9";
+    } else if((cfg.id||0)>=30&&Math.random()<0.011&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.1% Mirage — looks like legendary but is decoy (50pts); learn to spot it
+      type="mirage";color="#fbbf24";glow="#fde68a";
     } else if((cfg.id||0)>=14&&Math.random()<0.017&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1.7% Solar Drone — orbiting solar target; 2× pts if caught mid-orbit
       type="solar_drone";color="#fbbf24";glow="#f97316";moving=true;
@@ -5605,6 +5702,7 @@ type==="nebula"?BASE_R*1.5:type==="wisp"?BASE_R*1.2:type==="meteor"?BASE_R*1.1:t
 type==="thunderclap"?BASE_R*1.4:type==="mirror_shard"?BASE_R*1.0:type==="rune_stone"?BASE_R*1.3:
 type==="fractal"?BASE_R*1.2:type==="fractal_mini"?BASE_R*0.7:type==="plasma"?BASE_R*1.25:type==="timewarp_tgt"?BASE_R*1.3:
 type==="solar_drone"?BASE_R*1.15:type==="crystal_cluster"?BASE_R*1.5:type==="swarm"?BASE_R*1.35:type==="celestial"?BASE_R*1.7:
+type==="smoke_ring"?BASE_R*1.2:type==="chain_bomb"?BASE_R*1.25:type==="warp_gate"?BASE_R*1.3:type==="mirage"?BASE_R*(rarity?.size||1.0):
 type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
@@ -5682,6 +5780,14 @@ type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     if(type==="meteor")lifetime=Math.min(lifetime,2600);
     // Aura: medium — let ring pulse a few times
     if(type==="aura")lifetime=Math.max(lifetime,3400);
+    // Smoke Ring: medium — expands over 3s
+    if(type==="smoke_ring")lifetime=3000;
+    // Chain Bomb: short-ish — defuse urgency
+    if(type==="chain_bomb")lifetime=Math.min(lifetime,2800);
+    // Warp Gate: medium
+    if(type==="warp_gate")lifetime=Math.max(lifetime,3000);
+    // Mirage: medium-long — time to spot it
+    if(type==="mirage")lifetime=Math.max(lifetime,4000);
     // Solar Drone: medium
     if(type==="solar_drone")lifetime=Math.max(lifetime,3200);
     // Crystal Cluster: medium-long
@@ -7244,6 +7350,90 @@ type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
       updateMissions(gs.sessionStats);
       const cfgDr=levelCfgRef.current;
       if(cfgDr){if(gs.score>=cfgDr.scoreGoal&&(!cfgDr.modifier||checkModGoal(cfgDr.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+    // SMOKE RING — expands outward; pts based on how early caught (less expanded = more pts)
+    if(hit.type==="smoke_ring"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const expandPct=Math.min(1,(Date.now()-hit.spawnedAt)/(hit.lifetime||3000));
+      const isEarly=expandPct<0.4;
+      const pts=Math.round(Math.max(60,(500*(1-expandPct)))*combo*feverMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      spawnPopup(hit.x,hit.y-24,isEarly?`💨 QUICK! +${pts}`:`💨 +${pts}`,"#94a3b8",isEarly?20:15);
+      spawnParticles(hit.x,hit.y,"#94a3b8",10,"spark");
+      sfx(isEarly?"chainBonus":"tap");vibrate(isEarly?[10,4,10]:6);
+      unlock("smoke_tap");
+      if(isEarly)unlock("smoke_early");
+      mascotHappyRef.current+=(isEarly?3:1);updateMissions(gs.sessionStats);
+      const cfgSm=levelCfgRef.current;
+      if(cfgSm){if(gs.score>=cfgSm.scoreGoal&&(!cfgSm.modifier||checkModGoal(cfgSm.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+    // CHAIN BOMB — defuse it to also clear nearest bomb; risky but 1500pts
+    if(hit.type==="chain_bomb"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      // Find nearest bomb
+      const nearBomb=targetsRef.current.filter(t=>!t.dying&&t.type==="bomb")
+        .sort((a,b)=>Math.hypot(a.x-hit.x,a.y-hit.y)-Math.hypot(b.x-hit.x,b.y-hit.y))[0];
+      if(nearBomb){
+        nearBomb.dying=performance.now();
+        spawnParticles(nearBomb.x,nearBomb.y,"#4ade80",12,"spark");
+        spawnPopup(nearBomb.x,nearBomb.y-20,"💚 DEFUSED!","#4ade80",14);
+      }
+      const pts=Math.round(1500*combo*feverMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      particlesRef.current.push({type:"shockwave",x:hit.x,y:hit.y,color:"#f97316",size:200,born:performance.now(),duration:600,alpha:0.5});
+      spawnPopup(hit.x,hit.y-34,`🔗 CHAIN DEFUSE! +${pts}`,"#fde68a",22);
+      spawnParticles(hit.x,hit.y,"#f97316",18,"spark");
+      sfx("legendary");vibrate([12,6,16]);
+      unlock("chainbomb_tap");unlock("chainbomb_safe");
+      mascotHappyRef.current+=4;updateMissions(gs.sessionStats);
+      const cfgCB=levelCfgRef.current;
+      if(cfgCB){if(gs.score>=cfgCB.scoreGoal&&(!cfgCB.modifier||checkModGoal(cfgCB.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+    // WARP GATE — teleports all non-boss targets to random positions + 400pts
+    if(hit.type==="warp_gate"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const canvas=canvasRef.current;const cw11=canvas?.width||390,ch11=canvas?.height||700;
+      let warped=0;
+      targetsRef.current.forEach(t=>{
+        if(t.dying||t.type==="boss")return;
+        warped++;
+        t.x=t.radius+20+Math.random()*(cw11-t.radius*2-40);
+        t.y=t.radius+100+Math.random()*(ch11-t.radius*2-120);
+        spawnParticles(t.x,t.y,"#06b6d4",4,"spark");
+      });
+      const pts=Math.round((400+warped*30)*combo*feverMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      particlesRef.current.push({type:"shockwave",x:hit.x,y:hit.y,color:"#06b6d4",size:300,born:performance.now(),duration:800,alpha:0.6});
+      spawnPopup(hit.x,hit.y-34,`🌀 WARP! +${pts} (${warped} targets)`,"#06b6d4",20);
+      spawnParticles(hit.x,hit.y,"#67e8f9",18,"spark");
+      sfx(warped>=5?"legendary":"bossKill");vibrate([12,6,14]);
+      unlock("warpgate_tap");
+      if(warped>=5)unlock("warpgate_chaos");
+      mascotHappyRef.current+=3;updateMissions(gs.sessionStats);
+      const cfgWG=levelCfgRef.current;
+      if(cfgWG){if(gs.score>=cfgWG.scoreGoal&&(!cfgWG.modifier||checkModGoal(cfgWG.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+    // MIRAGE — decoy target! Only 50pts; but unlock achievement for spotting it
+    if(hit.type==="mirage"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const pts=50;gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      spawnPopup(hit.x,hit.y-22,"🏜️ MIRAGE! +50","#f59e0b",15);
+      spawnParticles(hit.x,hit.y,"#fbbf24",8,"spark");
+      sfx("tap");vibrate(4);
+      unlock("mirage_tap");
+      updateMissions(gs.sessionStats);
+      const cfgMr=levelCfgRef.current;
+      if(cfgMr){if(gs.score>=cfgMr.scoreGoal&&(!cfgMr.modifier||checkModGoal(cfgMr.modifier,gs))){endLevel(true);return;}}
       return;
     }
     // SOLAR DRONE — scores 300pts normally; 700pts if it was "mid-orbit" (speed > threshold)
@@ -9454,6 +9644,13 @@ type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
           if(hasShTB){activePwrRef.current=activePwrRef.current.filter(p=>p.type!=="SHIELD");setActivePwrDisp([...activePwrRef.current]);}
           else{gs.lives=Math.max(0,gs.lives-2);gs.streak=0;streakShRef.current=false;setStreakShieldActive(false);lostLife=true;}
           if(gs.lives<=0){endLevel(false);return false;}
+          return false;
+        }
+        // MIRAGE expired — player correctly avoided it; reward with achievement + small pts
+        if(t.type==="mirage"){
+          gsRef.current.score+=30;// tiny bonus for not falling for the mirage
+          spawnPopup(t.x,t.y-20,"🏜️ Mirage!","#f59e0b",11);
+          unlock("mirage_avoid");
           return false;
         }
         // SIPHON expired — drains 1 life (unless shielded)
@@ -12144,7 +12341,7 @@ type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
   // Achievement tab state — "all" | "gameplay" | "progression" | "social"
   const [achTab, setAchTab] = React.useState("all");
   const ACH_CATS = {
-    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect","prism_tap","comet_tap","comet_early","mirrorball_tap","nexus_tap","phoenix_tap","phoenix_risen","icecomet_tap","voltage_tap","void_tap","void_master","clover_tap","clover_jackpot","ricochet_tap","ricochet_double","aurora_tap","aurora_perfect","fury_mode","score_10k","portal_tap","portal_chaos","particlebomb_tap","beacon_tap","beacon_surge","shadow_tap","shadow_clone_catch","spectral_tap","spectral_perfect","heart_tap","nova_tap","firefly_tap","firefly_swift","geode_crack","geode_gem","timebomb_defuse","timebomb_clutch","thunderbolt_tap","thunderbolt_clutch","gravityorb_tap","gravityorb_cluster","crystalball_tap","quantum_tap","quantum_stable","clockwork_tap","bloom_tap","bloom_harvest","reflector_tap","reflector_chaos","chain_collect","chain_triple","stardust_tap","stardust_shower","score_25k","solarflare_tap","solarflare_early","magma_tap","prismbomb_tap","prismbomb_triple","icecage_tap","icecage_full","pinwheel_tap","pinwheel_jackpot","supercell_tap","supercell_storm","vortex_tap","vortex_feast","pixel_tap","pixel_speedrun","neon_tap","neon_gold","lantern_tap","lantern_chain","drift_tap","drift_max","berserker_use","ghost_mode_use","nebula_tap","nebula_cluster","wisp_tap","wisp_still","meteor_tap","meteor_early","aura_tap","aura_edge","thunderclap_tap","thunderclap_surge","mirror_tap","mirror_triple","rune_tap","rune_power","score_50k","fractal_tap","fractal_cascade","plasma_tap","plasma_surge","timewarp_target_tap","timewarp_hoard","solar_drone_tap","solar_drone_orbit","cluster_tap","cluster_rainbow","swarm_tap","swarm_master","celestial_tap","celestial_legend"],
+    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect","prism_tap","comet_tap","comet_early","mirrorball_tap","nexus_tap","phoenix_tap","phoenix_risen","icecomet_tap","voltage_tap","void_tap","void_master","clover_tap","clover_jackpot","ricochet_tap","ricochet_double","aurora_tap","aurora_perfect","fury_mode","score_10k","portal_tap","portal_chaos","particlebomb_tap","beacon_tap","beacon_surge","shadow_tap","shadow_clone_catch","spectral_tap","spectral_perfect","heart_tap","nova_tap","firefly_tap","firefly_swift","geode_crack","geode_gem","timebomb_defuse","timebomb_clutch","thunderbolt_tap","thunderbolt_clutch","gravityorb_tap","gravityorb_cluster","crystalball_tap","quantum_tap","quantum_stable","clockwork_tap","bloom_tap","bloom_harvest","reflector_tap","reflector_chaos","chain_collect","chain_triple","stardust_tap","stardust_shower","score_25k","solarflare_tap","solarflare_early","magma_tap","prismbomb_tap","prismbomb_triple","icecage_tap","icecage_full","pinwheel_tap","pinwheel_jackpot","supercell_tap","supercell_storm","vortex_tap","vortex_feast","pixel_tap","pixel_speedrun","neon_tap","neon_gold","lantern_tap","lantern_chain","drift_tap","drift_max","berserker_use","ghost_mode_use","nebula_tap","nebula_cluster","wisp_tap","wisp_still","meteor_tap","meteor_early","aura_tap","aura_edge","thunderclap_tap","thunderclap_surge","mirror_tap","mirror_triple","rune_tap","rune_power","score_50k","fractal_tap","fractal_cascade","plasma_tap","plasma_surge","timewarp_target_tap","timewarp_hoard","solar_drone_tap","solar_drone_orbit","cluster_tap","cluster_rainbow","swarm_tap","swarm_master","celestial_tap","celestial_legend","smoke_tap","smoke_early","chainbomb_tap","chainbomb_safe","warpgate_tap","warpgate_chaos","mirage_tap","mirage_avoid"],
     progression: ["level_10","level_50","level_100","prestige_1","three_stars_5","mascot_lv10","streak_25","streak_50","streak_10","streak_5","score_2000","world_complete"],
     social:      ["missions_all","daily_7","friday_fever","weekend_warrior","all_worlds","streak_saver","loot_chest"],
   };
