@@ -548,6 +548,13 @@ const ACHIEVEMENTS = [
   { id:"rune_tap",           label:"Rune Reader",      desc:"Tap a Rune Stone target",                icon:"ᚱ",xp:30 },
   { id:"rune_power",         label:"Runic Power",      desc:"Tap Rune Stone in a power rune phase (ᚱ/ᚦ)", icon:"🔮",xp:80 },
   { id:"score_50k",          label:"Half Century",     desc:"Score 50,000 pts in a single session",   icon:"💰",xp:200 },
+  // Batch 14 — Fractal, Plasma, Timewarp Target
+  { id:"fractal_tap",        label:"Fractal Splitter", desc:"Tap a Fractal target",                   icon:"🔷",xp:30 },
+  { id:"fractal_cascade",    label:"Fractal Cascade",  desc:"Catch all splits from a Fractal",        icon:"💠",xp:90 },
+  { id:"plasma_tap",         label:"Plasma Surfer",    desc:"Tap a Plasma target",                    icon:"⚡",xp:30 },
+  { id:"plasma_surge",       label:"Full Charge!",     desc:"Tap Plasma during the surge window (70-90%)", icon:"🌊",xp:100 },
+  { id:"timewarp_target_tap",label:"Time Bender",      desc:"Tap a Timewarp target to extend time",   icon:"⏱️",xp:35 },
+  { id:"timewarp_hoard",     label:"Time Hoarder",     desc:"Timewarp extends 5+ targets",            icon:"🕰️",xp:85 },
 ];
 
 const MISSION_TEMPLATES = [
@@ -2957,6 +2964,77 @@ function drawAuraRing(ctx,r,ts){
   }
   ctx.globalAlpha=1;ctx.restore();
 }
+// ── Fractal — geometric burst; splits into 2 smaller fractals on tap ──
+function drawFractal(ctx,r,ts,depth){
+  ctx.save();
+  const spin=(ts*0.002*(depth===0?1:2))%(Math.PI*2);
+  ctx.rotate(spin);
+  const hue=(ts*0.06+depth*60)%360;
+  ctx.shadowBlur=14;ctx.shadowColor=`hsl(${hue},90%,65%)`;
+  // Draw fractal triangle
+  const vertices=3+depth;
+  ctx.beginPath();
+  for(let i=0;i<vertices;i++){const a=(i/vertices)*Math.PI*2;ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r);}
+  ctx.closePath();
+  const grad=ctx.createLinearGradient(-r,-r,r,r);
+  grad.addColorStop(0,`hsl(${hue},100%,70%)`);
+  grad.addColorStop(1,`hsl(${(hue+120)%360},80%,40%)`);
+  ctx.fillStyle=grad;ctx.fill();
+  // Inner fractal pattern
+  if(depth===0){
+    ctx.rotate(-spin);ctx.scale(0.55,0.55);ctx.rotate(spin*1.6);
+    ctx.beginPath();
+    for(let i=0;i<6;i++){const a=(i/6)*Math.PI*2;ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r);}
+    ctx.closePath();
+    ctx.strokeStyle=`hsla(${(hue+60)%360},100%,85%,0.6)`;ctx.lineWidth=1.5;ctx.stroke();
+  }
+  ctx.restore();
+}
+// ── Plasma — charges up over lifetime; top pts at 70-90% charge ──
+function drawPlasma(ctx,r,ts,chargePct){
+  ctx.save();
+  const surge=chargePct>0.7&&chargePct<0.9;
+  ctx.shadowBlur=surge?28:12;ctx.shadowColor=surge?"#00ffcc":"#22d3ee";
+  const grad=ctx.createRadialGradient(0,0,0,0,0,r);
+  grad.addColorStop(0,surge?"#ccfff5":"#a5f3fc");
+  grad.addColorStop(0.4,surge?"#00ffcc":"#22d3ee");
+  grad.addColorStop(1,surge?"#0e7490":"#164e63");
+  ctx.fillStyle=grad;ctx.beginPath();ctx.arc(0,0,r*(0.8+chargePct*0.25),0,Math.PI*2);ctx.fill();
+  // Charge arcs
+  for(let i=0;i<5;i++){
+    const a=(i/5)*Math.PI*2+ts*0.004*(i%2===0?1:-1);
+    const arcLen=Math.PI*2*chargePct*(0.3+i*0.06);
+    ctx.strokeStyle=`hsla(${180+i*15},100%,75%,${0.4+chargePct*0.4})`;
+    ctx.lineWidth=surge?2.5:1.5;ctx.shadowBlur=surge?16:8;
+    ctx.beginPath();ctx.arc(0,0,r*(0.55+i*0.06),a,a+arcLen);ctx.stroke();
+  }
+  // Charge % indicator at top
+  const bw=r*1.4,bh=r*0.2;
+  ctx.fillStyle="#00000055";ctx.fillRect(-bw/2,-r-bh-4,bw,bh);
+  ctx.fillStyle=surge?"#00ffcc":"#22d3ee";ctx.shadowBlur=surge?12:0;
+  ctx.fillRect(-bw/2,-r-bh-4,bw*chargePct,bh);
+  ctx.globalAlpha=1;ctx.restore();
+}
+// ── Timewarp Target — holographic clock; extends all target lifetimes when tapped ──
+function drawTimewarpTarget(ctx,r,ts){
+  ctx.save();
+  const pulse=0.85+0.15*Math.abs(Math.sin(ts*0.008));
+  ctx.shadowBlur=18;ctx.shadowColor="#818cf8";
+  const grad=ctx.createRadialGradient(0,0,0,0,0,r);
+  grad.addColorStop(0,"#e0e7ff");grad.addColorStop(0.5,"#6366f1");grad.addColorStop(1,"#1e1b4b");
+  ctx.fillStyle=grad;ctx.beginPath();ctx.arc(0,0,r*pulse,0,Math.PI*2);ctx.fill();
+  // Clock face
+  ctx.strokeStyle="#c7d2fe";ctx.lineWidth=1;ctx.beginPath();ctx.arc(0,0,r*0.75,0,Math.PI*2);ctx.stroke();
+  // Clock hands (animating backward = time reversal)
+  const hs=(ts*-0.003)%(Math.PI*2);const ms=(ts*-0.012)%(Math.PI*2);
+  ctx.strokeStyle="#ffffff";ctx.lineWidth=2;ctx.lineCap="round";
+  ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(Math.cos(hs-Math.PI/2)*r*0.48,Math.sin(hs-Math.PI/2)*r*0.48);ctx.stroke();
+  ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(Math.cos(ms-Math.PI/2)*r*0.64,Math.sin(ms-Math.PI/2)*r*0.64);ctx.stroke();
+  // +2s label
+  ctx.fillStyle="#fde68a";ctx.font=`bold ${Math.round(r*0.3)}px sans-serif`;ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.fillText("+2s",0,r*0.12);ctx.restore();
+}
 // ── Thunderclap — dark storm orb; shockwave on tap that knocks back all targets ──
 function drawThunderclap(ctx,r,ts){
   ctx.save();
@@ -3791,6 +3869,9 @@ function drawTarget(ctx, t, ts) {
   else if(t.type==="wisp")       drawWisp(ctx,t.radius,ts,t.moving&&(Math.hypot(t.vx||0,t.vy||0)>0.1));
   else if(t.type==="meteor")     drawMeteor(ctx,t.radius,ts,t.trail);
   else if(t.type==="aura")       drawAuraRing(ctx,t.radius,ts);
+  else if(t.type==="fractal"||t.type==="fractal_mini") drawFractal(ctx,t.radius,ts,t._fractalDepth||0);
+  else if(t.type==="plasma"){const chg=Math.min(1,(Date.now()-t.spawnedAt)/(t.lifetime||3000));drawPlasma(ctx,t.radius,ts,chg);}
+  else if(t.type==="timewarp_tgt") drawTimewarpTarget(ctx,t.radius,ts);
   else if(t.type==="thunderclap") drawThunderclap(ctx,t.radius,ts);
   else if(t.type==="mirror_shard") drawMirrorShard(ctx,t.radius,ts,t.hitsLeft,t.maxHits);
   else if(t.type==="rune_stone"){const phase=Math.floor((Date.now()-t.spawnedAt)/1500)%8;drawRuneStone(ctx,t.radius,ts,phase);}
@@ -5369,6 +5450,15 @@ export default function NexusTap(){
     } else if((cfg.id||0)>=14&&Math.random()<0.018&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1.8% Aura Ring — pulsing ring; edge tap = jackpot vs center = base pts
       type="aura";color="#818cf8";glow="#6366f1";
+    } else if((cfg.id||0)>=18&&Math.random()<0.016&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.6% Fractal — splits into 2 smaller copies on tap (up to depth 2)
+      type="fractal";color="#818cf8";glow="#6366f1";
+    } else if((cfg.id||0)>=22&&Math.random()<0.015&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.5% Plasma — charges up; top pts at 70-90% charge window
+      type="plasma";color="#22d3ee";glow="#00ffcc";
+    } else if((cfg.id||0)>=20&&Math.random()<0.014&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
+      // 1.4% Timewarp Target — extends all targets' lifetimes +2s when tapped
+      type="timewarp_tgt";color="#818cf8";glow="#c7d2fe";
     } else if((cfg.id||0)>=16&&!cfg.isZen&&Math.random()<0.016&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")){
       // 1.6% Thunderclap — shockwave on tap knocks back nearby targets
       type="thunderclap";color="#4338ca";glow="#fde047";
@@ -5395,6 +5485,7 @@ type==="vortex"?BASE_R*1.4:type==="pixel"?BASE_R*0.65:type==="neon"?BASE_R*1.45:
 type==="lantern"?BASE_R*1.2:type==="drift"?BASE_R*1.1:
 type==="nebula"?BASE_R*1.5:type==="wisp"?BASE_R*1.2:type==="meteor"?BASE_R*1.1:type==="aura"?BASE_R*1.55:
 type==="thunderclap"?BASE_R*1.4:type==="mirror_shard"?BASE_R*1.0:type==="rune_stone"?BASE_R*1.3:
+type==="fractal"?BASE_R*1.2:type==="fractal_mini"?BASE_R*0.7:type==="plasma"?BASE_R*1.25:type==="timewarp_tgt"?BASE_R*1.3:
 type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     const pos=pickPos(baseR);
     let lifetime=cfg.targetLifetime;
@@ -5472,6 +5563,12 @@ type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
     if(type==="meteor")lifetime=Math.min(lifetime,2600);
     // Aura: medium — let ring pulse a few times
     if(type==="aura")lifetime=Math.max(lifetime,3400);
+    // Fractal: medium
+    if(type==="fractal"||type==="fractal_mini")lifetime=Math.max(lifetime,3000);
+    // Plasma: medium-long (needs to charge up fully)
+    if(type==="plasma")lifetime=Math.max(lifetime,4000);
+    // Timewarp Target: medium
+    if(type==="timewarp_tgt")lifetime=Math.max(lifetime,3500);
     // Thunderclap: medium
     if(type==="thunderclap")lifetime=Math.max(lifetime,3200);
     // Mirror Shard: medium-long (3 taps needed)
@@ -7020,6 +7117,85 @@ type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
       updateMissions(gs.sessionStats);
       const cfgDr=levelCfgRef.current;
       if(cfgDr){if(gs.score>=cfgDr.scoreGoal&&(!cfgDr.modifier||checkModGoal(cfgDr.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+    // FRACTAL — splits into 2 smaller fractals on tap (depth 0→1); depth 1 fractals score directly
+    if(hit.type==="fractal"||hit.type==="fractal_mini"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const depth=hit._fractalDepth||0;
+      if(depth<1){
+        // Split into 2 mini fractals
+        const canvas=canvasRef.current;const cw10=canvas?.width||390,ch10=canvas?.height||700;
+        const basePts=Math.round(150*combo*feverMult);gs.score+=basePts;gs.streak++;gs.lastTapTime=Date.now();
+        for(let i=0;i<2;i++){
+          const a=Math.random()*Math.PI*2;const dist=40+Math.random()*30;
+          const sx=Math.max(BASE_R+10,Math.min(cw10-BASE_R-10,hit.x+Math.cos(a+i*Math.PI)*dist));
+          const sy=Math.max(BASE_R+100,Math.min(ch10-BASE_R-20,hit.y+Math.sin(a+i*Math.PI)*dist));
+          targetsRef.current.push({id:Math.random().toString(36).slice(2),type:"fractal_mini",
+            x:sx,y:sy,radius:Math.round(BASE_R*0.7),color:hit.color,glow:hit.glow,
+            lifetime:2500,spawnedAt:Date.now(),born:performance.now(),moving:true,ghost:false,
+            vx:(Math.random()-0.5)*1.5,vy:(Math.random()-0.5)*1.5,trail:[],
+            hitsLeft:1,maxHits:1,dying:null,rarity:null,_fractalDepth:1});
+        }
+        spawnPopup(hit.x,hit.y-26,`🔷 FRACTAL SPLIT! +${basePts}`,"#818cf8",18);
+        spawnParticles(hit.x,hit.y,"#818cf8",14,"spark");sfx("chainBonus");vibrate([8,4,8]);
+        unlock("fractal_tap");
+      } else {
+        // Mini fractal — score directly
+        const pts=Math.round(250*combo*feverMult);gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+        spawnPopup(hit.x,hit.y-20,`💠 +${pts}`,"#6366f1",16);
+        spawnParticles(hit.x,hit.y,"#6366f1",10,"spark");sfx("tap");vibrate(6);
+        unlock("fractal_tap");unlock("fractal_cascade");
+      }
+      mascotHappyRef.current+=2;updateMissions(gs.sessionStats);
+      const cfgFr=levelCfgRef.current;
+      if(cfgFr){if(gs.score>=cfgFr.scoreGoal&&(!cfgFr.modifier||checkModGoal(cfgFr.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+    // PLASMA — charges up over lifetime; tap at 70-90% charge for surge jackpot
+    if(hit.type==="plasma"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      const chargePct=Math.min(1,(Date.now()-hit.spawnedAt)/(hit.lifetime||4000));
+      const isSurge=chargePct>=0.7&&chargePct<=0.9;
+      const pts=Math.round((isSurge?1300:Math.round(300+chargePct*600))*combo*feverMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      spawnPopup(hit.x,hit.y-30,isSurge?`⚡ PLASMA SURGE! +${pts}`:`⚡ PLASMA! +${pts}`,isSurge?"#00ffcc":"#22d3ee",isSurge?22:17);
+      spawnParticles(hit.x,hit.y,isSurge?"#00ffcc":"#22d3ee",isSurge?20:12,"spark");
+      if(isSurge){particlesRef.current.push({type:"shockwave",x:hit.x,y:hit.y,color:"#00ffcc",size:200,born:performance.now(),duration:700,alpha:0.6});sfx("legendary");vibrate([14,8,20]);}
+      else{sfx("chainBonus");vibrate(10);}
+      unlock("plasma_tap");
+      if(isSurge)unlock("plasma_surge");
+      mascotHappyRef.current+=(isSurge?5:2);
+      updateMissions(gs.sessionStats);
+      const cfgPl=levelCfgRef.current;
+      if(cfgPl){if(gs.score>=cfgPl.scoreGoal&&(!cfgPl.modifier||checkModGoal(cfgPl.modifier,gs))){endLevel(true);return;}}
+      return;
+    }
+    // TIMEWARP TARGET — extends all targets' remaining lifetime by 2s
+    if(hit.type==="timewarp_tgt"){
+      targetsRef.current=targetsRef.current.filter(t=>t.id!==hit.id);
+      const combo=Math.min(10,1+Math.floor(gs.streak/5));
+      const feverMult=gs.feverActive?2:1;
+      let extended=0;
+      targetsRef.current.forEach(t=>{
+        if(!t.dying&&t.type!=="boss"){t.spawnedAt+=2000;t.lifetime+=2000;extended++;}
+      });
+      const pts=Math.round((300+extended*50)*combo*feverMult);
+      gs.score+=pts;gs.streak++;gs.lastTapTime=Date.now();
+      particlesRef.current.push({type:"shockwave",x:hit.x,y:hit.y,color:"#818cf8",size:280,born:performance.now(),duration:800,alpha:0.4});
+      spawnPopup(hit.x,hit.y-34,`⏱️ +2s ALL! +${pts} (${extended} targets)`,"#c7d2fe",20);
+      spawnParticles(hit.x,hit.y,"#818cf8",16,"spark");
+      sfx("powerUp");vibrate([10,6,10,6,14]);
+      unlock("timewarp_target_tap");
+      if(extended>=5)unlock("timewarp_hoard");
+      mascotHappyRef.current+=3;
+      updateMissions(gs.sessionStats);
+      const cfgTw=levelCfgRef.current;
+      if(cfgTw){if(gs.score>=cfgTw.scoreGoal&&(!cfgTw.modifier||checkModGoal(cfgTw.modifier,gs))){endLevel(true);return;}}
       return;
     }
     // THUNDERCLAP — shockwave on tap knocks back all nearby targets
@@ -11760,7 +11936,7 @@ type==="normal"?BASE_R*(rarity?.size||1):BASE_R;
   // Achievement tab state — "all" | "gameplay" | "progression" | "social"
   const [achTab, setAchTab] = React.useState("all");
   const ACH_CATS = {
-    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect","prism_tap","comet_tap","comet_early","mirrorball_tap","nexus_tap","phoenix_tap","phoenix_risen","icecomet_tap","voltage_tap","void_tap","void_master","clover_tap","clover_jackpot","ricochet_tap","ricochet_double","aurora_tap","aurora_perfect","fury_mode","score_10k","portal_tap","portal_chaos","particlebomb_tap","beacon_tap","beacon_surge","shadow_tap","shadow_clone_catch","spectral_tap","spectral_perfect","heart_tap","nova_tap","firefly_tap","firefly_swift","geode_crack","geode_gem","timebomb_defuse","timebomb_clutch","thunderbolt_tap","thunderbolt_clutch","gravityorb_tap","gravityorb_cluster","crystalball_tap","quantum_tap","quantum_stable","clockwork_tap","bloom_tap","bloom_harvest","reflector_tap","reflector_chaos","chain_collect","chain_triple","stardust_tap","stardust_shower","score_25k","solarflare_tap","solarflare_early","magma_tap","prismbomb_tap","prismbomb_triple","icecage_tap","icecage_full","pinwheel_tap","pinwheel_jackpot","supercell_tap","supercell_storm","vortex_tap","vortex_feast","pixel_tap","pixel_speedrun","neon_tap","neon_gold","lantern_tap","lantern_chain","drift_tap","drift_max","berserker_use","ghost_mode_use","nebula_tap","nebula_cluster","wisp_tap","wisp_still","meteor_tap","meteor_early","aura_tap","aura_edge","thunderclap_tap","thunderclap_surge","mirror_tap","mirror_triple","rune_tap","rune_power","score_50k"],
+    gameplay:    ["first_tap","combo_10","boss_1","fever_1","perfect_5","combo_15","chain_4","mimic_hit","shielded_hit","speed_demon","phantom_catch","volatile_defuse","frozen_catch","bouncy_catch","ninja_catch","loot_chest","tornado_catch","bubble_pop","bomb_defuse","echo_tap","echo_bonus","crystal_shatter","crystal_chain","rage_tap","rage_max","divider_tap","chain_lightning_hit","gold_rush","first_tap_fever","bounty_hit","vanishing_tap","vanishing_blind","tap_frenzy","homing_tap","homing_center","gemstone_tap","morph_tap","morph_legendary","time_warp_use","conductor_tap","siphon_tap","glitch_tap","glitch_perfect","prism_tap","comet_tap","comet_early","mirrorball_tap","nexus_tap","phoenix_tap","phoenix_risen","icecomet_tap","voltage_tap","void_tap","void_master","clover_tap","clover_jackpot","ricochet_tap","ricochet_double","aurora_tap","aurora_perfect","fury_mode","score_10k","portal_tap","portal_chaos","particlebomb_tap","beacon_tap","beacon_surge","shadow_tap","shadow_clone_catch","spectral_tap","spectral_perfect","heart_tap","nova_tap","firefly_tap","firefly_swift","geode_crack","geode_gem","timebomb_defuse","timebomb_clutch","thunderbolt_tap","thunderbolt_clutch","gravityorb_tap","gravityorb_cluster","crystalball_tap","quantum_tap","quantum_stable","clockwork_tap","bloom_tap","bloom_harvest","reflector_tap","reflector_chaos","chain_collect","chain_triple","stardust_tap","stardust_shower","score_25k","solarflare_tap","solarflare_early","magma_tap","prismbomb_tap","prismbomb_triple","icecage_tap","icecage_full","pinwheel_tap","pinwheel_jackpot","supercell_tap","supercell_storm","vortex_tap","vortex_feast","pixel_tap","pixel_speedrun","neon_tap","neon_gold","lantern_tap","lantern_chain","drift_tap","drift_max","berserker_use","ghost_mode_use","nebula_tap","nebula_cluster","wisp_tap","wisp_still","meteor_tap","meteor_early","aura_tap","aura_edge","thunderclap_tap","thunderclap_surge","mirror_tap","mirror_triple","rune_tap","rune_power","score_50k","fractal_tap","fractal_cascade","plasma_tap","plasma_surge","timewarp_target_tap","timewarp_hoard"],
     progression: ["level_10","level_50","level_100","prestige_1","three_stars_5","mascot_lv10","streak_25","streak_50","streak_10","streak_5","score_2000","world_complete"],
     social:      ["missions_all","daily_7","friday_fever","weekend_warrior","all_worlds","streak_saver","loot_chest"],
   };
