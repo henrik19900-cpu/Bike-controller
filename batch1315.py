@@ -9,13 +9,13 @@ FOX      = "zincoravnicite"
 ORB      = "zincorolandite"
 FOX_TYPE = f"{FOX}_fox9e"
 ORB_TYPE = f"{ORB}_orb9e"
-FOX_COLOR = "#1c0018"; FOX_GLOW = "#e879f9"; FOX_PEAK = "\U0001f9ca"
-ORB_COLOR = "#001c00"; ORB_GLOW = "#86efac"; ORB_PEAK = "\U0001fab5"
+FOX_COLOR = "#0c1800"; FOX_GLOW = "#84cc16"; FOX_PEAK = "\U0001fab5"
+ORB_COLOR = "#1c001c"; ORB_GLOW = "#c026d3"; ORB_PEAK = "\U0001f9ca"
 FOX_SC   = 1614;  ORB_SC  = 1609
 FOX_R    = "BASE_R*7.60"; ORB_R = "BASE_R*7.59"
 OSC      = 0.6509; SW = 3424
-PW1 = "BETA40_GLOW44"; PW1_SC = 4724; PW1_SHOCK = "#e879f9"; PW1_ICON = "β\U0001f9ca"
-PW2 = "GAMMA40_GLOW44"; PW2_SC = 4726; PW2_SHOCK = "#86efac"; PW2_ICON = "γ\U0001fab5"
+PW1 = "BETA40_GLOW44"; PW1_SC = 4724; PW1_SHOCK = "#84cc16"; PW1_ICON = "β\U0001fab5"
+PW2 = "GAMMA40_GLOW44"; PW2_SC = 4726; PW2_SHOCK = "#c026d3"; PW2_ICON = "γ\U0001f9ca"
 
 PREV_FOX_FULL = "zincoquercetinaite_fox9e"
 PREV_FOX_COLOR = "#001018"; PREV_FOX_GLOW = "#3b82f6"
@@ -30,10 +30,10 @@ ACH = f'''  {{ id:"{FOX_TYPE}_tap",          label:"Zincoravnicite Fox Tap",    
   {{ id:"{FOX_TYPE}_peak",         label:"Zincoravnicite Fox Peak",     desc:"Reach peak with Zincoravnicite Fox",    icon:"{FOX_PEAK}", xp:124 }},
   {{ id:"{ORB_TYPE}_tap",          label:"Zincorolandite Orb Tap",      desc:"Tap Zincorolandite Orb target",         icon:"{ORB_PEAK}", xp:62 }},
   {{ id:"{ORB_TYPE}_peak",         label:"Zincorolandite Orb Peak",     desc:"Reach peak with Zincorolandite Orb",    icon:"{ORB_PEAK}", xp:124 }},
-  {{ id:"{PW1.lower()}_use",       label:"Beta40 Glow",                 desc:"Trigger BETA40_GLOW44 power-up",        icon:"β", xp:62 }},
-  {{ id:"{PW1.lower()}_max",       label:"Beta40 Glow Max",             desc:"Trigger BETA40_GLOW44 at max streak",   icon:"β", xp:124 }},
-  {{ id:"{PW2.lower()}_use",       label:"Gamma40 Glow",                desc:"Trigger GAMMA40_GLOW44 power-up",       icon:"γ", xp:62 }},
-  {{ id:"{PW2.lower()}_max",       label:"Gamma40 Glow Max",            desc:"Trigger GAMMA40_GLOW44 at max streak",  icon:"γ", xp:124 }},
+  {{ id:"{PW1.lower()}_use",       label:"Beta40 Glow",                  desc:"Trigger BETA40_GLOW44 power-up",         icon:"β", xp:62 }},
+  {{ id:"{PW1.lower()}_max",       label:"Beta40 Glow Max",              desc:"Trigger BETA40_GLOW44 at max streak",    icon:"β", xp:124 }},
+  {{ id:"{PW2.lower()}_use",       label:"Gamma40 Glow",                  desc:"Trigger GAMMA40_GLOW44 power-up",         icon:"γ", xp:62 }},
+  {{ id:"{PW2.lower()}_max",       label:"Gamma40 Glow Max",              desc:"Trigger GAMMA40_GLOW44 at max streak",    icon:"γ", xp:124 }},
   {{ id:"{PREV_FOX_FULL}_tap",'''
 anchor1 = f'  {{ id:"{PREV_FOX_FULL}_tap",'
 assert src.count(anchor1) == 1
@@ -67,7 +67,7 @@ DRAWS = f'''function {FOX_FN}(ctx,r,ts,sp){{
   ctx.shadowColor="{FOX_GLOW}";ctx.shadowBlur=20+pu*18;
   ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);
   const g=ctx.createRadialGradient(0,0,r*0.1,0,0,r);
-  g.addColorStop(0,"#e879f9");g.addColorStop(0.5,"{FOX_COLOR}");g.addColorStop(1,"#4a044e");
+  g.addColorStop(0,"#84cc16");g.addColorStop(0.5,"{FOX_COLOR}");g.addColorStop(1,"#1a2e05");
   ctx.fillStyle=g;ctx.fill();ctx.strokeStyle="{FOX_GLOW}";ctx.lineWidth=2+pu*2;ctx.stroke();
   ctx.font=`${{Math.round(r*{OSC}*10)/10}}px serif`;ctx.textAlign="center";ctx.textBaseline="middle";
   ctx.fillText("{FOX_PEAK}",0,0);ctx.restore();
@@ -77,7 +77,7 @@ function {ORB_FN}(ctx,r,ts,tp){{
   ctx.shadowColor="{ORB_GLOW}";ctx.shadowBlur=18+pu*16;
   ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);
   const g=ctx.createRadialGradient(0,0,r*0.1,0,0,r);
-  g.addColorStop(0,"#86efac");g.addColorStop(0.5,"{ORB_COLOR}");g.addColorStop(1,"#052e16");
+  g.addColorStop(0,"#c026d3");g.addColorStop(0.5,"{ORB_COLOR}");g.addColorStop(1,"#4a044e");
   ctx.fillStyle=g;ctx.fill();ctx.strokeStyle="{ORB_GLOW}";ctx.lineWidth=2+pu*2;ctx.stroke();
   ctx.font=`${{Math.round(r*{OSC}*10)/10}}px serif`;ctx.textAlign="center";ctx.textBaseline="middle";
   ctx.fillText("{ORB_PEAK}",0,0);ctx.restore();

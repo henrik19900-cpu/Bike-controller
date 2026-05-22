@@ -5,35 +5,35 @@ with open(SRC, "r") as f:
     src = f.read()
 original_len = len(src)
 
-FOX      = "zincosaflorite"
-ORB      = "zincoschoeneite"
+FOX      = "zincociminite"
+ORB      = "zincoclarite"
 FOX_TYPE = f"{FOX}_fox9e"
 ORB_TYPE = f"{ORB}_orb9e"
-FOX_COLOR = "#181800"; FOX_GLOW = "#fcd34d"; FOX_PEAK = "\U0001fab4"
-ORB_COLOR = "#001c18"; ORB_GLOW = "#2dd4bf"; ORB_PEAK = "\U0001fab5"
-FOX_SC   = 1616;  ORB_SC  = 1611
-FOX_R    = "BASE_R*7.61"; ORB_R = "BASE_R*7.60"
-OSC      = 0.6513; SW = 3426
-PW1 = "DELTA40_GLOW44"; PW1_SC = 4728; PW1_SHOCK = "#fcd34d"; PW1_ICON = "δ\U0001fab4"
-PW2 = "EPSILON40_GLOW44"; PW2_SC = 4730; PW2_SHOCK = "#2dd4bf"; PW2_ICON = "ε\U0001fab5"
+FOX_COLOR = "#0c1800"; FOX_GLOW = "#84cc16"; FOX_PEAK = "\U0001f9ca"
+ORB_COLOR = "#18001c"; ORB_GLOW = "#c026d3"; ORB_PEAK = "\U0001fab4"
+FOX_SC   = 1776;  ORB_SC  = 1771
+FOX_R    = "BASE_R*8.41"; ORB_R = "BASE_R*8.40"
+OSC      = 0.6833; SW = 3586
+PW1 = "UPSILON46_GLOW44"; PW1_SC = 5048; PW1_SHOCK = "#84cc16"; PW1_ICON = "υ\U0001f9ca"
+PW2 = "PHI46_GLOW44"; PW2_SC = 5050; PW2_SHOCK = "#c026d3"; PW2_ICON = "φ\U0001fab4"
 
-PREV_FOX_FULL = "zincoravnicite_fox9e"
-PREV_FOX_COLOR = "#0c1800"; PREV_FOX_GLOW = "#84cc16"
-PREV_PW1  = "GAMMA40_GLOW44"; PREV_PW1_ICON = "γ\U0001f9ca"
-PREV_DRAW_FOX = "draw" + "Zincoravnicite" + "Fox9e"
-PREV_FOX_R = "BASE_R*7.60"
+PREV_FOX_FULL = "zincochrysocolla_fox9e"
+PREV_FOX_COLOR = "#001c1c"; PREV_FOX_GLOW = "#0f766e"
+PREV_PW1  = "TAU46_GLOW44"; PREV_PW1_ICON = "τ\U0001fab5"
+PREV_DRAW_FOX = "draw" + "Zincochrysocolla" + "Fox9e"
+PREV_FOX_R = "BASE_R*8.40"
 
-FOX_FN = "draw" + "Zincosaflorite" + "Fox9e"
-ORB_FN = "draw" + "Zincoschoeneite" + "Orb9e"
+FOX_FN = "draw" + "Zincociminite" + "Fox9e"
+ORB_FN = "draw" + "Zincoclarite" + "Orb9e"
 
-ACH = f'''  {{ id:"{FOX_TYPE}_tap",          label:"Zincosaflorite Fox Tap",      desc:"Tap Zincosaflorite Fox target",         icon:"{FOX_PEAK}", xp:62 }},
-  {{ id:"{FOX_TYPE}_peak",         label:"Zincosaflorite Fox Peak",     desc:"Reach peak with Zincosaflorite Fox",    icon:"{FOX_PEAK}", xp:124 }},
-  {{ id:"{ORB_TYPE}_tap",          label:"Zincoschoeneite Orb Tap",      desc:"Tap Zincoschoeneite Orb target",         icon:"{ORB_PEAK}", xp:62 }},
-  {{ id:"{ORB_TYPE}_peak",         label:"Zincoschoeneite Orb Peak",     desc:"Reach peak with Zincoschoeneite Orb",    icon:"{ORB_PEAK}", xp:124 }},
-  {{ id:"{PW1.lower()}_use",       label:"Delta40 Glow",                  desc:"Trigger DELTA40_GLOW44 power-up",         icon:"δ", xp:62 }},
-  {{ id:"{PW1.lower()}_max",       label:"Delta40 Glow Max",              desc:"Trigger DELTA40_GLOW44 at max streak",    icon:"δ", xp:124 }},
-  {{ id:"{PW2.lower()}_use",       label:"Epsilon40 Glow",                  desc:"Trigger EPSILON40_GLOW44 power-up",         icon:"ε", xp:62 }},
-  {{ id:"{PW2.lower()}_max",       label:"Epsilon40 Glow Max",              desc:"Trigger EPSILON40_GLOW44 at max streak",    icon:"ε", xp:124 }},
+ACH = f'''  {{ id:"{FOX_TYPE}_tap",          label:"Zincociminite Fox Tap",       desc:"Tap Zincociminite Fox target",          icon:"{FOX_PEAK}", xp:62 }},
+  {{ id:"{FOX_TYPE}_peak",         label:"Zincociminite Fox Peak",      desc:"Reach peak with Zincociminite Fox",     icon:"{FOX_PEAK}", xp:124 }},
+  {{ id:"{ORB_TYPE}_tap",          label:"Zincoclarite Orb Tap",        desc:"Tap Zincoclarite Orb target",           icon:"{ORB_PEAK}", xp:62 }},
+  {{ id:"{ORB_TYPE}_peak",         label:"Zincoclarite Orb Peak",       desc:"Reach peak with Zincoclarite Orb",      icon:"{ORB_PEAK}", xp:124 }},
+  {{ id:"{PW1.lower()}_use",       label:"Upsilon46 Glow",              desc:"Trigger UPSILON46_GLOW44 power-up",     icon:"υ", xp:62 }},
+  {{ id:"{PW1.lower()}_max",       label:"Upsilon46 Glow Max",          desc:"Trigger UPSILON46_GLOW44 at max streak",icon:"υ", xp:124 }},
+  {{ id:"{PW2.lower()}_use",       label:"Phi46 Glow",                  desc:"Trigger PHI46_GLOW44 power-up",         icon:"φ", xp:62 }},
+  {{ id:"{PW2.lower()}_max",       label:"Phi46 Glow Max",              desc:"Trigger PHI46_GLOW44 at max streak",    icon:"φ", xp:124 }},
   {{ id:"{PREV_FOX_FULL}_tap",'''
 anchor1 = f'  {{ id:"{PREV_FOX_FULL}_tap",'
 assert src.count(anchor1) == 1
@@ -46,19 +46,19 @@ HANDLER = f'''}} else if(ptype==="{PW1}"){{
       const bns={PW1_SC}+gs.streak*12;
       gs.score+=bns;setHud(h=>({{...h,score:gs.score}}));
       spawnParticles(W/2,H/2,"{PW1_SHOCK}",28,"shockwave");
-      showNotif("δ DELTA40 GLOW +"+bns);
+      showNotif("υ UPSILON46 GLOW +"+bns);
       unlock("{PW1.lower()}_use");if(gs.streak>=20)unlock("{PW1.lower()}_max");
     }} else if(ptype==="{PW2}"){{
       const bns={PW2_SC}+gs.streak*12;
       gs.score+=bns;setHud(h=>({{...h,score:gs.score}}));
       spawnParticles(W/2,H/2,"{PW2_SHOCK}",28,"shockwave");
-      showNotif("ε EPSILON40 GLOW +"+bns);
+      showNotif("φ PHI46 GLOW +"+bns);
       unlock("{PW2.lower()}_use");if(gs.streak>=20)unlock("{PW2.lower()}_max");
     }} else if(ptype==="{PREV_PW1}")''' + '{'
 OLD3 = f'}} else if(ptype==="{PREV_PW1}")' + '{'
 assert src.count(OLD3) == 1; src = src.replace(OLD3, HANDLER, 1); print("OK Step3")
 
-CMT = f'// {PW1} — +{PW1_SC} delta40\n    // {PW2} — +{PW2_SC} epsilon40\n    // {PREV_PW1}'
+CMT = f'// {PW1} — +{PW1_SC} upsilon46\n    // {PW2} — +{PW2_SC} phi46\n    // {PREV_PW1}'
 OLD4 = f'// {PREV_PW1}'; assert src.count(OLD4) >= 1
 src = src.replace(OLD4, CMT, 1); print("OK Step4")
 
@@ -67,7 +67,7 @@ DRAWS = f'''function {FOX_FN}(ctx,r,ts,sp){{
   ctx.shadowColor="{FOX_GLOW}";ctx.shadowBlur=20+pu*18;
   ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);
   const g=ctx.createRadialGradient(0,0,r*0.1,0,0,r);
-  g.addColorStop(0,"#fcd34d");g.addColorStop(0.5,"{FOX_COLOR}");g.addColorStop(1,"#422006");
+  g.addColorStop(0,"#84cc16");g.addColorStop(0.5,"{FOX_COLOR}");g.addColorStop(1,"#1a2e05");
   ctx.fillStyle=g;ctx.fill();ctx.strokeStyle="{FOX_GLOW}";ctx.lineWidth=2+pu*2;ctx.stroke();
   ctx.font=`${{Math.round(r*{OSC}*10)/10}}px serif`;ctx.textAlign="center";ctx.textBaseline="middle";
   ctx.fillText("{FOX_PEAK}",0,0);ctx.restore();
@@ -77,7 +77,7 @@ function {ORB_FN}(ctx,r,ts,tp){{
   ctx.shadowColor="{ORB_GLOW}";ctx.shadowBlur=18+pu*16;
   ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);
   const g=ctx.createRadialGradient(0,0,r*0.1,0,0,r);
-  g.addColorStop(0,"#2dd4bf");g.addColorStop(0.5,"{ORB_COLOR}");g.addColorStop(1,"#042f2e");
+  g.addColorStop(0,"#c026d3");g.addColorStop(0.5,"{ORB_COLOR}");g.addColorStop(1,"#4a044e");
   ctx.fillStyle=g;ctx.fill();ctx.strokeStyle="{ORB_GLOW}";ctx.lineWidth=2+pu*2;ctx.stroke();
   ctx.font=`${{Math.round(r*{OSC}*10)/10}}px serif`;ctx.textAlign="center";ctx.textBaseline="middle";
   ctx.fillText("{ORB_PEAK}",0,0);ctx.restore();
@@ -120,4 +120,4 @@ cnt = src.count(OLD10); assert cnt == 2, f"cnt={cnt}"
 src = src.replace(OLD10, NEW10); print("OK Step10")
 
 with open(SRC, "w") as f: f.write(src)
-print(f"Batch 1316 done! +{len(src)-original_len} bytes")
+print(f"Batch 1396 done! +{len(src)-original_len} bytes")
