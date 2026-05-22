@@ -42,20 +42,20 @@ src = src.replace(anchor1, ACH, 1); print("OK Step1")
 OLD2 = f'"{PREV_PW1}",'; NEW2 = f'"{PW1}","{PW2}","{PREV_PW1}",'
 assert src.count(OLD2) >= 1; src = src.replace(OLD2, NEW2, 1); print("OK Step2")
 
-HANDLER = f'''} else if(ptype==="{PW1}"){{
+HANDLER = f'''}} else if(ptype==="{PW1}"){{
       const bns={PW1_SC}+gs.streak*12;
-      gs.score+=bns;setHud(h=>({{...h,score:gs.score}}});
+      gs.score+=bns;setHud(h=>({{...h,score:gs.score}}));
       spawnParticles(W/2,H/2,"{PW1_SHOCK}",28,"shockwave");
       showNotif("σ SIGMA47 GLOW +"+bns);
       unlock("{PW1.lower()}_use");if(gs.streak>=20)unlock("{PW1.lower()}_max");
-    } else if(ptype==="{PW2}"){{
+    }} else if(ptype==="{PW2}"){{
       const bns={PW2_SC}+gs.streak*12;
-      gs.score+=bns;setHud(h=>({{...h,score:gs.score}}});
+      gs.score+=bns;setHud(h=>({{...h,score:gs.score}}));
       spawnParticles(W/2,H/2,"{PW2_SHOCK}",28,"shockwave");
       showNotif("τ TAU47 GLOW +"+bns);
       unlock("{PW2.lower()}_use");if(gs.streak>=20)unlock("{PW2.lower()}_max");
-    } else if(ptype==="{PREV_PW1}")'''  + '{'
-OLD3 = f'} else if(ptype==="{PREV_PW1}")'  + '{'
+    }} else if(ptype==="{PREV_PW1}")''' + '{'
+OLD3 = f'}} else if(ptype==="{PREV_PW1}")' + '{'
 assert src.count(OLD3) == 1; src = src.replace(OLD3, HANDLER, 1); print("OK Step3")
 
 CMT = f'// {PW1} — +{PW1_SC} sigma47\n    // {PW2} — +{PW2_SC} tau47\n    // {PREV_PW1}'
