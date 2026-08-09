@@ -433,6 +433,22 @@ npm run android        # build + npx cap sync android
 # Then open android/ in Android Studio to build the APK
 ```
 
-No CI/CD is configured. The `dist/` directory is git-ignored and rebuilt each time.
+The `dist/` directory is git-ignored and rebuilt each time.
+
+Two GitHub Actions workflows exist:
+
+- `.github/workflows/build-android.yml` — debug APK on every push. For device
+  testing only; Play rejects debuggable, debug-signed uploads.
+- `.github/workflows/release-android.yml` — signed release `.aab` for Play, run
+  manually or by pushing a `v*` tag. Needs the four `ANDROID_*` repository
+  secrets.
+
+Release signing is configured in `android/app/build.gradle` and reads either
+`android/keystore.properties` (git-ignored) or `ANDROID_KEYSTORE_FILE` /
+`ANDROID_KEYSTORE_PASSWORD` / `ANDROID_KEY_ALIAS` / `ANDROID_KEY_PASSWORD` from
+the environment. `versionCode` / `versionName` come from the `appVersionCode` /
+`appVersionName` Gradle properties so each upload gets a fresh version code.
+
+See `RELEASE.md` for the full Play release procedure.
 
 The active development branch is `claude/mobile-game-react-Y66kc`.

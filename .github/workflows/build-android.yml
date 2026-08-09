@@ -1,5 +1,9 @@
 name: Build Android APK
 
+# Debug build for testing on a device. This APK is debuggable and debug-signed,
+# so Google Play will reject it — use release-android.yml to produce the signed
+# .aab that Play accepts.
+
 on:
   push:
     branches: ["**"]

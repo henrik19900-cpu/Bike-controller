@@ -1,5 +1,29 @@
 apply plugin: 'com.android.application'
 
+// Release signing credentials. Loaded from android/keystore.properties for local
+// builds, or from environment variables in CI. Neither the keystore nor the
+// properties file is committed — see android/.gitignore.
+def keystorePropertiesFile = rootProject.file("keystore.properties")
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
+}
+
+def signingProp = { String key, String env ->
+    keystoreProperties.getProperty(key) ?: System.getenv(env)
+}
+
+def releaseStorePath = signingProp('storeFile', 'ANDROID_KEYSTORE_FILE')
+def releaseStorePassword = signingProp('storePassword', 'ANDROID_KEYSTORE_PASSWORD')
+def releaseKeyAlias = signingProp('keyAlias', 'ANDROID_KEY_ALIAS')
+def releaseKeyPassword = signingProp('keyPassword', 'ANDROID_KEY_PASSWORD')
+def hasReleaseSigning = releaseStorePath && releaseStorePassword && releaseKeyAlias && releaseKeyPassword
+
+// Play rejects a re-used version code, so every upload needs a fresh one.
+// CI passes -PappVersionCode=<run number>; local builds fall back to 1.
+def resolvedVersionCode = (project.findProperty('appVersionCode') ?: System.getenv('ANDROID_VERSION_CODE') ?: '1') as Integer
+def resolvedVersionName = project.findProperty('appVersionName') ?: System.getenv('ANDROID_VERSION_NAME') ?: '1.0'
+
 android {
     namespace = "com.nexustap.game"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +31,8 @@ android {
         applicationId "com.nexustap.game"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode resolvedVersionCode
+        versionName resolvedVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,10 +40,28 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        if (hasReleaseSigning) {
+            release {
+                storeFile file(releaseStorePath)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            } else {
+                // Leave unsigned rather than silently falling back to the debug key —
+                // Play rejects debug-signed uploads, and a build failure is easier to
+                // diagnose than a rejected upload.
+                logger.warn("No release signing config found; :app:assembleRelease/bundleRelease will produce an UNSIGNED artifact.")
+            }
         }
     }
 }
