@@ -79,6 +79,12 @@ These have to be filled in on the console side:
   in `src/`. All progress is stored locally in the WebView's `localStorage` and
   never leaves the device. Answer *"No, this app does not collect or share any
   user data."*
+
+  Webfonts used to be pulled from Google's CDN at runtime, which sent every
+  player's IP address to Google and would have had to be declared here. They are
+  now self-hosted in `public/fonts/`, verified with a headless browser run that
+  records zero outbound requests. Keep it that way — re-adding a remote
+  stylesheet changes the correct answer to this form.
 - **Content rating questionnaire** — a tap-reflex game with no user-generated
   content, no chat, no purchases and no ads.
 - **Target audience & content** — declare the intended age group.
