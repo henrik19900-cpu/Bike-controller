@@ -425,6 +425,56 @@ Add `@keyframes myAnim {...}` inside the `<style>` block near the bottom of the 
 
 ---
 
+## Generated code — hard constraints
+
+`src/NexusTap.jsx` is largely produced by the `batch*.py` scripts in the repo
+root. Those scripts are incremental patchers: each one string-replaces an anchor
+in the file and is not re-runnable once applied. The file, not the scripts, is
+the artifact.
+
+Two invariants now matter, because breaking either one stops the app from
+launching at all:
+
+**Never build a long `else if` chain or nested ternary.** `if (a) {} else if (b) {}
+… ` nests the AST one level per branch. At a few thousand branches V8 cannot
+parse the enclosing function inside React's render stack and throws
+`RangeError: Maximum call stack size exceeded` before anything renders — Babel's
+parser overflows on the same input. The former chains are now flat guarded
+sequences:
+
+```js
+let __chain0 = false;
+if (!__chain0 && (cond)) { __chain0 = true; /* … */ }
+if (!__chain0 && (cond)) { __chain0 = true; /* … */ }
+```
+
+This keeps else-if semantics — conditions still evaluate in order and stop at the
+first match — with no nesting. New generated branches must use this form.
+Per-type value lookups belong in a module-level `Map`, as `TARGET_RADIUS_MULT`
+does for target radii.
+
+**Anything generated must resolve.** A scope pass over the file should report no
+unresolved identifiers. Past generators emitted calls to `showNotif`, `showPop`,
+`showPopup`, `addPopup`, `spawnShockwave`, `addParticle` and `spawnParticle`,
+none of which existed. The real API is `setNotif(text)`,
+`spawnPopup(x, y, text, color, size)` and
+`spawnParticles(x, y, color, count, type)`; `handleTap` and `activatePowerUp`
+each open with a block binding the old names to these.
+
+Module-scope code cannot see the component's refs. The few generated functions
+that ended up outside `NexusTap` reach them through `__fromComponent`, which the
+component republishes on every render.
+
+### Anchors invalidated by the flattening
+
+`batch1412`–`batch1420` were syntactically invalid Python and never ran, so their
+content is not in the game. They have been repaired to parse, but their anchors
+(`} else if(ptype==="…")`, `else if(t.type==="…")`) target the old nested shape
+and no longer match the file. Running them as-is fails on their `assert`s;
+retarget them to the flat form above first.
+
+---
+
 ## Build & Deploy
 
 ```bash
