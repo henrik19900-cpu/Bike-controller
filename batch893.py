@@ -1,6 +1,12 @@
 import re
 
 SRC = "src/NexusTap.jsx"
+
+# Spawn condition for the rare cosmetic variants below. This used to be written
+# as a bare COND100F inside the f-string, which emitted the identifier verbatim
+# into NexusTap.jsx instead of interpolating -- spawnTarget then threw a
+# ReferenceError on every call and no targets could spawn.
+COND100F = '(cfg.id||0)>=100&&Math.random()<0.003&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")'
 with open(SRC, "r") as f:
     src = f.read()
 original_len = len(src)
@@ -108,9 +114,9 @@ OLD7 = f'if(hit.type==="{PREV_FOX_FULL}")' + '{'
 assert src.count(OLD7) == 1; src = src.replace(OLD7, TAP, 1); print("OK Step7")
 
 SPAWN = f'''type="{FOX_TYPE}";color="{FOX_COLOR}";glow="{FOX_GLOW}";
-        }}else if(COND100F){{
+        }}else if({COND100F}){{
           type="{ORB_TYPE}";color="{ORB_COLOR}";glow="{ORB_GLOW}";
-        }}else if(COND100F){{
+        }}else if({COND100F}){{
           type="{PREV_FOX_FULL}";color="{PREV_FOX_COLOR}";glow="{PREV_FOX_GLOW}";'''
 OLD8 = f'type="{PREV_FOX_FULL}";color="{PREV_FOX_COLOR}";glow="{PREV_FOX_GLOW}";'
 assert src.count(OLD8) == 1; src = src.replace(OLD8, SPAWN, 1); print("OK Step8")

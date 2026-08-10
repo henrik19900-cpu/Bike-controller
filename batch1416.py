@@ -1,6 +1,12 @@
 import re
 
 SRC = "src/NexusTap.jsx"
+
+# Spawn condition for the rare cosmetic variants below. This used to be written
+# as a bare COND100F inside the f-string, which emitted the identifier verbatim
+# into NexusTap.jsx instead of interpolating -- spawnTarget then threw a
+# ReferenceError on every call and no targets could spawn.
+COND100F = '(cfg.id||0)>=100&&Math.random()<0.003&&!gs.bonusRoundActive&&luckyRef.current!=="active"&&!modifier?.type?.includes("boss")&&!modifier?.type?.includes("final")'
 with open(SRC, "r") as f:
     src = f.read()
 original_len = len(src)
@@ -42,20 +48,20 @@ src = src.replace(anchor1, ACH, 1); print("OK Step1")
 OLD2 = f'"{PREV_PW1}",'; NEW2 = f'"{PW1}","{PW2}","{PREV_PW1}",'
 assert src.count(OLD2) >= 1; src = src.replace(OLD2, NEW2, 1); print("OK Step2")
 
-HANDLER = f'''} else if(ptype==="{PW1}"){{
+HANDLER = f'''}} else if(ptype==="{PW1}"){{
       const bns={PW1_SC}+gs.streak*12;
-      gs.score+=bns;setHud(h=>({{...h,score:gs.score}}});
+      gs.score+=bns;setHud(h=>({{...h,score:gs.score}}));
       spawnParticles(W/2,H/2,"{PW1_SHOCK}",28,"shockwave");
       showNotif("μ Mu48 Glow +"+bns);
       unlock("{PW1.lower()}_use");if(gs.streak>=20)unlock("{PW1.lower()}_max");
-    } else if(ptype==="{PW2}"){{
+    }} else if(ptype==="{PW2}"){{
       const bns={PW2_SC}+gs.streak*12;
-      gs.score+=bns;setHud(h=>({{...h,score:gs.score}}});
+      gs.score+=bns;setHud(h=>({{...h,score:gs.score}}));
       spawnParticles(W/2,H/2,"{PW2_SHOCK}",28,"shockwave");
       showNotif("ν Nu48 Glow +"+bns);
       unlock("{PW2.lower()}_use");if(gs.streak>=20)unlock("{PW2.lower()}_max");
-    } else if(ptype==="{PREV_PW1}")'''  + '{'
-OLD3 = f'} else if(ptype==="{PREV_PW1}")'  + '{'
+    }} else if(ptype==="{PREV_PW1}")'''  + '{'
+OLD3 = f'}} else if(ptype==="{PREV_PW1}")'  + '{'
 assert src.count(OLD3) == 1; src = src.replace(OLD3, HANDLER, 1); print("OK Step3")
 
 CMT = f'// {PW1} — +{PW1_SC} mu48\n    // {PW2} — +{PW2_SC} nu48\n    // {PREV_PW1}'
@@ -103,9 +109,9 @@ OLD7 = f'if(hit.type==="{PREV_FOX_FULL}")'  + '{'
 assert src.count(OLD7) == 1; src = src.replace(OLD7, TAP, 1); print("OK Step7")
 
 SPAWN = f'''type="{FOX_TYPE}";color="{FOX_COLOR}";glow="{FOX_GLOW}";
-        }}else if(COND100F){{
+        }}else if({COND100F}){{
           type="{ORB_TYPE}";color="{ORB_COLOR}";glow="{ORB_GLOW}";
-        }}else if(COND100F){{
+        }}else if({COND100F}){{
           type="{PREV_FOX_FULL}";color="{PREV_FOX_COLOR}";glow="{PREV_FOX_GLOW}";'''
 OLD8 = f'type="{PREV_FOX_FULL}";color="{PREV_FOX_COLOR}";glow="{PREV_FOX_GLOW}";'
 assert src.count(OLD8) == 1; src = src.replace(OLD8, SPAWN, 1); print("OK Step8")
