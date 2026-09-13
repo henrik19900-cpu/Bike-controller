@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Auto Backup rules for Android 11 and below.
+     Game progress lives in the WebView's localStorage, which sits under the app's
+     data directory, so the default "back everything up" behaviour is what we want —
+     we only keep caches out of the backup. -->
+<full-backup-content>
+    <exclude domain="root" path="app_webview/Default/Cache" />
+    <exclude domain="root" path="app_webview/Default/Code Cache" />
+    <exclude domain="root" path="app_webview/Default/Service Worker/CacheStorage" />
+</full-backup-content>

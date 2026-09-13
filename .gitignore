@@ -8,6 +8,11 @@ android/build/
 android/local.properties
 android/.idea/
 
+# Signing material — never commit these
+android/keystore.properties
+*.jks
+*.keystore
+
 # OS
 .DS_Store
 Thumbs.db
